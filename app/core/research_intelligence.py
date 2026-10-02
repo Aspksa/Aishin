@@ -355,6 +355,7 @@ class AutonomousResearchEngine:
         request_id: str | None = None,
         gap_id: int | None = None,
         synthesize: bool = True,
+        offline_only: bool = False,
     ) -> ResearchRun:
         started = time.perf_counter()
         question = " ".join(question.strip().split())
@@ -362,7 +363,11 @@ class AutonomousResearchEngine:
             raise ValueError("research question is empty")
         self._ensure_state(scope)
         self._ensure_builtin_sources(scope)
-        plan = self._build_plan(scope, question)
+        plan = self._build_plan(
+            scope,
+            question,
+            offline_only=offline_only,
+        )
 
         with connect() as conn:
             cur = conn.execute(
@@ -472,6 +477,7 @@ class AutonomousResearchEngine:
         trigger: str = "manual",
         max_sessions: int = 2,
         synthesize: bool = False,
+        offline_only: bool = True,
     ) -> dict:
         started = time.perf_counter()
         self._ensure_state(scope)
@@ -491,6 +497,7 @@ class AutonomousResearchEngine:
                     trigger=trigger,
                     gap_id=int(gap["id"]),
                     synthesize=synthesize,
+                    offline_only=offline_only,
                 )
             )
         state = self._refresh_state(scope)
@@ -504,7 +511,8 @@ class AutonomousResearchEngine:
         summary = {
             "state": state,
             "sessions": [item.to_dict() for item in runs],
-            "external_network_used": False,
+            "external_research_sources_used": False,
+            "offline_only": offline_only,
         }
         with connect() as conn:
             conn.execute(
@@ -1049,13 +1057,31 @@ class AutonomousResearchEngine:
             row = conn.execute("SELECT * FROM research_state WHERE scope=?", (scope,)).fetchone()
         return dict(row) if row else {}
 
-    def _build_plan(self, scope: str, question: str) -> dict:
-        sources = [item for item in self.sources(scope=scope, limit=300) if item["enabled"]]
+    def _build_plan(
+        self,
+        scope: str,
+        question: str,
+        *,
+        offline_only: bool = False,
+    ) -> dict:
+        sources = [
+            item
+            for item in self.sources(scope=scope, limit=300)
+            if item["enabled"]
+            and (
+                not offline_only
+                or item["source_type"] not in {
+                    "semantic_memory",
+                    "external_connector",
+                }
+            )
+        ]
         return {
             "sources": sources,
             "policy": {
                 "question": question,
-                "network_access": False,
+                "network_research_sources": False,
+                "offline_only": offline_only,
                 "model_output_is_evidence": False,
                 "minimum_trusted_groups": self.TRUSTED_MIN_GROUPS,
                 "minimum_trusted_confidence": self.TRUSTED_MIN_CONFIDENCE,

@@ -16,6 +16,7 @@ MODULES = [
     ('attention', 'Айши заметила', 'Ситуации, аномалии и внимание'),
     ('evolution', 'Эволюция', 'Самообучение, развитие и adaptive evolution'),
     ('research', 'Исследования Айши', 'Пробелы знаний, evidence и подтверждённые выводы'),
+    ('documents', 'Библиотека знаний', 'Документы, provenance, версии и извлечение знаний'),
     ('account', 'Личный кабинет', 'Профиль и персональные настройки'),
     ('mobile', 'Мобильное приложение', 'Связь с мобильным клиентом'),
     ('workspace', 'Рабочее пространство', 'Проекты, документы и рабочие инструменты'),
@@ -381,9 +382,10 @@ def list_modules() -> list[dict]:
                  WHEN 'attention' THEN 2
                  WHEN 'evolution' THEN 3
                  WHEN 'research' THEN 4
-                 WHEN 'account' THEN 5
-                 WHEN 'mobile' THEN 6
-                 WHEN 'workspace' THEN 7
+                 WHEN 'documents' THEN 5
+                 WHEN 'account' THEN 6
+                 WHEN 'mobile' THEN 7
+                 WHEN 'workspace' THEN 8
                  ELSE 99
                END, id"""
         ).fetchall()

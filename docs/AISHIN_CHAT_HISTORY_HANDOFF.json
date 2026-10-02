@@ -150,8 +150,8 @@
         "Cloud settings secret not exposed",
         "updater mode git/zip"
       ],
-      "latest_confirmed_run_id": 37008371575,
-      "latest_confirmed_head_sha": "fa5a05b58b289dd9bb5fe8b35177276a0cdaca50"
+      "latest_confirmed_run_id": 37009020927,
+      "latest_confirmed_head_sha": "e78ad93109a3843f19d11c8cc5f49bb559fb0460"
     }
   },
   "implemented_architecture": [
@@ -864,14 +864,14 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Self-Reflection Metrics, Learning Planner, Safe Experiment Manager and final Context Budgeter implemented and validated.",
-    "last_implemented_feature": "Deterministic post-response reflection, evidence-driven learning objectives, shadow-only strategy experiments, and provider-edge context budgeting.",
-    "next_recommended_step": "Expose reflective learning in Technical Brain UI and connect Learning Planner objectives to richer real strategy experiments without allowing automatic promotion.",
+    "milestone": "Reflective Learning Technical Brain UI implemented and validated.",
+    "last_implemented_feature": "Live Self-Reflection → Learning Planner → Shadow Experiment → Review → Trusted Consolidation visualization, plus context budget diagnostics.",
+    "next_recommended_step": "Make Safe Experiments evaluate real isolated alternate reasoning strategies instead of projected candidate scores, while keeping promotion manual.",
     "do_not_do": [
-      "Не считать собственный ответ Айшин доказательством успеха.",
+      "Не отображать скрытый chain-of-thought.",
       "Не продвигать experimental candidate автоматически.",
-      "Не удалять исходную долговременную память при context trimming.",
-      "Не возвращать Cloud.ru secret через API/UI.",
+      "Не считать собственный ответ Айшин доказательством успеха.",
+      "Не удалять память при context trimming.",
       "Не повышать version автоматически."
     ]
   },
@@ -995,6 +995,10 @@
     {
       "user_prompt": "делай Следующий большой этап ядра — Self-Reflection Metrics ... Learning Planner ... Safe Experiment Manager ... Context Budgeter",
       "result": "Implemented schema migration 14 and four integrated subsystems: deterministic Self-Reflection Metrics, evidence-driven Learning Planner, shadow-only Safe Experiment Manager, and final provider-edge Context Budgeter. Added APIs, self-check/runtime-smoke coverage. GitHub Actions run 37008371575 passed Ubuntu and Windows including launcher check-only."
+    },
+    {
+      "user_prompt": "Следующий сильный этап теперь логичный: вывести эти новые системы в «Технический мозг Айшин» ... делай",
+      "result": "Added five live Technical Brain nodes Self-Reflection → Learning Plan → Experiment → Review → Consolidation; added live detail panel for quality, weak spots, learning goals, experiments and context budget; neural SVG learning loop uses actual runtime state. GitHub Actions run 37009020927 passed Ubuntu and Windows."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -2313,5 +2317,43 @@
     "table": "context_budget_reports",
     "api": "GET /api/assistant/context-budget",
     "source_data_policy": "No long-term memory/graph/planner source rows are deleted by budgeting."
+  },
+  "reflective_learning_ui": {
+    "paths": [
+      "app/templates/index.html",
+      "app/static/app.js",
+      "app/static/style.css"
+    ],
+    "nodes": [
+      "Самоанализ",
+      "План обучения",
+      "Эксперимент",
+      "Проверка",
+      "Закрепление"
+    ],
+    "data_sources": [
+      "state.self_reflection",
+      "state.learning_planner",
+      "state.safe_experiments",
+      "state.context_budget",
+      "state.continuous_learning.patterns"
+    ],
+    "detail_panel": [
+      "quality score",
+      "weak spots",
+      "learning goals",
+      "shadow experiment baseline/candidate",
+      "context budget before/after"
+    ],
+    "neural_loop": "Continuous Learning → Self-Reflection → Learning Planner → Experiment → Review → Consolidation → Continuous Learning",
+    "privacy_rule": "Technical telemetry only; no hidden chain-of-thought.",
+    "validation": {
+      "run_id": 37009020927,
+      "ubuntu": "success",
+      "windows": "success",
+      "javascript_syntax": "success",
+      "runtime_smoke": "success",
+      "launcher_check_only": "success"
+    }
   }
 }

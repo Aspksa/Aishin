@@ -426,12 +426,12 @@ def get_master_profile() -> dict:
     return result
 
 
-def add_relationship_memory(kind: str, content: str, importance: float = 0.7, confidence: float = 1.0, source: str = "conversation") -> int:
+def add_relationship_memory(kind: str, content: str, importance: float = 0.7, confidence: float = 1.0, source: str = "conversation", fingerprint: str | None = None) -> int:
     with connect() as conn:
         cur = conn.execute(
-            """INSERT INTO relationship_memory(kind, content, importance, confidence, source)
-               VALUES (?, ?, ?, ?, ?)""",
-            (kind, content, importance, confidence, source),
+            """INSERT INTO relationship_memory(kind, content, importance, confidence, source, fingerprint)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (kind, content, importance, confidence, source, fingerprint),
         )
         conn.commit()
         return int(cur.lastrowid)
@@ -441,6 +441,7 @@ def recent_relationship_memories(limit: int = 12) -> list[dict]:
     with connect() as conn:
         rows = conn.execute(
             """SELECT * FROM relationship_memory
+               WHERE status='active'
                ORDER BY importance DESC, id DESC LIMIT ?""",
             (limit,),
         ).fetchall()
@@ -574,3 +575,25 @@ def recent_memory_changes(limit: int = 30) -> list[dict]:
             item.pop("after_json", None)
         result.append(item)
     return result
+
+
+def find_relationship_by_fingerprint(fingerprint: str) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            """SELECT * FROM relationship_memory
+               WHERE fingerprint=? AND status='active'
+               ORDER BY id DESC LIMIT 1""",
+            (fingerprint,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def update_relationship_strength(memory_id: int, *, confidence: float, importance: float) -> None:
+    with connect() as conn:
+        conn.execute(
+            """UPDATE relationship_memory
+               SET confidence=?, importance=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=?""",
+            (confidence, importance, memory_id),
+        )
+        conn.commit()

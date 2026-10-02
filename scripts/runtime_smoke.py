@@ -52,6 +52,13 @@ def main() -> int:
                 'id="learning-plan-stream"',
                 'id="experiment-stream"',
                 'id="context-budget-value"',
+                'id="development-open"',
+                'id="development-score"',
+                'id="development-module"',
+                'id="development-components"',
+                'id="development-chart"',
+                'id="development-reasons"',
+                'id="dev-count-knowledge"',
             )
             missing_ui = [
                 marker for marker in required_ui
@@ -316,6 +323,48 @@ def main() -> int:
                 "experiments": len(experiments_api.json()),
                 "budget_reports": len(budget_api.json()),
                 "automatic_promotion": False,
+            }
+
+            development_api = client.get(
+                "/api/assistant/development",
+                params={"scope": "personal", "days": 30},
+            )
+            if development_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/development returned HTTP "
+                    f"{development_api.status_code}"
+                )
+            development_data = development_api.json()
+            current_development = development_data.get("current") or {}
+            if len(current_development.get("components") or {}) != 8:
+                raise RuntimeError(
+                    "Development API должен возвращать 8 направлений"
+                )
+            if round(
+                sum((current_development.get("weights") or {}).values()), 1
+            ) != 100.0:
+                raise RuntimeError(
+                    "Development API weights должны давать 100%"
+                )
+            if current_development.get("counters", {}).get(
+                "confirmed_hypotheses"
+            ) != 0:
+                raise RuntimeError(
+                    "Нельзя показывать неподтверждённые гипотезы как подтверждённые"
+                )
+            if "Cloud.ru не добавляет баллы" not in str(
+                current_development.get("principle") or ""
+            ):
+                raise RuntimeError(
+                    "Development API должен явно отделять развитие Айшин от Cloud.ru"
+                )
+
+            checks["development_metrics_api"] = {
+                "status": "ok",
+                "score": current_development.get("overall_score"),
+                "components": len(current_development.get("components") or {}),
+                "history": len(development_data.get("history") or []),
+                "cloud_independent": True,
             }
 
             performance = client.get(

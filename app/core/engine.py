@@ -13,6 +13,7 @@ from .action_selection import ActionSelector
 from .decision_quality import DecisionQualityScorer
 from .consolidation import MemoryConsolidator
 from .events import EventBus
+from .execution_coordinator import ExecutionCoordinator
 from .graph import KnowledgeGraph
 from .graph_builder import GraphBuilder
 from .memory import MemorySystem
@@ -67,6 +68,7 @@ class AishinEngine:
             ai=self.ai,
             planner=self.planner,
             events=self.events,
+            coordinator=self.execution_coordinator,
         )
         self.permissions = PermissionGate()
         project_root = Path(__file__).resolve().parents[2]
@@ -77,6 +79,10 @@ class AishinEngine:
             planner=self.planner,
         )
         self.action_selector = ActionSelector(
+            tools=self.tools,
+            permissions=self.permissions,
+        )
+        self.execution_coordinator = ExecutionCoordinator(
             tools=self.tools,
             permissions=self.permissions,
         )
@@ -225,6 +231,16 @@ class AishinEngine:
             },
             "action_selection": {
                 "history": self.action_selector.recent(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
+            "execution_coordinator": {
+                "approvals": self.execution_coordinator.recent_approvals(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+                "attempts": self.execution_coordinator.recent_attempts(
                     scope=state.current_scope,
                     limit=20,
                 ),

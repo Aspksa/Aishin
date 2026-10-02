@@ -369,7 +369,18 @@ def database_schema_status() -> dict:
 
 def list_modules() -> list[dict]:
     with connect() as conn:
-        rows = conn.execute('SELECT code, title, description, enabled FROM modules ORDER BY id').fetchall()
+        rows = conn.execute(
+            """SELECT code, title, description, enabled
+               FROM modules
+               ORDER BY CASE code
+                 WHEN 'assistant' THEN 0
+                 WHEN 'attention' THEN 1
+                 WHEN 'account' THEN 2
+                 WHEN 'mobile' THEN 3
+                 WHEN 'workspace' THEN 4
+                 ELSE 99
+               END, id"""
+        ).fetchall()
     return [dict(row) for row in rows]
 
 

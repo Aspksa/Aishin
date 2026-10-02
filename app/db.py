@@ -292,7 +292,7 @@ def _memory_row(row: sqlite3.Row) -> dict:
 
 def recent_memories(scope: str = 'personal', limit: int = 12) -> list[dict]:
     with connect() as conn:
-        rows=conn.execute('SELECT * FROM memories WHERE scope=? AND status='active' ORDER BY importance DESC, id DESC LIMIT ?', (scope, limit)).fetchall()
+        rows=conn.execute("SELECT * FROM memories WHERE scope=? AND status='active' ORDER BY importance DESC, id DESC LIMIT ?", (scope, limit)).fetchall()
     return [_memory_row(row) for row in rows]
 
 

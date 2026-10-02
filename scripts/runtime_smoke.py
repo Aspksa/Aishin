@@ -19,7 +19,7 @@ _configure_utf8_output()
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, engine
 
 
 def main() -> int:
@@ -59,6 +59,8 @@ def main() -> int:
                 'id="development-chart"',
                 'id="development-reasons"',
                 'id="dev-count-knowledge"',
+                '/static/intelligence.css',
+                '/static/intelligence.js',
             )
             missing_ui = [
                 marker for marker in required_ui
@@ -424,6 +426,110 @@ def main() -> int:
                 "history": len(growth_data.get("history") or []),
             }
 
+            intelligence_api = client.get(
+                "/api/assistant/intelligence",
+                params={
+                    "scope": "personal",
+                    "history_limit": 20,
+                    "route_limit": 20,
+                },
+            )
+            if intelligence_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/intelligence returned HTTP "
+                    f"{intelligence_api.status_code}: "
+                    f"{intelligence_api.text[:300]}"
+                )
+            intelligence_data = intelligence_api.json()
+            current_intelligence = intelligence_data.get("current") or {}
+            dimensions = current_intelligence.get("dimensions") or {}
+            if current_intelligence.get("version") != (
+                "aishin-cognitive-intelligence-v1"
+            ):
+                raise RuntimeError(
+                    "Cognitive Intelligence вернул несовместимую версию"
+                )
+            if len(dimensions) != 8:
+                raise RuntimeError(
+                    "Cognitive Intelligence должен возвращать 8 способностей"
+                )
+            if round(
+                sum(
+                    float(item.get("weight") or 0.0)
+                    for item in dimensions.values()
+                ),
+                1,
+            ) != 100.0:
+                raise RuntimeError(
+                    "Веса 8 cognitive dimensions должны давать 100%"
+                )
+            for key, item in dimensions.items():
+                score = float(item.get("score") or 0.0)
+                if not 0.0 <= score <= 100.0:
+                    raise RuntimeError(
+                        f"Cognitive dimension {key} вышел за диапазон 0..100"
+                    )
+                if not str(item.get("why") or "").strip():
+                    raise RuntimeError(
+                        f"Cognitive dimension {key} не объясняет свой score"
+                    )
+            if not any(
+                "не IQ" in str(item)
+                for item in current_intelligence.get("principles") or []
+            ):
+                raise RuntimeError(
+                    "Cognitive Intelligence должен явно отделяться от IQ"
+                )
+
+            safety_route = engine.cognitive_intelligence.route(
+                request_id=engine.cognitive_traces.new_request_id(),
+                scope="personal",
+                query=(
+                    "Проверь противоречия и перепроверь данные, "
+                    "не делай вывод без подтверждения"
+                ),
+                intent="verification",
+                base_mode="VERIFY",
+                base_complexity=0.8,
+                metacognition={
+                    "status": "needs_verification",
+                    "confidence": 0.25,
+                },
+            )
+            if safety_route.adapted_mode != "VERIFY":
+                raise RuntimeError(
+                    "Adaptive Router не имеет права понижать VERIFY"
+                )
+
+            diagnose_route = engine.cognitive_intelligence.route(
+                request_id=engine.cognitive_traces.new_request_id(),
+                scope="personal",
+                query="Диагностируй ошибку запуска системы",
+                intent="action",
+                base_mode="DIAGNOSE",
+                base_complexity=0.8,
+                metacognition={
+                    "status": "cautious",
+                    "confidence": 0.55,
+                },
+            )
+            if diagnose_route.adapted_mode != "DIAGNOSE":
+                raise RuntimeError(
+                    "Adaptive Router не имеет права понижать DIAGNOSE"
+                )
+
+            checks["cognitive_intelligence"] = {
+                "status": "ok",
+                "score": current_intelligence.get("overall_score"),
+                "dimensions": len(dimensions),
+                "routes": len(intelligence_data.get("routes") or []),
+                "transfer": len(
+                    intelligence_data.get("transfer_map") or []
+                ),
+                "verify_preserved": True,
+                "diagnose_preserved": True,
+            }
+
             live_brain = client.get(
                 "/api/assistant/live-brain",
                 params={
@@ -469,6 +575,17 @@ def main() -> int:
             export_data = live_brain_export.json()
             if export_data.get("format") != "AISHIN_LIVE_BRAIN_EXPORT":
                 raise RuntimeError("Live Brain export format несовместим")
+            if int(export_data.get("format_version") or 0) != 4:
+                raise RuntimeError(
+                    "Live Brain export format должен быть version 4"
+                )
+            if not isinstance(
+                live_brain_data.get("cognitive_intelligence"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Live Brain должен включать Cognitive Intelligence"
+                )
 
             checks["live_brain_runtime"] = {
                 "status": "ok",

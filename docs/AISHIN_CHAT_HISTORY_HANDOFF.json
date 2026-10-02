@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 13,
+      "latest_schema_version": 14,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -150,8 +150,8 @@
         "Cloud settings secret not exposed",
         "updater mode git/zip"
       ],
-      "latest_confirmed_run_id": 37006308613,
-      "latest_confirmed_head_sha": "b97b442c461eac8265f76612852493f33711246c"
+      "latest_confirmed_run_id": 37008371575,
+      "latest_confirmed_head_sha": "fa5a05b58b289dd9bb5fe8b35177276a0cdaca50"
     }
   },
   "implemented_architecture": [
@@ -512,6 +512,45 @@
         "app/main.py"
       ],
       "details": "Learned patterns and logic strategies now pass candidate→observed→trusted→deprecated lifecycle. Effective scores decay toward neutral with age. Recent explicit-feedback drift can demote strategies. Deprecated strategies are excluded from reuse and only trusted operational patterns are fed back into cognition."
+    },
+    {
+      "layer": "Self-Reflection Metrics",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/self_reflection.py",
+        "app/core/engine.py",
+        "app/migrations.py",
+        "app/main.py"
+      ],
+      "details": "Deterministic post-response metrics over provider availability, metacognition confidence, decision quality, unresolved evidence, contradictions, latency and explicit correction signals. Assistant output never self-confirms success."
+    },
+    {
+      "layer": "Learning Planner",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/learning_planner.py",
+        "app/core/self_reflection.py",
+        "app/core/engine.py"
+      ],
+      "details": "Aggregates repeated measured weak spots into explicit scoped learning objectives with priority, target metric, evidence and audit events."
+    },
+    {
+      "layer": "Safe Experiment Manager",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/experiment_manager.py",
+        "app/core/engine.py"
+      ],
+      "details": "Shadow-only baseline/candidate comparison. Requires multiple observations; candidate may become ready_for_review but automatic strategy promotion is forbidden."
+    },
+    {
+      "layer": "Context Budgeter",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/context_budgeter.py",
+        "app/core/engine.py"
+      ],
+      "details": "Final provider-edge token budget after all cognitive prompt blocks are assembled. Trims old history first, then low-priority prompt context, preserving source data and recording before/after diagnostics."
     }
   ],
   "current_cognitive_flow": [
@@ -798,26 +837,6 @@
   ],
   "known_technical_debt_and_unverified_items": [
     {
-      "priority": "high",
-      "item": "Context budget",
-      "detail": "Нужен token/context budgeter для personality + self-model + personal context + planner + sensors + memory + verification, чтобы рост ядра не раздувал prompt."
-    },
-    {
-      "priority": "high",
-      "item": "Cloud.ru resilience",
-      "detail": "Нужны health cache, controlled retries/backoff для 429/5xx, безопасные error snippets и единая timeout/retry policy."
-    },
-    {
-      "priority": "medium",
-      "item": "Cloud.ru resilience",
-      "detail": "Нужны health cache, controlled retries для 429/5xx, безопасные error snippets, timeout/retry policy."
-    },
-    {
-      "priority": "medium",
-      "item": "Context budget",
-      "detail": "Нужен token/context budgeter для personality + self-model + personal context + planner + sensors + memory + verification."
-    },
-    {
       "priority": "medium",
       "item": "Knowledge Graph quality",
       "detail": "Entity upsert data merge и richer contradiction/provenance policies можно усилить."
@@ -831,20 +850,29 @@
       "priority": "medium",
       "item": "Updater lifecycle",
       "detail": "Git pull обновляет файлы, но полный безопасный update pipeline должен включать backup state, ff-only, deps/migrations и controlled restart."
+    },
+    {
+      "priority": "medium",
+      "item": "Safe Experiment realism",
+      "detail": "Current experiment layer is deliberately shadow-only and conservative. Next step is richer candidate execution in isolated simulation so candidate quality is measured from real alternate reasoning paths rather than only projected safeguards."
+    },
+    {
+      "priority": "medium",
+      "item": "Reflective Learning UI",
+      "detail": "Core APIs and snapshot data exist; Technical Brain still needs dedicated reflection/planning/experiment/budget visualization."
     }
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Cloud.ru UI settings, live Technical Brain neural visualization and ZIP-safe updater completed and validated.",
-    "last_implemented_feature": "Local secret-safe Cloud.ru setup/test UI, animated runtime neural links, and automatic git-or-ZIP update mode.",
-    "next_recommended_step": "Self-Reflection Metrics + Learning Planner + Safe Experiment Manager, now that AI setup, launcher, updater and observable UI are operational.",
+    "milestone": "Self-Reflection Metrics, Learning Planner, Safe Experiment Manager and final Context Budgeter implemented and validated.",
+    "last_implemented_feature": "Deterministic post-response reflection, evidence-driven learning objectives, shadow-only strategy experiments, and provider-edge context budgeting.",
+    "next_recommended_step": "Expose reflective learning in Technical Brain UI and connect Learning Planner objectives to richer real strategy experiments without allowing automatic promotion.",
     "do_not_do": [
-      "Не возвращать Cloud.ru secret через API или UI.",
-      "Не коммитить .env.",
-      "Не изображать live brain как скрытый chain-of-thought.",
-      "Не требовать .git для обновления ZIP-установки.",
-      "Не удалять data/.env/logs/.venv при ZIP-update.",
-      "Не повышать версию автоматически."
+      "Не считать собственный ответ Айшин доказательством успеха.",
+      "Не продвигать experimental candidate автоматически.",
+      "Не удалять исходную долговременную память при context trimming.",
+      "Не возвращать Cloud.ru secret через API/UI.",
+      "Не повышать version автоматически."
     ]
   },
   "development_sequence_current_chat": [
@@ -963,6 +991,10 @@
     {
       "user_prompt": "сделай настройки Cloud.ru, живую визуализацию Технический мозг Айшин и исправь git fetch exit status 128",
       "result": "Добавлен Settings→Cloud.ru с password field, local .env storage, health-test и runtime AI reload; secret не возвращается в API. Technical Brain остаётся collapsible, добавлены SVG neural links, pulse/flow animation и 3-second live polling while open. ProjectUpdater автоматически использует Git mode при .git или safe GitHub ZIP mode для Aishin-main, сохраняя .env/data/.venv/logs/backups. Добавлен update/status API. GitHub Actions run 37006308613 прошёл Windows + Ubuntu."
+    },
+    {
+      "user_prompt": "делай Следующий большой этап ядра — Self-Reflection Metrics ... Learning Planner ... Safe Experiment Manager ... Context Budgeter",
+      "result": "Implemented schema migration 14 and four integrated subsystems: deterministic Self-Reflection Metrics, evidence-driven Learning Planner, shadow-only Safe Experiment Manager, and final provider-edge Context Budgeter. Added APIs, self-check/runtime-smoke coverage. GitHub Actions run 37008371575 passed Ubuntu and Windows including launcher check-only."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -979,10 +1011,10 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать schema 13 Learning Quality Gate / Strategy Evolution / Drift & Decay реализованными.",
-      "Не возвращать raw pattern reuse без trusted lifecycle.",
-      "Не рекомендовать deprecated strategies.",
-      "Следующий рекомендуемый этап: Self-Reflection Metrics + Learning Planner + Safe Experiment Manager."
+      "Считать schema 14 Self-Reflection + Learning Planner + Safe Experiment Manager + Context Budgeter реализованными.",
+      "Не считать assistant-generated answers success feedback.",
+      "Не выполнять automatic promotion experimental strategies; максимум ready_for_review.",
+      "Следующий рекомендуемый этап: UI/Technical Brain для reflective learning и richer real strategy shadow experiments."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -2201,5 +2233,85 @@
     ],
     "fixed_error": "git fetch origin main exit status 128 when project was downloaded as ZIP without .git",
     "restart_required": true
+  },
+  "updated_at": "2026-10-02",
+  "self_reflection_metrics": {
+    "repository_path": "app/core/self_reflection.py",
+    "deterministic": true,
+    "inputs": [
+      "provider availability",
+      "metacognition confidence",
+      "decision quality",
+      "verification unresolved/conflicts",
+      "performance budget status",
+      "explicit user correction markers"
+    ],
+    "outputs": [
+      "quality_score",
+      "confidence_score",
+      "error_count",
+      "correction_signal",
+      "weak_spots",
+      "metrics"
+    ],
+    "table": "self_reflection_runs",
+    "api": "GET /api/assistant/self-reflection",
+    "safety_rule": "LLM does not grade itself; assistant output is not treated as success evidence."
+  },
+  "learning_planner": {
+    "repository_path": "app/core/learning_planner.py",
+    "sources": [
+      "Self-Reflection summary",
+      "repeated weak spots"
+    ],
+    "objectives": [
+      "reduce_user_corrections",
+      "improve_evidence_confidence",
+      "reduce_reasoning_latency",
+      "improve_provider_resilience",
+      "raise_response_quality"
+    ],
+    "tables": [
+      "learning_plans",
+      "learning_plan_events"
+    ],
+    "api": "GET /api/assistant/learning-plans",
+    "safety_rule": "Plans are generated only after repeated measured signals; they are objectives, not facts or permissions."
+  },
+  "safe_experiment_manager": {
+    "repository_path": "app/core/experiment_manager.py",
+    "mode": "shadow_only",
+    "required_samples": 5,
+    "min_gain": 0.05,
+    "statuses": [
+      "shadow",
+      "ready_for_review"
+    ],
+    "tables": [
+      "safe_experiments",
+      "experiment_observations"
+    ],
+    "api": "GET /api/assistant/safe-experiments",
+    "automatic_promotion": false,
+    "safety_rule": "A promising candidate is only flagged for review; active logic is never replaced automatically."
+  },
+  "context_budgeter": {
+    "repository_path": "app/core/context_budgeter.py",
+    "placement": "immediately before AIManager.chat after full prompt assembly",
+    "token_budgets": {
+      "FAST": 7000,
+      "DEEP": 11000,
+      "VERIFY": 13000,
+      "PLAN": 11000,
+      "DIAGNOSE": 13000
+    },
+    "reserved_output_tokens": 1800,
+    "trim_order": [
+      "oldest conversation history",
+      "low-priority middle of final system context"
+    ],
+    "table": "context_budget_reports",
+    "api": "GET /api/assistant/context-budget",
+    "source_data_policy": "No long-term memory/graph/planner source rows are deleted by budgeting."
   }
 }

@@ -663,6 +663,62 @@ class AishinEngine:
                 "reason": "not_required",
             }
         )
+
+        research_gap = self.research.observe_verification(
+            scope=scope,
+            query=cleaned,
+            verification=verification_data,
+            request_id=request_id,
+        )
+        research_run = None
+        if research_gap is not None:
+            unresolved_for_research = len(
+                verification_data.get("unresolved") or []
+            )
+            conflicts_for_research = len(
+                (verification_data.get("consistency") or {}).get(
+                    "conflicts",
+                    [],
+                )
+            )
+            should_research = (
+                unresolved_for_research > 0
+                or conflicts_for_research > 0
+                or logic_plan.mode in {"VERIFY", "DIAGNOSE"}
+            )
+            if should_research:
+                research_run_obj = self.research.research_query(
+                    scope=scope,
+                    question=cleaned,
+                    trigger="request_verification",
+                    request_id=request_id,
+                    gap_id=int(research_gap["id"]),
+                    synthesize=True,
+                )
+                research_run = research_run_obj.to_dict()
+                context.system_prompt += (
+                    "\n\n"
+                    + self.research.prompt_block(
+                        scope=scope,
+                        session_id=research_run_obj.session_id,
+                        question=cleaned,
+                        limit=8,
+                    )
+                )
+                self.events.emit(
+                    "cognition.phase",
+                    scope=scope,
+                    payload={
+                        "request_id": request_id,
+                        "phase": "research",
+                        "session_id": research_run_obj.session_id,
+                        "evidence_count": research_run_obj.evidence_count,
+                        "claim_count": research_run_obj.claim_count,
+                        "trusted_claims": research_run_obj.trusted_claims,
+                    },
+                    importance=0.22,
+                )
+        perf.checkpoint("research")
         logic_trace = self.logic.finalize(
             scope=scope,
             query=cleaned,

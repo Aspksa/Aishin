@@ -20,6 +20,7 @@ def connect() -> sqlite3.Connection:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -950,27 +951,32 @@ def list_tasks(scope: str, status: str | None = None, limit: int = 200) -> list[
     return [dict(row) for row in rows]
 
 
-def update_goal_status(goal_id: int, status: str) -> None:
+def update_goal_status(goal_id: int, status: str, scope: str) -> None:
     if status not in {"active", "paused", "completed", "cancelled"}:
         raise ValueError("invalid goal status")
     with connect() as conn:
-        conn.execute(
-            "UPDATE goals SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (status, goal_id),
+        cur = conn.execute(
+            """UPDATE goals SET status=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=? AND scope=?""",
+            (status, goal_id, scope),
         )
+        if cur.rowcount == 0:
+            raise ValueError("goal not found in scope")
         conn.commit()
 
 
-def update_task_status(task_id: int, status: str, blocked_reason: str = "") -> None:
+def update_task_status(task_id: int, status: str, scope: str, blocked_reason: str = "") -> None:
     if status not in {"open", "in_progress", "blocked", "completed", "cancelled"}:
         raise ValueError("invalid task status")
     with connect() as conn:
-        conn.execute(
+        cur = conn.execute(
             """UPDATE tasks
                SET status=?, blocked_reason=?, updated_at=CURRENT_TIMESTAMP
-               WHERE id=?""",
-            (status, blocked_reason, task_id),
+               WHERE id=? AND scope=?""",
+            (status, blocked_reason, task_id, scope),
         )
+        if cur.rowcount == 0:
+            raise ValueError("task not found in scope")
         conn.commit()
 
 
@@ -1034,3 +1040,21 @@ def recent_planner_changes(scope: str, limit: int = 30) -> list[dict]:
         item["details"] = json.loads(item.pop("details_json") or "{}")
         result.append(item)
     return result
+
+
+def get_goal(goal_id: int, scope: str) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM goals WHERE id=? AND scope=?",
+            (goal_id, scope),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_task(task_id: int, scope: str) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM tasks WHERE id=? AND scope=?",
+            (task_id, scope),
+        ).fetchone()
+    return dict(row) if row else None

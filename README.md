@@ -426,7 +426,7 @@ Live Brain содержит отдельный узел `Verification`, кото
 SQLite:
 - добавлен `app/migrations.py`;
 - таблица `schema_migrations` хранит применённые миграции;
-- текущая версия схемы: `8`;
+- текущая версия схемы: `9`;
 - `init_db()` автоматически применяет недостающие миграции;
 - self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
 
@@ -726,3 +726,67 @@ Approval / Execution Coordinator подтверждён GitHub Actions:
 - compileall, self-check и FastAPI runtime smoke: success.
 
 Во время интеграции CI обнаружил ошибочную раннюю передачу coordinator в PlannerBuilder; она была исправлена до итогового зелёного run.
+
+
+## Cloud.ru Resilience
+Cloud.ru provider теперь использует ограниченную сетевую устойчивость без бесконечных повторов.
+
+Политика:
+- retry только для временных состояний: HTTP `408`, `429`, `500`, `502`, `503`, `504`, timeout и сетевые ошибки;
+- default `max_retries=2`, жёсткая верхняя граница `4`;
+- exponential backoff с default base `0.5s` и max `4s`;
+- `Retry-After` учитывается, но также ограничивается max backoff;
+- timeout ограничен диапазоном 5–300 секунд;
+- health `/models` кэшируется по умолчанию на 30 секунд;
+- health cache защищён lock для параллельных запросов;
+- HTTP body ошибки не выводится наружу, Authorization/API key не попадает в diagnostic error;
+- AIReply и EmbeddingReply содержат attempts, latency_ms, error_code и безопасные metadata.
+
+Переменные окружения:
+- `AISHIN_CLOUDRU_TIMEOUT`
+- `AISHIN_CLOUDRU_MAX_RETRIES`
+- `AISHIN_CLOUDRU_BACKOFF_BASE`
+- `AISHIN_CLOUDRU_MAX_BACKOFF`
+- `AISHIN_CLOUDRU_HEALTH_TTL`
+
+API:
+- `GET /api/assistant/ai-diagnostics`
+
+## Per-request Cognitive Trace Isolation
+Глобальный mutable `last_cognitive_context` удалён.
+
+Каждый `respond()` теперь:
+1. создаёт уникальный `request_id`;
+2. ведёт собственную рабочую cognitive trace;
+3. после Cloud.ru/fallback сохраняет её отдельной строкой в SQLite;
+4. возвращает `request_id` и `trace_id`;
+5. `snapshot()` читает последнюю завершённую трассу по scope, а не общий Python-словарь.
+
+Хранилище:
+- `cognitive_request_traces`
+
+Сохраняются:
+- request_id;
+- scope;
+- query;
+- trace status;
+- working-memory trace JSON;
+- provider runtime metadata;
+- created_at.
+
+API:
+- `GET /api/assistant/cognitive-traces`
+
+Это устраняет прежнюю гонку, при которой два параллельных запроса могли перезаписать один `last_cognitive_context`.
+
+Schema migration: `9`.
+Версия приложения остаётся `0.0.3`.
+
+### Подтверждение Cloud resilience + trace isolation runtime
+Функциональный код подтверждён GitHub Actions:
+- run id: `36994225453`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.
+
+Первый итоговый run обнаружил порядок self-check: resilience-проверка обращалась к `engine` до его создания. Ошибка исправлена, повторный run прошёл полностью.

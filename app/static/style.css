@@ -572,6 +572,28 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+.learning-loop-node {
+  border-style: dashed;
+  background: linear-gradient(180deg, #fffdfb 0%, #faf7f8 100%);
+}
+.learning-loop-node.active {
+  border-style: solid;
+  box-shadow: inset 0 0 0 1px rgba(167,45,69,.03);
+}
+.learning-loop-panel {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.learning-loop-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.learning-metric-card {
+  min-height: 150px;
+}
+
 .brain-detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -663,7 +685,8 @@ h1 {
   .composer button { padding: 0 14px; }
   .quick-stats { grid-template-columns: 1fr 1fr; }
   .decision-columns,
-  .brain-detail-grid { grid-template-columns: 1fr; }
+  .brain-detail-grid,
+  .learning-loop-grid { grid-template-columns: 1fr; }
   .brain-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sensor-grid { grid-template-columns: repeat(2, 1fr); }
 }

@@ -732,8 +732,13 @@ class AishinEngine:
             "counterfactual": counterfactual_assessment.to_dict(),
             "decision_quality": decision_quality.to_dict(),
             "action_selection": action_selection.to_dict(),
+            "cognitive_intelligence_route": cognitive_route.to_dict(),
         }
         context.system_prompt += "\n\n" + self.logic.prompt_block(logic_trace)
+        context.system_prompt += (
+            "\n\n"
+            + self.cognitive_intelligence.prompt_block(cognitive_route)
+        )
         context.system_prompt += "\n\n" + self.hypotheses.prompt_block(hypothesis_run)
         context.system_prompt += "\n\n" + self.logic_learning.prompt_block(learned_strategies)
         context.system_prompt += "\n\n" + self.causal.prompt_block(causal_assessment)
@@ -775,6 +780,7 @@ class AishinEngine:
             mode=logic_trace.mode,
             system_prompt=context.system_prompt,
             messages=model_messages,
+            budget_multiplier=cognitive_route.context_multiplier,
         )
         perf.checkpoint("context_budget")
 

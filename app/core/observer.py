@@ -20,7 +20,7 @@ class Observer:
         self.state = state
         self.events = events
 
-    def inspect(self) -> list[Observation]:
+    def inspect(self, *, emit_events: bool = False) -> list[Observation]:
         state = self.state.load()
         result: list[Observation] = []
 
@@ -30,11 +30,16 @@ class Observer:
         if state.status != "awake":
             result.append(Observation("info", "not_awake", f"Текущее состояние: {state.status}."))
 
-        for item in result:
-            self.events.emit(
-                "observer.notice",
-                scope=state.current_scope,
-                payload={"severity": item.severity, "code": item.code, "message": item.message},
-                importance=0.7 if item.severity == "warning" else 0.3,
-            )
+        if emit_events:
+            for item in result:
+                self.events.emit(
+                    "observer.notice",
+                    scope=state.current_scope,
+                    payload={
+                        "severity": item.severity,
+                        "code": item.code,
+                        "message": item.message,
+                    },
+                    importance=0.7 if item.severity == "warning" else 0.3,
+                )
         return result

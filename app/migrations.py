@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 2
+LATEST_SCHEMA_VERSION = 3
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -50,9 +50,50 @@ def _migration_002_runtime_indexes(conn: sqlite3.Connection) -> None:
         conn.execute(statement)
 
 
+def _migration_003_logic_engine(conn: sqlite3.Connection) -> None:
+    """Aishin Logic Engine v1: decision journal, evidence and rule audit."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS logic_decisions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            query TEXT NOT NULL,
+            intent TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            complexity REAL NOT NULL DEFAULT 0.0,
+            confidence REAL NOT NULL DEFAULT 0.0,
+            selected_strategy TEXT NOT NULL DEFAULT '',
+            evidence_json TEXT NOT NULL DEFAULT '[]',
+            contradictions_json TEXT NOT NULL DEFAULT '[]',
+            alternatives_json TEXT NOT NULL DEFAULT '[]',
+            unresolved_json TEXT NOT NULL DEFAULT '[]',
+            rule_hits_json TEXT NOT NULL DEFAULT '[]',
+            verification_required INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS logic_rule_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            rule_id TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_logic_decisions_scope_created
+        ON logic_decisions(scope, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_logic_rule_events_scope_created
+        ON logic_rule_events(scope, created_at DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
+    (3, "logic_engine_v1", _migration_003_logic_engine),
 )
 
 

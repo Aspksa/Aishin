@@ -426,7 +426,7 @@ Live Brain содержит отдельный узел `Verification`, кото
 SQLite:
 - добавлен `app/migrations.py`;
 - таблица `schema_migrations` хранит применённые миграции;
-- текущая версия схемы: `10`;
+- текущая версия схемы: `11`;
 - `init_db()` автоматически применяет недостающие миграции;
 - self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
 
@@ -848,6 +848,55 @@ Schema migration: `10`.
 ### Подтверждение Performance + Verification policy runtime
 Функциональный код подтверждён GitHub Actions:
 - run id: `36994986756`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.
+
+
+## Proactive Lifecycle Dedupe / Acknowledge
+Проактивный контур теперь хранит состояние самого условия отдельно от карточки решения.
+
+Правило:
+- один активный fingerprint условия создаёт не более одной decision;
+- `approved`, `rejected`, `acknowledged`, `executed` и `failed` не создают повторную карточку, пока исходное условие остаётся активным;
+- когда условие реально исчезает, lifecycle становится `resolved`;
+- если то же условие появится позже снова, увеличивается `generation`, очищается `last_decision_id`, и разрешается новая карточка.
+
+Для информационных сигналов добавлен отдельный статус:
+- `acknowledged` — «принято к сведению», без семантики reject.
+
+Исполняемые решения нельзя acknowledge: для них остаются approve/reject и Execution Coordinator.
+
+Хранилище:
+- `proactive_conditions`
+
+Поля состояния:
+- scope
+- fingerprint
+- source
+- active
+- generation
+- last_decision_id
+- disposition
+- last_seen_at
+- resolved_at
+
+API:
+- `GET /api/assistant/proactive/conditions`
+- `POST /api/assistant/proactive/{decision_id}/acknowledge`
+
+UI:
+- для информационного pending-сигнала показывается кнопка «Принято»;
+- после acknowledge он не появляется снова при каждом heartbeat, пока условие не исчезнет и не возникнет заново.
+
+Дополнительно устранена race в создании pending proactive decision: при конкурентном INSERT уникальный индекс остаётся последней защитой, а код после SQLite IntegrityError возвращает уже созданную pending-карточку вместо создания дубля.
+
+Schema migration: `11`.
+Версия приложения остаётся `0.0.3`.
+
+### Подтверждение Proactive lifecycle runtime
+Функциональный код подтверждён GitHub Actions:
+- run id: `36995834519`;
 - Ubuntu / Python 3.11: success;
 - Windows / Python 3.11: success;
 - compileall, self-check и FastAPI runtime smoke: success.

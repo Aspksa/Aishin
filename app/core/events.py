@@ -1,1 +1,27 @@
-from __future__ import annotations\n\nfrom typing import Any\n\nfrom ..db import add_event, recent_events\n\n\nclass EventBus:\n    \"\"\"Persistent event journal used as Aishin's observable event stream.\"\"\"\n\n    def emit(self, event_type: str, *, scope: str = \"personal\", payload: dict[str, Any] | None = None, importance: float = 0.5) -> int:\n        return add_event(event_type=event_type, scope=scope, payload=payload or {}, importance=importance)\n\n    def recent(self, limit: int = 30) -> list[dict[str, Any]]:\n        return recent_events(limit=limit)\n
+from __future__ import annotations
+
+from typing import Any
+
+from ..db import add_event, recent_events
+
+
+class EventBus:
+    """Persistent event journal used as Aishin's observable event stream."""
+
+    def emit(
+        self,
+        event_type: str,
+        *,
+        scope: str = "personal",
+        payload: dict[str, Any] | None = None,
+        importance: float = 0.5,
+    ) -> int:
+        return add_event(
+            event_type=event_type,
+            scope=scope,
+            payload=payload or {},
+            importance=importance,
+        )
+
+    def recent(self, limit: int = 30) -> list[dict[str, Any]]:
+        return recent_events(limit=limit)

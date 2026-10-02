@@ -18,7 +18,7 @@ def _configure_utf8_output() -> None:
 _configure_utf8_output()
 
 from app.core.engine import AishinEngine
-from app.db import connect, database_schema_status, init_db
+from app.db import _merge_graph_data, connect, database_schema_status, init_db
 from app.personality import personality
 
 
@@ -154,6 +154,72 @@ def main() -> int:
             "status": "ok",
             "personal": engine.graph.stats(scope="personal"),
             "relationship": engine.graph.stats(scope="relationship"),
+        }
+
+        merged_graph_data = _merge_graph_data(
+            {
+                "role": "личная AI-помощница",
+                "nested": {"existing": 1},
+                "tags": ["a"],
+                "keep": "value",
+            },
+            {
+                "nested": {"new": 2},
+                "tags": ["a", "b"],
+                "keep": "",
+                "ignored": None,
+            },
+        )
+        if merged_graph_data != {
+            "role": "личная AI-помощница",
+            "nested": {"existing": 1, "new": 2},
+            "tags": ["a", "b"],
+            "keep": "value",
+        }:
+            raise RuntimeError("Knowledge Graph deep merge policy нарушена")
+
+        with connect() as conn:
+            graph_changes_before = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM graph_changes WHERE scope='relationship'"
+                ).fetchone()[0]
+            )
+        engine.graph.seed_personal_foundation()
+        with connect() as conn:
+            graph_changes_after = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM graph_changes WHERE scope='relationship'"
+                ).fetchone()[0]
+            )
+        if graph_changes_after != graph_changes_before:
+            raise RuntimeError(
+                "Идемпотентный Knowledge Graph seed создал ложный audit change"
+            )
+
+        graph_shape = engine.graph.search(
+            "Айшин",
+            scope="relationship",
+            limit=5,
+        )
+        if not graph_shape:
+            raise RuntimeError("Knowledge Graph seed Айшин не найден")
+        if (
+            "canonical_name" not in graph_shape[0]
+            or not isinstance(graph_shape[0].get("data"), dict)
+        ):
+            raise RuntimeError(
+                "Knowledge Graph search shape несовместим с Verification"
+            )
+
+        checks["graph_merge_audit"] = {
+            "status": "ok",
+            "deep_merge": True,
+            "blank_null_preservation": True,
+            "seed_audit_idempotent": True,
+            "verification_shape": {
+                "canonical_name": True,
+                "data_dict": True,
+            },
         }
         checks["planner"] = {
             "status": "ok",

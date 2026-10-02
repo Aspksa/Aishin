@@ -318,6 +318,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
   const attentionSensors = sensors.filter((item) => item.status !== "ok");
   const activeDecisions = [...pending, ...approved];
   const meta = state.metacognition?.last || state.working_memory?.metacognition || null;
+  const logic = state.working_memory?.logic || null;
   const verification = state.working_memory?.verification || null;
 
   setBrainNode(
@@ -346,6 +347,15 @@ function renderLivingBrain(state, sensors, pending, approved) {
     (state.planner?.notices || []).some((item) => item.severity === "warning"),
     `${tasks.length} открытых задач`
   );
+  setBrainNode(
+    "logic",
+    Boolean(logic),
+    Boolean(logic?.unresolved?.length),
+    logic
+      ? `${logic.mode} · complexity ${Math.round(Number(logic.complexity || 0) * 100)}%`
+      : "режим ещё не выбран"
+  );
+
   const metaStatus = meta?.status || "нет оценки";
   const metaAttention = ["needs_verification", "insufficient_data"].includes(metaStatus);
   setBrainNode(

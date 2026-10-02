@@ -76,6 +76,37 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS entities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                canonical_name TEXT NOT NULL,
+                data_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(scope, entity_type, canonical_name)
+            );
+
+            CREATE TABLE IF NOT EXISTS relations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL,
+                source_entity_id INTEGER NOT NULL,
+                relation_type TEXT NOT NULL,
+                target_entity_id INTEGER NOT NULL,
+                confidence REAL NOT NULL DEFAULT 1.0,
+                evidence TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(scope, source_entity_id, relation_type, target_entity_id),
+                FOREIGN KEY(source_entity_id) REFERENCES entities(id),
+                FOREIGN KEY(target_entity_id) REFERENCES entities(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS permissions (
+                capability TEXT PRIMARY KEY,
+                mode TEXT NOT NULL DEFAULT 'ask',
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -200,3 +231,74 @@ def touch_memory(memory_id: int) -> None:
     with connect() as conn:
         conn.execute('UPDATE memories SET last_accessed_at=CURRENT_TIMESTAMP WHERE id=?', (memory_id,))
         conn.commit()
+
+
+def upsert_entity(scope: str, entity_type: str, canonical_name: str, data: dict | None = None) -> int:
+    payload = json.dumps(data or {}, ensure_ascii=False)
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO entities(scope, entity_type, canonical_name, data_json)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(scope, entity_type, canonical_name)
+               DO UPDATE SET data_json=excluded.data_json, updated_at=CURRENT_TIMESTAMP""",
+            (scope, entity_type, canonical_name, payload),
+        )
+        row = conn.execute(
+            "SELECT id FROM entities WHERE scope=? AND entity_type=? AND canonical_name=?",
+            (scope, entity_type, canonical_name),
+        ).fetchone()
+        conn.commit()
+        return int(row["id"])
+
+
+def add_relation(scope: str, source_id: int, relation_type: str, target_id: int, confidence: float = 1.0, evidence: str = "") -> int:
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO relations(scope, source_entity_id, relation_type, target_entity_id, confidence, evidence)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(scope, source_entity_id, relation_type, target_entity_id)
+               DO UPDATE SET confidence=excluded.confidence, evidence=excluded.evidence""",
+            (scope, source_id, relation_type, target_id, confidence, evidence),
+        )
+        row = conn.execute(
+            """SELECT id FROM relations
+               WHERE scope=? AND source_entity_id=? AND relation_type=? AND target_entity_id=?""",
+            (scope, source_id, relation_type, target_id),
+        ).fetchone()
+        conn.commit()
+        return int(row["id"])
+
+
+def graph_neighborhood(entity_id: int, scope: str) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT r.relation_type, r.confidence, r.evidence,
+                      s.id AS source_id, s.entity_type AS source_type, s.canonical_name AS source_name,
+                      t.id AS target_id, t.entity_type AS target_type, t.canonical_name AS target_name
+               FROM relations r
+               JOIN entities s ON s.id=r.source_entity_id
+               JOIN entities t ON t.id=r.target_entity_id
+               WHERE r.scope=? AND (r.source_entity_id=? OR r.target_entity_id=?)
+               ORDER BY r.confidence DESC, r.id DESC""",
+            (scope, entity_id, entity_id),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def set_permission(capability: str, mode: str) -> None:
+    if mode not in {"allow", "ask", "deny"}:
+        raise ValueError("permission mode must be allow, ask or deny")
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO permissions(capability, mode, updated_at)
+               VALUES (?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(capability) DO UPDATE SET mode=excluded.mode, updated_at=CURRENT_TIMESTAMP""",
+            (capability, mode),
+        )
+        conn.commit()
+
+
+def get_permission(capability: str) -> str:
+    with connect() as conn:
+        row = conn.execute("SELECT mode FROM permissions WHERE capability=?", (capability,)).fetchone()
+    return row["mode"] if row else "ask"

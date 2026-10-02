@@ -61,6 +61,34 @@ def main() -> int:
                 "count": len(tools.json()),
             }
 
+            execution_approvals = client.get(
+                "/api/assistant/execution/approvals",
+                params={"scope": "personal", "limit": 1},
+            )
+            if execution_approvals.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/execution/approvals returned HTTP "
+                    f"{execution_approvals.status_code}"
+                )
+            checks["execution_approvals"] = {
+                "status": "ok",
+                "history_entries": len(execution_approvals.json()),
+            }
+
+            execution_attempts = client.get(
+                "/api/assistant/execution/attempts",
+                params={"scope": "personal", "limit": 1},
+            )
+            if execution_attempts.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/execution/attempts returned HTTP "
+                    f"{execution_attempts.status_code}"
+                )
+            checks["execution_attempts"] = {
+                "status": "ok",
+                "history_entries": len(execution_attempts.json()),
+            }
+
             action_selection = client.get(
                 "/api/assistant/action-selection",
                 params={"scope": "personal", "limit": 1},

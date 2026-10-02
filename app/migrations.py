@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 18
+LATEST_SCHEMA_VERSION = 19
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -812,6 +812,158 @@ def _migration_018_cognitive_intelligence(
     )
 
 
+def _migration_019_proactive_intelligence(
+    conn: sqlite3.Connection,
+) -> None:
+    """Situation model, anomaly lifecycle and calibrated attention manager."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS situation_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            trigger TEXT NOT NULL DEFAULT 'manual',
+            awareness_score REAL NOT NULL DEFAULT 0.0,
+            object_counts_json TEXT NOT NULL DEFAULT '{}',
+            state_json TEXT NOT NULL DEFAULT '{}',
+            delta_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS proactive_signals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            signal_type TEXT NOT NULL,
+            source TEXT NOT NULL,
+            subject_type TEXT NOT NULL DEFAULT '',
+            subject_id TEXT NOT NULL DEFAULT '',
+            title TEXT NOT NULL,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            severity REAL NOT NULL DEFAULT 0.0,
+            confidence REAL NOT NULL DEFAULT 0.0,
+            impact REAL NOT NULL DEFAULT 0.0,
+            urgency REAL NOT NULL DEFAULT 0.0,
+            risk_score REAL NOT NULL DEFAULT 0.0,
+            attention_score REAL NOT NULL DEFAULT 0.0,
+            status TEXT NOT NULL DEFAULT 'observed',
+            occurrences INTEGER NOT NULL DEFAULT 1,
+            first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, fingerprint)
+        );
+
+        CREATE TABLE IF NOT EXISTS proactive_incidents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            signal_id INTEGER,
+            incident_type TEXT NOT NULL,
+            source TEXT NOT NULL,
+            subject_type TEXT NOT NULL DEFAULT '',
+            subject_id TEXT NOT NULL DEFAULT '',
+            title TEXT NOT NULL,
+            summary TEXT NOT NULL DEFAULT '',
+            evidence_json TEXT NOT NULL DEFAULT '[]',
+            suggested_action TEXT NOT NULL DEFAULT '',
+            severity REAL NOT NULL DEFAULT 0.0,
+            confidence REAL NOT NULL DEFAULT 0.0,
+            impact REAL NOT NULL DEFAULT 0.0,
+            urgency REAL NOT NULL DEFAULT 0.0,
+            risk_score REAL NOT NULL DEFAULT 0.0,
+            attention_score REAL NOT NULL DEFAULT 0.0,
+            verification_state TEXT NOT NULL DEFAULT 'observed',
+            status TEXT NOT NULL DEFAULT 'active',
+            decision_id INTEGER,
+            occurrences INTEGER NOT NULL DEFAULT 1,
+            first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TEXT,
+            snoozed_until TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, fingerprint),
+            FOREIGN KEY(signal_id) REFERENCES proactive_signals(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS proactive_expectations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            expectation_key TEXT NOT NULL,
+            subject_type TEXT NOT NULL,
+            subject_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            expected_state TEXT NOT NULL,
+            source TEXT NOT NULL,
+            confidence REAL NOT NULL DEFAULT 1.0,
+            due_at TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            details_json TEXT NOT NULL DEFAULT '{}',
+            first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TEXT,
+            UNIQUE(scope, expectation_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS proactive_attention_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            incident_id INTEGER NOT NULL,
+            feedback TEXT NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(incident_id) REFERENCES proactive_incidents(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS proactive_attention_profile (
+            scope TEXT PRIMARY KEY,
+            base_threshold REAL NOT NULL DEFAULT 0.48,
+            calibrated_threshold REAL NOT NULL DEFAULT 0.48,
+            useful_count INTEGER NOT NULL DEFAULT 0,
+            noisy_count INTEGER NOT NULL DEFAULT 0,
+            false_positive_count INTEGER NOT NULL DEFAULT 0,
+            handled_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS proactive_intelligence_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            trigger TEXT NOT NULL,
+            awareness_score REAL NOT NULL DEFAULT 0.0,
+            signals_observed INTEGER NOT NULL DEFAULT 0,
+            incidents_created INTEGER NOT NULL DEFAULT 0,
+            incidents_updated INTEGER NOT NULL DEFAULT 0,
+            incidents_resolved INTEGER NOT NULL DEFAULT 0,
+            decisions_created INTEGER NOT NULL DEFAULT 0,
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            stats_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_situation_snapshots_scope_created
+        ON situation_snapshots(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_proactive_signals_scope_attention
+        ON proactive_signals(
+            scope, status, attention_score DESC, last_seen_at DESC
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_proactive_incidents_scope_status
+        ON proactive_incidents(
+            scope, status, attention_score DESC, updated_at DESC
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_proactive_expectations_scope_status
+        ON proactive_expectations(scope, status, due_at);
+
+        CREATE INDEX IF NOT EXISTS idx_attention_feedback_scope_created
+        ON proactive_attention_feedback(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_proactive_runs_scope_created
+        ON proactive_intelligence_runs(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -831,6 +983,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (16, "development_metrics", _migration_016_development_metrics),
     (17, "long_term_growth", _migration_017_long_term_growth),
     (18, "cognitive_intelligence", _migration_018_cognitive_intelligence),
+    (19, "proactive_intelligence", _migration_019_proactive_intelligence),
 )
 
 

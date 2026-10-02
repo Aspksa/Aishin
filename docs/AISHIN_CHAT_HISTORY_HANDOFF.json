@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T21:55:00+10:00",
+  "generated_at": "2026-10-02T22:09:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -145,10 +145,12 @@
         "python compileall",
         "scripts/self_check.py",
         "scripts/runtime_smoke.py",
-        "Aishin.bat --check-only on Windows"
+        "node --check app/static/app.js",
+        "Aishin.bat --check-only on Windows",
+        "chat-first UI structure smoke"
       ],
-      "latest_confirmed_run_id": 37003479979,
-      "latest_confirmed_head_sha": "fbd6ecab07cccde5464a7bff5eb434959cf3166b"
+      "latest_confirmed_run_id": 37004855074,
+      "latest_confirmed_head_sha": "2e2bcb1bc9c97dcde954d159bafa840ff01ed6af"
     }
   },
   "implemented_architecture": [
@@ -779,7 +781,13 @@
     "Learning Quality Gate / Strategy Evolution / Drift & Decay validated on Windows and Ubuntu in GitHub Actions run 37001952014.",
     "Aishin.bat no longer exits silently after uvicorn failure; server exit code is checked and errors keep the window open.",
     "Launcher now detects and recreates a broken .venv, probes port 8765, detects an already-running Aishin instance, and records logs/launcher.log.",
-    "Windows CI now executes Aishin.bat --check-only; GitHub Actions run 37003479979 passed."
+    "Windows CI now executes Aishin.bat --check-only; GitHub Actions run 37003479979 passed.",
+    "Main UI redesigned from a dense debugging dashboard into a chat-first personal assistant workspace.",
+    "All 19 internal cognitive nodes remain available but are collapsed under Technical Brain by default.",
+    "User-facing status language no longer exposes unnecessary English/internal telemetry terms.",
+    "Browser JavaScript syntax is now checked in CI with node --check.",
+    "Runtime smoke verifies the presence of the new chat-first layout.",
+    "Redesign validated on Windows and Ubuntu in GitHub Actions run 37004855074."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -820,14 +828,14 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Windows launcher silent-close bug fixed and directly validated in Windows CI.",
-    "last_implemented_feature": "Resilient Aishin.bat with persistent diagnostics, broken-venv recovery, port probe, server exit handling, and launcher check-only CI.",
-    "next_recommended_step": "User should update/pull latest main and run Aishin.bat. If launch still fails, inspect logs/launcher.log; the window will now remain open and show the exact failing stage.",
+    "milestone": "Chat-first Aishin UI redesign completed and cross-platform validated.",
+    "last_implemented_feature": "New conversation-first home, compact state panel, simple thinking flow, secondary approval center, collapsed technical brain, Russian user-facing statuses.",
+    "next_recommended_step": "Fix ZIP-install GitHub updater 500 and then add Self-Reflection Metrics + Learning Planner + Safe Experiment Manager.",
     "do_not_do": [
-      "Не повышать версию автоматически.",
-      "Не возвращать Ollama.",
-      "Не смешивать память Aishin с TooruDragon.",
-      "Не закрывать launcher молча при uvicorn failure."
+      "Не возвращать старый перегруженный dashboard как основной экран.",
+      "Не показывать 19 technical nodes раскрытыми по умолчанию.",
+      "Не дублировать блок 'Мозг Айшин'.",
+      "Не повышать версию автоматически."
     ]
   },
   "development_sequence_current_chat": [
@@ -938,6 +946,10 @@
     {
       "user_prompt": "Aishin.bat не запускается открылся и закрылся",
       "result": "Найдена ошибка launcher: после uvicorn Aishin.bat безусловно делал exit /b 0, поэтому быстрый server failure закрывал окно. Добавлены launcher_probe.py, persistent logs/launcher.log, broken .venv recovery, Python 3.11 detection, port 8765 diagnostics, existing-instance detection, explicit uvicorn exit-code handling, pause on failures, --check-only mode и Windows CI step. GitHub Actions run 37003479979 прошёл Windows + Ubuntu, Windows launcher preflight успешно выполнен."
+    },
+    {
+      "user_prompt": "ужасный дизайн ... все не удобно ... МОЗГ АЙШИН вообще непонятно",
+      "result": "Полностью заменён интерфейс главной страницы на chat-first. Chat стал главным блоком; справа компактное состояние и понятный 4-step thinking flow; Approval Center вторичен; весь подробный cognitive pipeline перенесён в collapsed Technical Brain. Технические английские статусы в UI заменены русскими. Добавлены node --check и UI smoke. GitHub Actions run 37004855074 прошёл Windows + Ubuntu."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -2111,6 +2123,29 @@
       "run_id": 37001952014,
       "windows": "success",
       "ubuntu": "success"
+    }
+  },
+  "interface_redesign": {
+    "milestone": "chat_first_home",
+    "files": [
+      "app/templates/index.html",
+      "app/static/style.css",
+      "app/static/app.js"
+    ],
+    "principles": [
+      "conversation first",
+      "technical telemetry secondary and collapsed",
+      "simple Russian user-facing language",
+      "compact state instead of dashboard overload",
+      "approval center visible only as secondary workflow",
+      "no duplicate live-brain presentation"
+    ],
+    "validation": {
+      "run_id": 37004855074,
+      "windows": "success",
+      "ubuntu": "success",
+      "javascript_syntax": "success",
+      "ui_smoke": "success"
     }
   }
 }

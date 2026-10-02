@@ -61,6 +61,33 @@ def main() -> int:
                 "count": len(tools.json()),
             }
 
+            hypotheses = client.get(
+                "/api/assistant/hypotheses",
+                params={"scope": "personal", "limit": 1},
+            )
+            if hypotheses.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/hypotheses returned HTTP {hypotheses.status_code}"
+                )
+            checks["hypotheses"] = {
+                "status": "ok",
+                "history_entries": len(hypotheses.json()),
+            }
+
+            logic_learning = client.get(
+                "/api/assistant/logic-learning",
+                params={"scope": "personal", "limit": 1},
+            )
+            if logic_learning.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/logic-learning returned HTTP "
+                    f"{logic_learning.status_code}"
+                )
+            checks["logic_learning"] = {
+                "status": "ok",
+                "events": len(logic_learning.json()),
+            }
+
             context_traces = client.get(
                 "/api/assistant/context-traces",
                 params={"scope": "personal", "limit": 1},

@@ -94,6 +94,96 @@
           </article>
         </div>
 
+        <section class="living-brain" aria-labelledby="brain-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">МОЗГ АЙШИН</p>
+              <h2 id="brain-title">Живой когнитивный поток</h2>
+              <p>Визуализация показывает фактическое состояние ядра: что Айшин видит, что вспоминает, где находится её внимание и к какому решению пришёл проактивный контур.</p>
+            </div>
+            <div class="brain-focus">
+              <span>Текущий фокус</span>
+              <strong id="brain-focus-value">—</strong>
+            </div>
+          </div>
+
+          <div id="brain-flow" class="brain-flow" aria-label="Когнитивный поток Айшин">
+            <div class="brain-node" data-brain-node="sensors">
+              <span class="brain-node-pulse"></span>
+              <small>01 · ВОСПРИЯТИЕ</small>
+              <strong>Сенсоры</strong>
+              <em id="brain-sensors-detail">ожидание</em>
+            </div>
+            <div class="brain-link"><span></span></div>
+            <div class="brain-node" data-brain-node="memory">
+              <span class="brain-node-pulse"></span>
+              <small>02 · ВСПОМИНАНИЕ</small>
+              <strong>Память</strong>
+              <em id="brain-memory-detail">ожидание</em>
+            </div>
+            <div class="brain-link"><span></span></div>
+            <div class="brain-node" data-brain-node="graph">
+              <span class="brain-node-pulse"></span>
+              <small>03 · СВЯЗИ</small>
+              <strong>Карта мира</strong>
+              <em id="brain-graph-detail">ожидание</em>
+            </div>
+            <div class="brain-link"><span></span></div>
+            <div class="brain-node" data-brain-node="planner">
+              <span class="brain-node-pulse"></span>
+              <small>04 · НАМЕРЕНИЕ</small>
+              <strong>Планировщик</strong>
+              <em id="brain-planner-detail">ожидание</em>
+            </div>
+            <div class="brain-link"><span></span></div>
+            <div class="brain-node decision-node" data-brain-node="decision">
+              <span class="brain-node-pulse"></span>
+              <small>05 · РЕШЕНИЕ</small>
+              <strong>Decision Loop</strong>
+              <em id="brain-decision-detail">ожидание</em>
+            </div>
+            <div class="brain-link"><span></span></div>
+            <div class="brain-node" data-brain-node="tool">
+              <span class="brain-node-pulse"></span>
+              <small>06 · ДЕЙСТВИЕ</small>
+              <strong>Инструменты</strong>
+              <em id="brain-tool-detail">ожидание</em>
+            </div>
+          </div>
+
+          <div class="brain-detail-grid">
+            <article class="brain-detail-card">
+              <div class="brain-detail-title">
+                <span>ВСПОМИНАЕТ СЕЙЧАС</span>
+                <b id="brain-memory-count">0</b>
+              </div>
+              <div id="brain-memory-stream" class="brain-stream">
+                <p class="brain-empty">Память пока не поднята в текущий контекст.</p>
+              </div>
+            </article>
+
+            <article class="brain-detail-card reasoning-card">
+              <div class="brain-detail-title">
+                <span>ПОЧЕМУ ЭТО РЕШЕНИЕ</span>
+                <b id="brain-reasoning-id">—</b>
+              </div>
+              <div id="brain-reasoning" class="brain-reasoning">
+                Выберите карточку в «Айшин заметила», чтобы увидеть её основание здесь.
+              </div>
+            </article>
+
+            <article class="brain-detail-card">
+              <div class="brain-detail-title">
+                <span>ПОСЛЕДНИЕ СОБЫТИЯ</span>
+                <b id="brain-event-count">0</b>
+              </div>
+              <div id="brain-event-stream" class="brain-stream">
+                <p class="brain-empty">Жду событий ядра.</p>
+              </div>
+            </article>
+          </div>
+        </section>
+
         <section class="approval-center" aria-labelledby="approval-title">
           <div class="section-heading">
             <div>

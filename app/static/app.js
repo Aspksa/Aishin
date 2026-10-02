@@ -222,6 +222,11 @@ function decisionCard(decision, mode) {
     }
   }
 
+  card.addEventListener("click", (event) => {
+    if (event.target.closest("button")) return;
+    showDecisionReasoning(decision);
+  });
+
   card.append(top, rationale, meta, preview, actions);
   return card;
 }
@@ -271,6 +276,157 @@ async function decisionRequest(id, action, extra) {
   }
 
   await refreshDashboard(false);
+}
+
+
+
+function brainStreamItem(title, detail) {
+  const item = document.createElement("div");
+  item.className = "brain-stream-item";
+
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+
+  const span = document.createElement("span");
+  span.textContent = detail;
+
+  item.append(strong, span);
+  return item;
+}
+
+function setBrainNode(name, active, attention, detail) {
+  const node = document.querySelector(`[data-brain-node="${name}"]`);
+  if (!node) return;
+  node.classList.toggle("active", Boolean(active));
+  node.classList.toggle("attention", Boolean(attention));
+
+  const detailEl = document.getElementById(`brain-${name}-detail`);
+  if (detailEl) detailEl.textContent = detail || "спокойно";
+}
+
+function renderLivingBrain(state, sensors, pending, approved) {
+  const runtime = state.state || {};
+  const memories = state.recent_memories || [];
+  const graph = state.knowledge_graph?.personal || {};
+  const tasks = state.planner?.open_items?.tasks || [];
+  const events = state.recent_events || [];
+  const actions = state.tools?.recent_actions || [];
+
+  document.getElementById("brain-focus-value").textContent =
+    runtime.focus || runtime.activity || "waiting";
+
+  const attentionSensors = sensors.filter((item) => item.status !== "ok");
+  const activeDecisions = [...pending, ...approved];
+
+  setBrainNode(
+    "sensors",
+    sensors.length > 0,
+    attentionSensors.length > 0,
+    attentionSensors.length
+      ? `${attentionSensors.length} требуют внимания`
+      : `${sensors.length} каналов спокойно`
+  );
+  setBrainNode(
+    "memory",
+    memories.length > 0,
+    false,
+    `${memories.length} в рабочем контексте`
+  );
+  setBrainNode(
+    "graph",
+    Number(graph.entities || 0) > 0,
+    false,
+    `${graph.entities || 0} сущностей · ${graph.relations || 0} связей`
+  );
+  setBrainNode(
+    "planner",
+    tasks.length > 0,
+    (state.planner?.notices || []).some((item) => item.severity === "warning"),
+    `${tasks.length} открытых задач`
+  );
+  setBrainNode(
+    "decision",
+    activeDecisions.length > 0,
+    pending.length > 0,
+    pending.length
+      ? `${pending.length} ждут Господина`
+      : `${approved.length} одобрено`
+  );
+  setBrainNode(
+    "tool",
+    actions.length > 0,
+    actions.some((item) => item.status === "error" || item.status === "denied"),
+    actions.length ? `последних действий: ${actions.length}` : "действий нет"
+  );
+
+  const flow = document.getElementById("brain-flow");
+  flow.classList.toggle(
+    "active",
+    sensors.length > 0 || memories.length > 0 || tasks.length > 0
+  );
+
+  const memoryStream = document.getElementById("brain-memory-stream");
+  memoryStream.replaceChildren();
+  document.getElementById("brain-memory-count").textContent = String(memories.length);
+
+  if (!memories.length) {
+    const empty = document.createElement("p");
+    empty.className = "brain-empty";
+    empty.textContent = "Память пока не поднята в текущий контекст.";
+    memoryStream.appendChild(empty);
+  } else {
+    memories.slice(0, 8).forEach((memory) => {
+      const confidence = Math.round(Number(memory.confidence || 0) * 100);
+      memoryStream.appendChild(
+        brainStreamItem(
+          memory.kind || "memory",
+          `${memory.content || ""} · confidence ${confidence}%`
+        )
+      );
+    });
+  }
+
+  const eventStream = document.getElementById("brain-event-stream");
+  eventStream.replaceChildren();
+  document.getElementById("brain-event-count").textContent = String(events.length);
+
+  if (!events.length) {
+    const empty = document.createElement("p");
+    empty.className = "brain-empty";
+    empty.textContent = "Жду событий ядра.";
+    eventStream.appendChild(empty);
+  } else {
+    events.slice(0, 8).forEach((event) => {
+      eventStream.appendChild(
+        brainStreamItem(
+          event.event_type || "event",
+          `importance ${Number(event.importance || 0).toFixed(2)} · ${event.created_at || ""}`
+        )
+      );
+    });
+  }
+}
+
+function showDecisionReasoning(decision) {
+  const reasoning = document.getElementById("brain-reasoning");
+  const reasoningId = document.getElementById("brain-reasoning-id");
+
+  reasoningId.textContent = `#${decision.id}`;
+
+  const lines = [
+    decision.rationale || "Причина не указана.",
+    "",
+    `Источник: ${decision.source || "core"}`,
+    `Приоритет: ${Math.round(Number(decision.priority || 0) * 100)}%`,
+    `Confidence: ${Math.round(Number(decision.confidence || 0) * 100)}%`,
+    `Инструмент: ${humanTool(decision.tool_name)}`
+  ];
+
+  if (decision.capability) {
+    lines.push(`Разрешение: ${decision.capability}`);
+  }
+
+  reasoning.textContent = lines.join("\n");
 }
 
 function renderSensors(sensors) {
@@ -367,6 +523,7 @@ async function refreshDashboard(evaluate = false) {
       "Нет одобренных действий, ожидающих выполнения."
     );
     renderSensors(sensors);
+    renderLivingBrain(state, sensors, pending, approved);
 
     const center = document.querySelector(".approval-center");
     center.classList.remove("flash");

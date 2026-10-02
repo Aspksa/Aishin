@@ -665,7 +665,7 @@ def active_memories_missing_vector(scope: str, model: str, limit: int = 64) -> l
                FROM memories m
                LEFT JOIN memory_vectors v ON v.memory_id=m.id
                WHERE m.scope=? AND m.status='active'
-                 AND (v.memory_id IS NULL OR v.model<>? OR v.content_hash<>COALESCE(m.fingerprint, ''))
+                 AND (v.memory_id IS NULL OR v.model<>?)
                ORDER BY m.id ASC
                LIMIT ?""",
             (scope, model, limit),

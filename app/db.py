@@ -223,6 +223,29 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS sensor_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sensor TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                status TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                importance REAL NOT NULL DEFAULT 0.3,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS tool_actions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tool_name TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                capability TEXT NOT NULL,
+                permission_mode TEXT NOT NULL,
+                status TEXT NOT NULL,
+                dry_run INTEGER NOT NULL DEFAULT 1,
+                input_json TEXT NOT NULL DEFAULT '{}',
+                output_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -1058,3 +1081,102 @@ def get_task(task_id: int, scope: str) -> dict | None:
             (task_id, scope),
         ).fetchone()
     return dict(row) if row else None
+
+
+def add_sensor_snapshot(
+    sensor: str,
+    scope: str,
+    status: str,
+    payload: dict,
+    importance: float = 0.3,
+) -> int:
+    with connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO sensor_snapshots(sensor, scope, status, payload_json, importance)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                sensor,
+                scope,
+                status,
+                json.dumps(payload, ensure_ascii=False),
+                importance,
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def recent_sensor_snapshots(
+    scope: str,
+    limit: int = 50,
+    sensor: str | None = None,
+) -> list[dict]:
+    with connect() as conn:
+        if sensor:
+            rows = conn.execute(
+                """SELECT * FROM sensor_snapshots
+                   WHERE scope=? AND sensor=?
+                   ORDER BY id DESC LIMIT ?""",
+                (scope, sensor, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM sensor_snapshots
+                   WHERE scope=?
+                   ORDER BY id DESC LIMIT ?""",
+                (scope, limit),
+            ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["payload"] = json.loads(item.pop("payload_json") or "{}")
+        result.append(item)
+    return result
+
+
+def add_tool_action(
+    tool_name: str,
+    scope: str,
+    capability: str,
+    permission_mode: str,
+    status: str,
+    dry_run: bool,
+    input_data: dict,
+    output_data: dict,
+) -> int:
+    with connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO tool_actions(
+                   tool_name, scope, capability, permission_mode, status,
+                   dry_run, input_json, output_json
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                tool_name,
+                scope,
+                capability,
+                permission_mode,
+                status,
+                1 if dry_run else 0,
+                json.dumps(input_data, ensure_ascii=False),
+                json.dumps(output_data, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def recent_tool_actions(scope: str, limit: int = 50) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT * FROM tool_actions
+               WHERE scope=? ORDER BY id DESC LIMIT ?""",
+            (scope, limit),
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["dry_run"] = bool(item["dry_run"])
+        item["input"] = json.loads(item.pop("input_json") or "{}")
+        item["output"] = json.loads(item.pop("output_json") or "{}")
+        result.append(item)
+    return result

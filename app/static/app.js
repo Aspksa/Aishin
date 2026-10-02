@@ -326,6 +326,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
   const counterfactual = state.working_memory?.counterfactual || null;
   const quality = state.working_memory?.decision_quality || null;
   const actionSelection = state.working_memory?.action_selection || null;
+  const executionGuard = state.execution_coordinator || {};
   const verification = state.working_memory?.verification || null;
 
   setBrainNode(
@@ -424,6 +425,21 @@ function renderLivingBrain(state, sensors, pending, approved) {
     actionSelection?.selected
       ? `${Math.round(Number(actionSelection.selected.utility || 0) * 100)}% · ${actionSelection.selection_state}`
       : "кандидат ещё не выбран"
+  );
+
+  const activeApprovals = (executionGuard.approvals || []).filter(
+    (item) => item.status === "active"
+  );
+  const latestAttempt = (executionGuard.attempts || [])[0] || null;
+  setBrainNode(
+    "execution",
+    activeApprovals.length > 0 || Boolean(latestAttempt),
+    activeApprovals.length > 0,
+    activeApprovals.length
+      ? `${activeApprovals.length} one-shot approval`
+      : latestAttempt
+        ? `last: ${latestAttempt.status}`
+        : "нет активных разрешений"
   );
 
   const metaStatus = meta?.status || "нет оценки";

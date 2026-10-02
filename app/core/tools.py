@@ -234,8 +234,13 @@ class ToolRegistry:
         except ValueError as exc:
             raise ValueError("Выход за пределы проекта запрещён") from exc
 
+        lowered_parts = [part.casefold() for part in relative.parts]
         if any(part in self.FORBIDDEN_NAMES for part in relative.parts):
             raise ValueError("Доступ к защищённому пути запрещён")
+        if any(part.startswith(".env") for part in lowered_parts):
+            raise ValueError("Доступ к env-файлам запрещён")
+        if candidate.suffix.casefold() in {".pem", ".key", ".p12", ".pfx"}:
+            raise ValueError("Доступ к файлам ключей запрещён")
         return candidate
 
     def _audit(
@@ -249,6 +254,8 @@ class ToolRegistry:
         input_data: dict,
         output_data: dict,
     ) -> dict:
+        safe_input = self._sanitize_audit_payload(input_data)
+        safe_output = self._sanitize_audit_payload(output_data)
         action_id = add_tool_action(
             name,
             scope,
@@ -256,8 +263,8 @@ class ToolRegistry:
             permission_mode,
             status,
             dry_run,
-            input_data,
-            output_data,
+            safe_input,
+            safe_output,
         )
         return {
             "action_id": action_id,
@@ -268,6 +275,23 @@ class ToolRegistry:
             "dry_run": dry_run,
             "output": output_data,
         }
+
+    @staticmethod
+    def _sanitize_audit_payload(payload: dict) -> dict:
+        result: dict = {}
+        for key, value in payload.items():
+            lowered = str(key).casefold()
+            if lowered in {"content", "text", "body"}:
+                if isinstance(value, str):
+                    result[f"{key}_bytes"] = len(value.encode("utf-8"))
+                else:
+                    result[f"{key}_redacted"] = True
+                continue
+            if any(token in lowered for token in ("password", "secret", "token", "api_key", "authorization")):
+                result[key] = "[REDACTED]"
+                continue
+            result[key] = value
+        return result
 
     def history(self, *, scope: str, limit: int = 50) -> list[dict]:
         return recent_tool_actions(scope, limit=limit)

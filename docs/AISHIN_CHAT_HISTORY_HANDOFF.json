@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T20:32:00+10:00",
+  "generated_at": "2026-10-02T20:42:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -146,8 +146,8 @@
         "scripts/self_check.py",
         "scripts/runtime_smoke.py"
       ],
-      "latest_confirmed_run_id": 36995834519,
-      "latest_confirmed_head_sha": "f0ca2811f709b752450bdd85453c1627a9f46445"
+      "latest_confirmed_run_id": 36996825381,
+      "latest_confirmed_head_sha": "7316f3bbb5562cc594652ce2bdec851cc0ca56e5"
     }
   },
   "implemented_architecture": [
@@ -459,6 +459,17 @@
         "app/static/app.js"
       ],
       "details": "Persistent condition state suppresses duplicate proactive decisions across pending/approved/rejected/acknowledged/executed/failed while the same condition remains active. Resolved→active recurrence increments generation and permits a fresh decision."
+    },
+    {
+      "layer": "Knowledge Graph Merge / Audit Suppression",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/db.py",
+        "app/core/graph.py",
+        "scripts/self_check.py",
+        "scripts/runtime_smoke.py"
+      ],
+      "details": "Entity upsert now deep-merges data instead of replacing data_json. Null/blank incoming values cannot erase established facts. Lists are deduplicated. Entity/relation audit is emitted only on real changes. Repeated startup seed is audit-idempotent. Search is Unicode-safe via Python casefold and Verification graph shape is runtime-tested."
     }
   ],
   "current_cognitive_flow": [
@@ -689,7 +700,14 @@
     "Informational signals now have explicit acknowledged semantics instead of abusing reject as 'seen'.",
     "Resolved conditions are re-armed only after a true resolved→active transition with a new generation.",
     "Concurrent pending proposal creation is protected against SELECT→INSERT race by SQLite unique index + IntegrityError recovery.",
-    "Proactive lifecycle validated on Windows and Ubuntu in GitHub Actions run 36995834519."
+    "Proactive lifecycle validated on Windows and Ubuntu in GitHub Actions run 36995834519.",
+    "Knowledge Graph entity data_json is deep-merged instead of overwritten, preserving previously learned fields.",
+    "Null or blank extraction output cannot silently erase an existing graph fact.",
+    "Identical entity/relation upserts no longer create graph_changes noise or touch entity updated_at.",
+    "Repeated startup seed is audit-idempotent.",
+    "Knowledge Graph search now uses Unicode-safe Python casefold instead of SQLite LOWER(), fixing Cyrillic lookup such as Айшин.",
+    "Verification-compatible graph result shape canonical_name + data dict is enforced by self-check/runtime smoke.",
+    "Knowledge Graph merge/audit suppression validated on Windows and Ubuntu in GitHub Actions run 36996825381."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -730,15 +748,17 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Proactive lifecycle dedupe/acknowledge completed, history saved, cross-platform runtime validated.",
-    "last_implemented_feature": "Persistent active/resolved condition generations, acknowledge semantics and race-safe proactive pending creation.",
-    "next_recommended_step": "Knowledge Graph merge/audit suppression: merge entity data_json instead of overwriting, avoid graph_changes for unchanged startup seeds/upserts, then validate graph builder field shapes.",
+    "milestone": "Knowledge Graph merge/audit suppression completed, history saved, cross-platform runtime validated.",
+    "last_implemented_feature": "Deep merge entity data, no-op audit suppression, idempotent startup graph seed and Unicode-safe graph search.",
+    "next_recommended_step": "Tool Registry atomic write hardening: write-to-temp + fsync + atomic replace, expected-before hash validation, backup integrity verification and rollback executor behind a fresh Permission Gate approval.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не смешивать память Aishin с TooruDragon.",
-      "Не создавать новую proactive decision для того же непрерывно активного fingerprint после reject/acknowledge.",
-      "Не использовать acknowledge для executable/tool decisions.",
+      "Не заменять entity data_json целиком при обычном upsert.",
+      "Не стирать известные graph fields через null/blank extraction.",
+      "Не писать graph_changes для no-op seed/upsert.",
+      "Не возвращать SQLite LOWER-only поиск для Unicode-имён.",
       "Не обходить Permission Gate / Execution Coordinator."
     ]
   },
@@ -830,6 +850,10 @@
     {
       "user_prompt": "Делай",
       "result": "Закрыт Proactive lifecycle dedupe/acknowledge. Schema migration 11, proactive_conditions, active/resolved generations, last_decision suppression across terminal statuses, explicit acknowledged status/API/UI, race-safe pending INSERT. GitHub Actions run 36995834519 прошёл Windows + Ubuntu. История сохранена."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Закрыт Knowledge Graph merge/audit suppression. Entity data теперь deep-merge вместо overwrite; null/blank не стирают факты; list dedupe; graph_changes только на реальные create/update; startup seed идемпотентен по audit. Усиленный CI выявил старый баг SQLite LOWER для кириллицы: существующая Айшин не находилась поиском. Поиск переведён на Unicode-safe Python casefold по canonical_name + data. Verification shape проверяется self-check/runtime smoke. Финальный GitHub Actions run 36996825381 прошёл Windows + Ubuntu. Schema остаётся 11. История сохранена."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -846,9 +870,9 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать schema 11 proactive lifecycle реализованным.",
-      "Не возвращать dedupe только по pending status; использовать ProactiveLifecycle.",
-      "Следующий этап: Knowledge Graph merge/audit suppression."
+      "Считать Knowledge Graph merge/audit suppression реализованным; schema остаётся 11.",
+      "Не возвращать overwrite entity data_json и SQLite LOWER-only search.",
+      "Следующий этап: atomic Tool Registry writes + expected hash validation + rollback hardening."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -1812,5 +1836,47 @@
       "GET /api/assistant/proactive/conditions",
       "POST /api/assistant/proactive/{decision_id}/acknowledge"
     ]
+  },
+  "knowledge_graph_merge_audit": {
+    "schema_version_change": "none; remains 11",
+    "entity_merge": {
+      "nested_dicts": "recursive merge",
+      "lists": "union preserving order without duplicates",
+      "scalar": "incoming non-empty value updates field",
+      "null": "ignored; cannot erase existing value",
+      "blank_string": "ignored when existing value is non-empty"
+    },
+    "audit": {
+      "no_op_entity_upsert": "no graph_changes row and no updated_at touch",
+      "no_op_relation_upsert": "no graph_changes row",
+      "startup_seed": "repeated identical seed is audit-idempotent",
+      "actions": [
+        "entity_create",
+        "entity_update",
+        "relation_create",
+        "relation_update"
+      ]
+    },
+    "search": {
+      "old_problem": "SQLite LOWER() did not provide reliable Unicode Cyrillic normalization; Айшин could exist but search for normalized айшин returned no hit.",
+      "current_rule": "Python casefold over canonical_name plus serialized data",
+      "verification_shape": [
+        "id",
+        "entity_type",
+        "canonical_name",
+        "data"
+      ]
+    },
+    "validation": {
+      "run_id": 36996825381,
+      "windows": "success",
+      "ubuntu": "success",
+      "self_check": [
+        "deep merge",
+        "null/blank preservation",
+        "startup seed audit idempotence",
+        "verification-compatible graph search shape"
+      ]
+    }
   }
 }

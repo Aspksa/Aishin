@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 22
+LATEST_SCHEMA_VERSION = 23
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -1473,6 +1473,229 @@ def _migration_022_communication_intelligence(
     )
 
 
+def _migration_023_document_intelligence(
+    conn: sqlite3.Connection,
+) -> None:
+    """Document ingestion, provenance, versions, facts and semantic chunks."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS document_state (
+            scope TEXT PRIMARY KEY,
+            ingestion_score REAL NOT NULL DEFAULT 0.0,
+            extraction_quality REAL NOT NULL DEFAULT 0.0,
+            provenance_coverage REAL NOT NULL DEFAULT 0.0,
+            semantic_coverage REAL NOT NULL DEFAULT 0.0,
+            studied_documents INTEGER NOT NULL DEFAULT 0,
+            queued_documents INTEGER NOT NULL DEFAULT 0,
+            failed_documents INTEGER NOT NULL DEFAULT 0,
+            duplicate_documents INTEGER NOT NULL DEFAULT 0,
+            ocr_required_documents INTEGER NOT NULL DEFAULT 0,
+            fact_count INTEGER NOT NULL DEFAULT 0,
+            contradiction_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            sha256 TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            media_type TEXT NOT NULL DEFAULT '',
+            extension TEXT NOT NULL DEFAULT '',
+            size_bytes INTEGER NOT NULL DEFAULT 0,
+            storage_path TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'queued',
+            parser TEXT NOT NULL DEFAULT '',
+            parser_version TEXT NOT NULL DEFAULT '',
+            document_type TEXT NOT NULL DEFAULT 'generic',
+            family_key TEXT NOT NULL DEFAULT '',
+            version_label TEXT NOT NULL DEFAULT '',
+            version_rank INTEGER,
+            duplicate_of_id INTEGER,
+            previous_version_id INTEGER,
+            quality_score REAL NOT NULL DEFAULT 0.0,
+            extraction_coverage REAL NOT NULL DEFAULT 0.0,
+            ocr_required INTEGER NOT NULL DEFAULT 0,
+            page_count INTEGER NOT NULL DEFAULT 0,
+            section_count INTEGER NOT NULL DEFAULT 0,
+            chunk_count INTEGER NOT NULL DEFAULT 0,
+            fact_count INTEGER NOT NULL DEFAULT 0,
+            warning_count INTEGER NOT NULL DEFAULT 0,
+            error_text TEXT NOT NULL DEFAULT '',
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            studied_at TEXT,
+            UNIQUE(scope, sha256),
+            FOREIGN KEY(duplicate_of_id) REFERENCES documents(id),
+            FOREIGN KEY(previous_version_id) REFERENCES documents(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS document_pages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            document_id INTEGER NOT NULL,
+            page_number INTEGER NOT NULL,
+            text_content TEXT NOT NULL DEFAULT '',
+            char_count INTEGER NOT NULL DEFAULT 0,
+            quality_score REAL NOT NULL DEFAULT 0.0,
+            extraction_method TEXT NOT NULL DEFAULT '',
+            provenance_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(document_id, page_number),
+            FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS document_sections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            document_id INTEGER NOT NULL,
+            parent_section_id INTEGER,
+            heading TEXT NOT NULL DEFAULT '',
+            level INTEGER NOT NULL DEFAULT 1,
+            ordinal INTEGER NOT NULL DEFAULT 0,
+            page_start INTEGER,
+            page_end INTEGER,
+            text_content TEXT NOT NULL DEFAULT '',
+            provenance_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE,
+            FOREIGN KEY(parent_section_id) REFERENCES document_sections(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS document_chunks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            document_id INTEGER NOT NULL,
+            page_id INTEGER,
+            section_id INTEGER,
+            ordinal INTEGER NOT NULL DEFAULT 0,
+            chunk_key TEXT NOT NULL,
+            text_content TEXT NOT NULL,
+            token_estimate INTEGER NOT NULL DEFAULT 0,
+            quality_score REAL NOT NULL DEFAULT 0.0,
+            content_hash TEXT NOT NULL,
+            provenance_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(document_id, chunk_key),
+            FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE,
+            FOREIGN KEY(page_id) REFERENCES document_pages(id),
+            FOREIGN KEY(section_id) REFERENCES document_sections(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS document_chunk_vectors (
+            chunk_id INTEGER PRIMARY KEY,
+            scope TEXT NOT NULL,
+            model TEXT NOT NULL,
+            dimensions INTEGER NOT NULL,
+            vector_json TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(chunk_id) REFERENCES document_chunks(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS document_facts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            document_id INTEGER NOT NULL,
+            chunk_id INTEGER,
+            fact_key TEXT NOT NULL,
+            subject TEXT NOT NULL DEFAULT '',
+            predicate TEXT NOT NULL DEFAULT '',
+            value TEXT NOT NULL,
+            normalized_value TEXT NOT NULL DEFAULT '',
+            fact_type TEXT NOT NULL DEFAULT 'statement',
+            confidence REAL NOT NULL DEFAULT 0.0,
+            status TEXT NOT NULL DEFAULT 'candidate',
+            provenance_json TEXT NOT NULL DEFAULT '{}',
+            promoted_claim_id INTEGER,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(document_id, fact_key, normalized_value),
+            FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE,
+            FOREIGN KEY(chunk_id) REFERENCES document_chunks(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS document_contradictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            family_key TEXT NOT NULL DEFAULT '',
+            fact_key TEXT NOT NULL,
+            left_fact_id INTEGER NOT NULL,
+            right_fact_id INTEGER NOT NULL,
+            severity REAL NOT NULL DEFAULT 0.5,
+            status TEXT NOT NULL DEFAULT 'open',
+            resolution TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TEXT,
+            UNIQUE(scope, left_fact_id, right_fact_id),
+            FOREIGN KEY(left_fact_id) REFERENCES document_facts(id),
+            FOREIGN KEY(right_fact_id) REFERENCES document_facts(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS document_ingestion_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            document_id INTEGER NOT NULL,
+            trigger TEXT NOT NULL DEFAULT 'upload',
+            status TEXT NOT NULL DEFAULT 'running',
+            parser TEXT NOT NULL DEFAULT '',
+            pages_extracted INTEGER NOT NULL DEFAULT 0,
+            sections_extracted INTEGER NOT NULL DEFAULT 0,
+            chunks_created INTEGER NOT NULL DEFAULT 0,
+            facts_created INTEGER NOT NULL DEFAULT 0,
+            contradictions_found INTEGER NOT NULL DEFAULT 0,
+            embeddings_created INTEGER NOT NULL DEFAULT 0,
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            warnings_json TEXT NOT NULL DEFAULT '[]',
+            error_text TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT,
+            FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS document_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            document_id INTEGER,
+            event_type TEXT NOT NULL,
+            score REAL,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_documents_scope_status
+        ON documents(scope, status, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_documents_scope_family
+        ON documents(scope, family_key, version_rank DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_document_pages_document
+        ON document_pages(document_id, page_number);
+
+        CREATE INDEX IF NOT EXISTS idx_document_sections_document
+        ON document_sections(document_id, ordinal);
+
+        CREATE INDEX IF NOT EXISTS idx_document_chunks_scope_document
+        ON document_chunks(scope, document_id, ordinal);
+
+        CREATE INDEX IF NOT EXISTS idx_document_facts_scope_key
+        ON document_facts(scope, fact_key, status, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_document_contradictions_scope_status
+        ON document_contradictions(scope, status, severity DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_document_runs_scope_created
+        ON document_ingestion_runs(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_document_events_scope_created
+        ON document_events(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -1496,6 +1719,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (20, "evolution_engine", _migration_020_evolution_engine),
     (21, "autonomous_research", _migration_021_autonomous_research),
     (22, "communication_intelligence", _migration_022_communication_intelligence),
+    (23, "document_intelligence", _migration_023_document_intelligence),
 )
 
 

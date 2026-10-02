@@ -112,6 +112,7 @@ class AutonomousResearchEngine:
             "trusted_claims",
             "project_file",
             "manual_reference",
+            "document",
             "external_connector",
         }
         if not source_key or not source_type or not label:
@@ -1113,6 +1114,8 @@ class AutonomousResearchEngine:
                     result.extend(self._collect_trusted_claims(scope, session_id, question, source))
                 elif kind == "project_file":
                     result.extend(self._collect_project_file(scope, session_id, question, source))
+                elif kind == "document":
+                    result.extend(self._collect_document(scope, session_id, question, source))
                 elif kind == "manual_reference":
                     result.extend(self._collect_manual_reference(scope, session_id, question, source))
             except Exception as exc:
@@ -1378,6 +1381,89 @@ class AutonomousResearchEngine:
                     freshness=self._freshness(item.get("updated_at"), 270.0),
                     independence=0.65,
                     metadata={"claim_id": item["id"], "derived": True},
+                )
+            )
+        return result
+
+    def _collect_document(
+        self,
+        scope: str,
+        session_id: int,
+        question: str,
+        source: dict,
+    ) -> list[dict]:
+        if not source["auto_read"]:
+            return []
+        try:
+            document_id = int(str(source.get("locator") or "").strip())
+        except (TypeError, ValueError):
+            return []
+        with connect() as conn:
+            doc = conn.execute(
+                """SELECT id, filename, status, quality_score,
+                          duplicate_of_id, ocr_required
+                   FROM documents
+                   WHERE id=? AND scope=?""",
+                (document_id, scope),
+            ).fetchone()
+            if doc is None:
+                return []
+            if doc["status"] not in {"studied", "quality_hold"}:
+                return []
+            rows = conn.execute(
+                """SELECT id, text_content, quality_score,
+                          provenance_json, content_hash
+                   FROM document_chunks
+                   WHERE document_id=?
+                   ORDER BY quality_score DESC, ordinal ASC
+                   LIMIT 240""",
+                (document_id,),
+            ).fetchall()
+
+        scored = []
+        for row in rows:
+            text = str(row["text_content"] or "").strip()
+            relevance = self._relevance(question, text)
+            if relevance < 0.12:
+                continue
+            scored.append((relevance, dict(row)))
+        scored.sort(key=lambda item: item[0], reverse=True)
+
+        result = []
+        for relevance, row in scored[:16]:
+            provenance = self._json(row["provenance_json"], {})
+            result.append(
+                self.add_evidence(
+                    scope=scope,
+                    session_id=session_id,
+                    source_type="document",
+                    source_ref=(
+                        f"document:{document_id}:chunk:{int(row['id'])}"
+                    ),
+                    source_group=str(source["independent_group"]),
+                    title=(
+                        f"{doc['filename']} · "
+                        f"стр. {provenance.get('page') or '—'}"
+                    ),
+                    content=str(row["text_content"]),
+                    reliability=min(
+                        float(source["trust_prior"]),
+                        float(doc["quality_score"] or 0.0),
+                        float(row["quality_score"] or 0.0),
+                    ),
+                    relevance=relevance,
+                    freshness=1.0,
+                    independence=(
+                        0.55 if doc["duplicate_of_id"] is not None else 1.0
+                    ),
+                    metadata={
+                        "document_id": document_id,
+                        "chunk_id": int(row["id"]),
+                        "provenance": provenance,
+                        "content_hash": row["content_hash"],
+                        "ocr_required": bool(doc["ocr_required"]),
+                        "registered_source_id": source["id"],
+                    },
                 )
             )
         return result

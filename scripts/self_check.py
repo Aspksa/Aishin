@@ -48,6 +48,11 @@ def main() -> int:
             "status": "ok",
             "health": engine.semantic.health(),
         }
+        checks["knowledge_graph"] = {
+            "status": "ok",
+            "personal": engine.graph.stats(scope="personal"),
+            "relationship": engine.graph.stats(scope="relationship"),
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

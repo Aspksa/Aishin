@@ -474,6 +474,95 @@ function setBrainNode(name, active, attention, detail) {
 
 
 function renderNeuralLinks() {
+  const reflectionQualityEl = document.getElementById("reflection-quality");
+  const weakSpotsEl = document.getElementById("reflection-weak-spots");
+  if (reflectionQualityEl) {
+    reflectionQualityEl.textContent =
+      latestReflection || reflectionSummary.samples
+        ? `${Math.round(reflectionQuality * 100)}%`
+        : "—";
+  }
+  if (weakSpotsEl) {
+    weakSpotsEl.replaceChildren();
+    const weakItems = reflectionWeak.length
+      ? reflectionWeak.map((name) => [name, 1])
+      : Object.entries(reflectionSummary.weak_spots || {});
+    if (!weakItems.length) {
+      const empty = document.createElement("p");
+      empty.className = "brain-empty";
+      empty.textContent = "Слабые места не обнаружены.";
+      weakSpotsEl.appendChild(empty);
+    } else {
+      weakItems.slice(0, 6).forEach(([name, count]) => {
+        weakSpotsEl.appendChild(
+          brainStreamItem(
+            String(name),
+            Number(count) > 1 ? `повторений: ${count}` : "обнаружено в последнем анализе"
+          )
+        );
+      });
+    }
+  }
+
+  const learningPlanCount = document.getElementById("learning-plan-count");
+  const learningPlanStream = document.getElementById("learning-plan-stream");
+  if (learningPlanCount) learningPlanCount.textContent = String(learningPlans.length);
+  if (learningPlanStream) {
+    learningPlanStream.replaceChildren();
+    if (!learningPlans.length) {
+      const empty = document.createElement("p");
+      empty.className = "brain-empty";
+      empty.textContent = "Повторяющихся слабых мест пока недостаточно для цели.";
+      learningPlanStream.appendChild(empty);
+    } else {
+      learningPlans.slice(0, 5).forEach((plan) => {
+        learningPlanStream.appendChild(
+          brainStreamItem(
+            plan.topic || "цель обучения",
+            `${plan.rationale || ""} · приоритет ${Math.round(Number(plan.priority || 0) * 100)}%`
+          )
+        );
+      });
+    }
+  }
+
+  const experimentCount = document.getElementById("experiment-count");
+  const experimentStream = document.getElementById("experiment-stream");
+  if (experimentCount) experimentCount.textContent = String(experiments.length);
+  if (experimentStream) {
+    experimentStream.replaceChildren();
+    if (!experiments.length) {
+      const empty = document.createElement("p");
+      empty.className = "brain-empty";
+      empty.textContent = "Shadow-эксперименты появятся из целей обучения.";
+      experimentStream.appendChild(empty);
+    } else {
+      experiments.slice(0, 5).forEach((item) => {
+        const baseline = Math.round(Number(item.baseline_score || 0) * 100);
+        const candidate = Math.round(Number(item.candidate_score || 0) * 100);
+        experimentStream.appendChild(
+          brainStreamItem(
+            item.name || "эксперимент",
+            `${item.status || "shadow"} · ${item.observed_samples || 0}/${item.required_samples || 0} · baseline ${baseline}% → candidate ${candidate}%`
+          )
+        );
+      });
+    }
+  }
+
+  const budgetValue = document.getElementById("context-budget-value");
+  const budgetDetail = document.getElementById("context-budget-detail");
+  if (budgetValue) {
+    budgetValue.textContent = contextBudget
+      ? `${contextBudget.estimated_tokens_after || 0}/${contextBudget.token_budget || 0}`
+      : "—";
+  }
+  if (budgetDetail) {
+    budgetDetail.textContent = contextBudget
+      ? `До: ~${contextBudget.estimated_tokens_before || 0} токенов\nПосле: ~${contextBudget.estimated_tokens_after || 0}\nСокращено символов: ${contextBudget.trimmed_chars || 0}\nИстория: ${contextBudget.history_before ?? "—"} → ${contextBudget.history_after ?? "—"}`
+      : "Budgeter ещё не выполнялся.";
+  }
+
   const flow = document.getElementById("brain-flow");
   const svg = document.getElementById("brain-links");
   if (!flow || !svg || !flow.closest("details")?.open) return;
@@ -484,8 +573,12 @@ function renderNeuralLinks() {
   svg.replaceChildren();
 
   const pairs = [];
-  for (let i = 0; i < nodes.length - 1; i += 1) pairs.push([i, i + 1]);
-  [[0,4],[1,5],[2,8],[4,9],[5,10],[8,14],[9,15],[10,16],[14,17],[15,17],[16,17],[17,18]]
+  for (let i = 0; i < Math.min(nodes.length - 1, 18); i += 1) {
+    pairs.push([i, i + 1]);
+  }
+  [[0,4],[1,5],[2,8],[4,9],[5,10],[8,14],[9,15],[10,16],
+   [14,17],[15,17],[16,17],[17,18],
+   [14,19],[19,20],[20,21],[21,22],[22,23],[23,14]]
     .forEach(([a,b]) => {
       if (nodes[a] && nodes[b]) pairs.push([a,b]);
     });
@@ -550,6 +643,20 @@ function renderLivingBrain(state, sensors, pending, approved) {
   const verification = state.working_memory?.verification || null;
   const performance = state.working_memory?.performance || (state.performance || [])[0] || null;
   const continuousLearning = state.continuous_learning || null;
+  const reflectionSummary = state.self_reflection?.summary || {};
+  const latestReflection =
+    state.working_memory?.self_reflection ||
+    state.self_reflection?.recent?.[0] ||
+    null;
+  const learningPlans = state.learning_planner?.open || [];
+  const experiments = state.safe_experiments || [];
+  const contextBudget =
+    state.working_memory?.context_budget ||
+    state.context_budget?.[0] ||
+    null;
+  const readyExperiments = experiments.filter(
+    (item) => item.status === "ready_for_review"
+  );
 
   const learningStatusSimple = continuousLearning?.status || {};
   const trustedSimple = (continuousLearning?.patterns || []).filter(
@@ -699,6 +806,57 @@ function renderLivingBrain(state, sensors, pending, approved) {
     learningStatus
       ? `${humanLearningMode(learningStatus.mode)} · очередь ${learningStatus.queue?.pending || 0} · проверено ${(continuousLearning?.patterns || []).filter((item) => item.lifecycle === "trusted").length}`
       : "самообучение ещё не запускалось"
+  );
+
+  const reflectionQuality = Number(
+    latestReflection?.quality_score ?? reflectionSummary.average_quality ?? 0
+  );
+  const reflectionWeak = latestReflection?.weak_spots || [];
+  setBrainNode(
+    "reflection",
+    Boolean(latestReflection || reflectionSummary.samples),
+    reflectionQuality > 0 && reflectionQuality < 0.70,
+    latestReflection || reflectionSummary.samples
+      ? `качество ${Math.round(reflectionQuality * 100)}% · слабых мест ${reflectionWeak.length || Object.keys(reflectionSummary.weak_spots || {}).length}`
+      : "самоанализ ещё не накопил данные"
+  );
+
+  setBrainNode(
+    "learning-plan",
+    learningPlans.length > 0,
+    learningPlans.some((item) => Number(item.priority || 0) >= 0.8),
+    learningPlans.length
+      ? `${learningPlans.length} целей · приоритет ${Math.round(Number(learningPlans[0]?.priority || 0) * 100)}%`
+      : "цели обучения ещё не сформированы"
+  );
+
+  setBrainNode(
+    "experiment",
+    experiments.length > 0,
+    false,
+    experiments.length
+      ? `${experiments.length} shadow · наблюдений ${experiments.reduce((sum, item) => sum + Number(item.observed_samples || 0), 0)}`
+      : "безопасные эксперименты ещё не запущены"
+  );
+
+  setBrainNode(
+    "learning-check",
+    experiments.length > 0,
+    readyExperiments.length > 0,
+    readyExperiments.length
+      ? `${readyExperiments.length} готовы к ручной проверке`
+      : experiments.length
+        ? "сравнение baseline/candidate продолжается"
+        : "проверять пока нечего"
+  );
+
+  setBrainNode(
+    "consolidation",
+    trustedSimple > 0,
+    false,
+    trustedSimple
+      ? `${trustedSimple} trusted · закреплены качеством`
+      : "доверенные паттерны ещё не закреплены"
   );
 
   const simpleSteps = {

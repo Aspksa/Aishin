@@ -170,6 +170,22 @@ def main() -> int:
             ),
             "feedback_policy": "explicit_success_or_failure_only",
         }
+        checks["counterfactual_reasoning"] = {
+            "status": "ok",
+            "engine": engine.counterfactual.__class__.__name__,
+            "history_entries": len(
+                engine.counterfactual.recent(scope="personal", limit=10)
+            ),
+            "active_modes": ["DEEP", "PLAN", "VERIFY", "DIAGNOSE"],
+        }
+        checks["decision_quality"] = {
+            "status": "ok",
+            "engine": engine.decision_quality.__class__.__name__,
+            "history_entries": len(
+                engine.decision_quality.recent(scope="personal", limit=10)
+            ),
+            "meaning": "quality_of_evidence_not_truth",
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

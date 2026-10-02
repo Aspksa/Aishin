@@ -19,28 +19,40 @@ if errorlevel 1 (
     exit /b 1
 )
 
+python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"
+if errorlevel 1 (
+    echo [ERROR] Требуется Python 3.11 или новее.
+    python --version
+    pause
+    exit /b 1
+)
+
 if not exist ".venv\Scripts\python.exe" (
-    echo [1/4] Создаю локальное окружение...
+    echo [1/6] Создаю локальное окружение...
     python -m venv .venv
     if errorlevel 1 goto :fail
 )
 
-echo [2/4] Проверяю зависимости...
+echo [2/6] Проверяю зависимости...
 ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r requirements.txt
 if errorlevel 1 goto :fail
 
-echo [3/5] Проверяю обновления GitHub...
+echo [3/6] Проверяю обновления GitHub...
 where git >nul 2>nul
 if not errorlevel 1 (
     git fetch origin main >nul 2>nul
     git pull --ff-only origin main >nul 2>nul
 )
 
-echo [4/5] Проверяю ядро Айшин...
+echo [4/6] Проверяю ядро Айшин...
 ".venv\Scripts\python.exe" scripts\self_check.py
 if errorlevel 1 goto :fail
 
-echo [5/5] Запускаю Айшин...
+echo [5/6] Проверяю запуск FastAPI...
+".venv\Scripts\python.exe" scripts\runtime_smoke.py
+if errorlevel 1 goto :fail
+
+echo [6/6] Запускаю Айшин...
 start "" http://127.0.0.1:8765
 ".venv\Scripts\python.exe" -m uvicorn app.main:app --host 127.0.0.1 --port 8765
 

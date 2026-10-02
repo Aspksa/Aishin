@@ -428,6 +428,56 @@ class DevelopmentMetricsEngine:
                    WHERE scope=? AND enabled=1""",
                 (scope,),
             ))
+            communication_score = scalar(
+                """SELECT communication_score FROM communication_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            communication_understanding = scalar(
+                """SELECT understanding_score FROM communication_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            communication_adaptation = scalar(
+                """SELECT adaptation_score FROM communication_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            communication_persona_stability = scalar(
+                """SELECT persona_stability FROM communication_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            communication_diversity = scalar(
+                """SELECT diversity_score FROM communication_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            communication_explanation_success = scalar(
+                """SELECT explanation_success FROM communication_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            communication_evaluated_turns = int(scalar(
+                """SELECT evaluated_turns FROM communication_state
+                   WHERE scope=?""",
+                (scope,),
+            ))
+            communication_skills = int(scalar(
+                """SELECT COUNT(*) FROM communication_skills
+                   WHERE scope=? AND sample_count>0""",
+                (scope,),
+            ))
+            communication_preferences = int(scalar(
+                """SELECT COUNT(*) FROM communication_preferences
+                   WHERE scope=?""",
+                (scope,),
+            ))
+            communication_clarifications = int(scalar(
+                """SELECT COUNT(*) FROM communication_turns
+                   WHERE scope=? AND outcome='clarification_needed'""",
+                (scope,),
+            ))
 
         knowledge_items = memories + entities
         return {
@@ -496,6 +546,22 @@ class DevelopmentMetricsEngine:
             "research_conflicted_claims": research_conflicted_claims,
             "research_open_contradictions": research_open_contradictions,
             "research_sources": research_sources,
+            "communication_score": round(communication_score, 1),
+            "communication_understanding": round(
+                communication_understanding, 1
+            ),
+            "communication_adaptation": round(communication_adaptation, 1),
+            "communication_persona_stability": round(
+                communication_persona_stability, 1
+            ),
+            "communication_diversity": round(communication_diversity, 1),
+            "communication_explanation_success": round(
+                communication_explanation_success, 1
+            ),
+            "communication_evaluated_turns": communication_evaluated_turns,
+            "communication_skills": communication_skills,
+            "communication_preferences": communication_preferences,
+            "communication_clarifications": communication_clarifications,
         }
 
     def _components(self, c: dict) -> dict:

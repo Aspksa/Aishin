@@ -5,7 +5,7 @@ import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -66,7 +66,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.10', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.11', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -190,6 +190,17 @@ class CommunicationFeedback(BaseModel):
     reason: str = ''
 
 
+class DocumentContradictionResolve(BaseModel):
+    scope: str = 'personal'
+    resolution: str
+
+
+class DocumentReprocessRequest(BaseModel):
+    scope: str = 'personal'
+    enrich_with_ai: bool = True
+    build_semantic_index: bool = True
+
+
 class CloudSettingsUpdate(BaseModel):
     api_key: str
 
@@ -206,7 +217,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.10',
+        'version': '0.0.11',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -579,6 +590,158 @@ def assistant_research_contradiction_resolve(
     _local_only(request)
     try:
         return engine.research.resolve_contradiction(
+            contradiction_id,
+            scope=payload.scope.strip() or 'personal',
+            resolution=payload.resolution,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get('/api/assistant/documents')
+def assistant_documents(
+    scope: str = 'personal',
+    document_limit: int = 80,
+    fact_limit: int = 80,
+    contradiction_limit: int = 60,
+    run_limit: int = 40,
+) -> dict:
+    return engine.documents.dashboard(
+        scope=scope,
+        document_limit=max(1, min(document_limit, 500)),
+        fact_limit=max(1, min(fact_limit, 500)),
+        contradiction_limit=max(1, min(contradiction_limit, 500)),
+        run_limit=max(1, min(run_limit, 300)),
+    )
+
+
+@app.get('/api/assistant/documents/list')
+def assistant_documents_list(
+    scope: str = 'personal',
+    status: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.documents.documents(
+        scope=scope,
+        status=status,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/documents/{document_id}')
+def assistant_document_detail(
+    document_id: int,
+    scope: str = 'personal',
+) -> dict:
+    try:
+        return engine.documents.document_detail(
+            document_id,
+            scope=scope,
+            chunk_limit=160,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post('/api/assistant/documents/upload')
+async def assistant_document_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    scope: str = Form('personal'),
+    enrich_with_ai: bool = Form(True),
+    build_semantic_index: bool = Form(True),
+) -> dict:
+    _local_only(request)
+    filename = (file.filename or 'document').strip()
+    data = await file.read()
+    try:
+        result = engine.documents.ingest_bytes(
+            scope=scope.strip() or 'personal',
+            filename=filename,
+            data=data,
+            media_type=file.content_type or '',
+            trigger='upload',
+            enrich_with_ai=enrich_with_ai,
+            build_semantic_index=build_semantic_index,
+        )
+        return result.to_dict()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Document ingestion failed: {exc}',
+        )
+
+
+@app.post('/api/assistant/documents/{document_id}/reprocess')
+def assistant_document_reprocess(
+    document_id: int,
+    payload: DocumentReprocessRequest,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.documents.reprocess(
+            document_id,
+            scope=payload.scope.strip() or 'personal',
+            enrich_with_ai=payload.enrich_with_ai,
+            build_semantic_index=payload.build_semantic_index,
+        ).to_dict()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get('/api/assistant/documents/search')
+def assistant_document_search(
+    query: str,
+    scope: str = 'personal',
+    limit: int = 12,
+) -> list[dict]:
+    return engine.documents.search(
+        query,
+        scope=scope,
+        limit=max(1, min(limit, 80)),
+    )
+
+
+@app.get('/api/assistant/documents/facts')
+def assistant_document_facts(
+    scope: str = 'personal',
+    document_id: int | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.documents.facts(
+        scope=scope,
+        document_id=document_id,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/documents/contradictions')
+def assistant_document_contradictions(
+    scope: str = 'personal',
+    document_id: int | None = None,
+    status: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.documents.contradictions(
+        scope=scope,
+        document_id=document_id,
+        status=status,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.post('/api/assistant/documents/contradictions/{contradiction_id}/resolve')
+def assistant_document_contradiction_resolve(
+    contradiction_id: int,
+    payload: DocumentContradictionResolve,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.documents.resolve_contradiction(
             contradiction_id,
             scope=payload.scope.strip() or 'personal',
             resolution=payload.resolution,

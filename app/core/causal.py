@@ -226,6 +226,34 @@ class CausalReasoning:
         return "Связь наблюдается, причинность не установлена."
 
     @staticmethod
+    def _record(
+        *,
+        scope: str,
+        query: str,
+        assessment: CausalAssessment,
+    ) -> int:
+        with connect() as conn:
+            cursor = conn.execute(
+                """INSERT INTO causal_assessments(
+                       scope, query, claims_json, unresolved_json
+                   ) VALUES (?, ?, ?, ?)""",
+                (
+                    scope,
+                    query,
+                    json.dumps(
+                        [item.to_dict() for item in assessment.claims],
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(
+                        assessment.unresolved,
+                        ensure_ascii=False,
+                    ),
+                ),
+            )
+            conn.commit()
+            return int(cursor.lastrowid)
+
+    @staticmethod
     def _evidence_texts(evidence: list[dict]) -> list[str]:
         result: list[str] = []
         for item in evidence:

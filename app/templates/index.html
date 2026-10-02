@@ -44,7 +44,7 @@
     <main class="content">
       <header class="topbar">
         <div>
-          <p class="eyebrow">AISHIN CORE · v0.0.1</p>
+          <p class="eyebrow">AISHIN CORE · v0.0.3</p>
           <h1 id="page-title">Aishin Kitsune</h1>
         </div>
         <div class="health"><span></span> Ядро активно</div>
@@ -71,23 +71,82 @@
           </div>
         </div>
 
-        <div class="grid">
-          <article class="card">
-            <p class="card-label">ДУША</p>
-            <h3>Личность и принципы</h3>
-            <p>Точность, память, забота, собственное мнение и спокойное предупреждение о рисках.</p>
-          </article>
-          <article class="card">
+        <div class="grid status-grid">
+          <article class="card metric-card">
             <p class="card-label">ПАМЯТЬ</p>
-            <h3>SQLite-фундамент</h3>
-            <p>Уже заложено разделение памяти по областям и типам достоверности.</p>
+            <strong id="metric-memory">—</strong>
+            <p>активных воспоминаний</p>
           </article>
-          <article class="card">
-            <p class="card-label">МОЗГ</p>
-            <h3>AI-движок</h3>
-            <p>Интерфейс готов к подключению локальной или облачной модели следующим этапом.</p>
+          <article class="card metric-card">
+            <p class="card-label">ПЛАНЫ</p>
+            <strong id="metric-tasks">—</strong>
+            <p>открытых задач</p>
+          </article>
+          <article class="card metric-card">
+            <p class="card-label">КАРТА МИРА</p>
+            <strong id="metric-entities">—</strong>
+            <p>сущностей в личном графе</p>
+          </article>
+          <article class="card metric-card">
+            <p class="card-label">ВНИМАНИЕ</p>
+            <strong id="metric-decisions">—</strong>
+            <p>решений ждут Вас</p>
           </article>
         </div>
+
+        <section class="approval-center" aria-labelledby="approval-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">ПРОАКТИВНЫЙ КОНТУР</p>
+              <h2 id="approval-title">Айшин заметила</h2>
+              <p>Здесь появляются только предложения. Ничего не считается выполненным без фактического результата инструмента.</p>
+            </div>
+            <button id="refresh-approval" class="ghost-button" type="button">Обновить</button>
+          </div>
+
+          <div id="approval-summary" class="approval-summary">
+            <span class="summary-pill"><b id="pending-count">0</b> ожидают решения</span>
+            <span class="summary-pill"><b id="approved-count">0</b> одобрены</span>
+            <span id="sensor-state" class="summary-pill">Сенсоры: проверяю…</span>
+          </div>
+
+          <div class="decision-columns">
+            <div>
+              <div class="column-title">
+                <h3>Ожидают решения</h3>
+                <span>Approve / Reject</span>
+              </div>
+              <div id="pending-decisions" class="decision-list">
+                <div class="empty-state">Айшин проверяет состояние…</div>
+              </div>
+            </div>
+
+            <div>
+              <div class="column-title">
+                <h3>Одобрены</h3>
+                <span>Готовы к контролируемому выполнению</span>
+              </div>
+              <div id="approved-decisions" class="decision-list">
+                <div class="empty-state">Нет одобренных действий.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="brain-monitor">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">ЖИВОЕ ЯДРО</p>
+              <h2>Что сейчас видит Айшин</h2>
+            </div>
+          </div>
+          <div id="sensor-cards" class="sensor-grid">
+            <article class="sensor-card"><span>Runtime</span><strong>—</strong></article>
+            <article class="sensor-card"><span>Planner</span><strong>—</strong></article>
+            <article class="sensor-card"><span>Modules</span><strong>—</strong></article>
+            <article class="sensor-card"><span>Filesystem</span><strong>—</strong></article>
+          </div>
+        </section>
 
         <section class="chat">
           <div id="messages" class="messages">

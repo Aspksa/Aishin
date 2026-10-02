@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 6
+LATEST_SCHEMA_VERSION = 7
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -215,6 +215,28 @@ def _migration_006_counterfactual_and_decision_quality(
     )
 
 
+def _migration_007_action_selection(conn: sqlite3.Connection) -> None:
+    """Expected-utility action selection audit. Selection never executes tools."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS action_selections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            query TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            candidates_json TEXT NOT NULL DEFAULT '[]',
+            selected_json TEXT NOT NULL DEFAULT '{}',
+            decision_quality REAL NOT NULL DEFAULT 0.0,
+            selection_state TEXT NOT NULL DEFAULT 'proposal_only',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_action_selections_scope_created
+        ON action_selections(scope, created_at DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -222,6 +244,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (4, "context_orchestrator_and_causality", _migration_004_context_and_causality),
     (5, "hypotheses_and_logic_learning", _migration_005_hypotheses_and_logic_learning),
     (6, "counterfactual_and_decision_quality", _migration_006_counterfactual_and_decision_quality),
+    (7, "action_selection", _migration_007_action_selection),
 )
 
 

@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T20:15:00+10:00",
+  "generated_at": "2026-10-02T20:25:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 9,
+      "latest_schema_version": 10,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -146,8 +146,8 @@
         "scripts/self_check.py",
         "scripts/runtime_smoke.py"
       ],
-      "latest_confirmed_run_id": 36994225453,
-      "latest_confirmed_head_sha": "c6df75ea77c3e8902d5ad63158e9e5a09c2a8ebd"
+      "latest_confirmed_run_id": 36994986756,
+      "latest_confirmed_head_sha": "a662356b9fb2bdf3147ea860d64590f2dffdef08"
     }
   },
   "implemented_architecture": [
@@ -426,32 +426,46 @@
         "app/main.py"
       ],
       "details": "Removed global last_cognitive_context. Every respond() gets a unique request_id and persists an isolated trace row with provider runtime metadata; snapshot reads latest completed trace per scope."
+    },
+    {
+      "layer": "Performance Observability / Latency Budget",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/performance.py",
+        "app/core/engine.py",
+        "app/migrations.py",
+        "app/main.py"
+      ],
+      "details": "Per-request stage timings tied to request_id, soft latency budgets, bottleneck detection and persistent performance history. Budgets are observability-only and do not abort responses."
+    },
+    {
+      "layer": "Intent-aware Verification Trigger Policy",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/metacognition.py",
+        "app/core/verification.py"
+      ],
+      "details": "Ordinary conversation is no longer escalated to heavy Verification solely because personal memory is empty. Explicit verification, contradictions and action+insufficient_data still trigger re-check."
     }
   ],
   "current_cognitive_flow": [
-    "Input creates unique request_id",
-    "Logic Learning checks explicit feedback about previous strategy",
-    "Memory Consolidation",
-    "Graph Builder",
-    "Planner Builder",
-    "Initial Hybrid Recall",
-    "Initial Metacognition",
-    "Logic Engine mode selection",
-    "Verification Engine when required",
-    "Final Metacognition",
-    "Logic Evidence Chain + Contradiction Resolver + Decision Journal",
-    "Causal Reasoning",
-    "Hypothesis Manager in VERIFY/DIAGNOSE",
-    "Counterfactual Reasoning in DEEP/PLAN/VERIFY/DIAGNOSE",
-    "Decision Quality Scoring",
-    "Action Selection / Expected Utility",
-    "Context Orchestrator rebuilds final prompt",
-    "Cloud.ru request through bounded retry/backoff policy",
-    "Provider attempts/latency/error_code captured",
-    "Per-request cognitive trace persisted by request_id",
-    "Cloud response or safe fallback",
-    "Proactive/Execution lifecycle remains behind Permission Gate",
-    "Event + State update"
+    "Input creates request_id and starts PerformanceTracker",
+    "Logic Learning feedback",
+    "Memory Consolidation timing",
+    "Graph Builder timing",
+    "Planner Builder timing",
+    "Hybrid Cognition timing",
+    "Sensors + initial Metacognition timing",
+    "Logic mode selection",
+    "Intent-aware Verification only when justified",
+    "Final Metacognition when Verification ran",
+    "Logic/Causal/Hypothesis/Counterfactual/Decision Quality/Action Selection timing",
+    "Context Orchestrator timing",
+    "Cloud.ru bounded resilient request timing",
+    "Postprocess timing",
+    "Performance trace persisted with bottleneck and soft-budget result",
+    "Cognitive request trace persisted under same request_id",
+    "Response/Event/State update"
   ],
   "metacognition": {
     "statuses": [
@@ -545,7 +559,8 @@
     "action_selections",
     "execution_approvals",
     "execution_attempts",
-    "cognitive_request_traces"
+    "cognitive_request_traces",
+    "performance_traces"
   ],
   "important_api": [
     "GET /health",
@@ -597,7 +612,8 @@
     "GET /api/assistant/execution/approvals",
     "GET /api/assistant/execution/attempts",
     "GET /api/assistant/cognitive-traces",
-    "GET /api/assistant/ai-diagnostics"
+    "GET /api/assistant/ai-diagnostics",
+    "GET /api/assistant/performance"
   ],
   "key_fixed_bugs_and_safety_changes": [
     "Исправлена SQL-ошибка кавычек в запросе active memories.",
@@ -647,7 +663,12 @@
     "Provider errors no longer expose HTTP response bodies or authorization data.",
     "AIReply/EmbeddingReply now carry bounded attempts, latency_ms and error_code diagnostics.",
     "Initial resilience self-check ordering bug (engine referenced before creation) was found by CI and fixed.",
-    "Cloud resilience + request trace isolation validated on Windows and Ubuntu in GitHub Actions run 36994225453."
+    "Cloud resilience + request trace isolation validated on Windows and Ubuntu in GitHub Actions run 36994225453.",
+    "Ordinary conversation with empty personal memory no longer escalates automatically into Verification.",
+    "Verification should_run is now intent-aware: explicit verification and contradictions remain strict; action insufficient data remains protected.",
+    "Every request now persists stage timings and identifies its bottleneck.",
+    "Latency budgets are soft and cannot silently cut off reasoning or execution.",
+    "Performance + Verification policy validated on Windows and Ubuntu in GitHub Actions run 36994986756."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -688,18 +709,18 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Cloud.ru Resilience + per-request Cognitive Trace Isolation completed, history saved, cross-platform runtime validated.",
-    "last_implemented_feature": "Bounded Cloud retry/cache/error policy plus persistent request-scoped cognitive traces replacing global last_cognitive_context.",
-    "next_recommended_step": "Performance observability and latency budget: persist stage timings for memory, graph, planner, verification, logic, context, Cloud and total response; then optimize the slowest measured stages. Also review Verification auto-trigger policy for ordinary no-memory conversation to avoid unnecessary extra Cloud calls.",
+    "milestone": "Performance Observability / Latency Budget and intent-aware Verification policy completed, history saved, cross-platform runtime validated.",
+    "last_implemented_feature": "Per-request stage timing/bottleneck traces plus removal of unnecessary Verification escalation for ordinary no-memory conversation.",
+    "next_recommended_step": "Use collected performance traces to optimize measured bottlenecks. High-value structural debts next: proactive decision lifecycle dedupe/acknowledge, Knowledge Graph data merge/startup audit suppression, and Tool Registry atomic writes/hash validation.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не смешивать память Aishin с TooruDragon.",
       "Не возвращать global last_cognitive_context.",
-      "Не делать бесконечные retries Cloud.ru.",
-      "Не логировать API key/Authorization или raw HTTP error body.",
-      "Не считать request_id между запросами общим контекстом.",
-      "Не обходить Permission Gate / Execution Coordinator."
+      "Не превращать soft latency budget в скрытый hard cutoff без отдельного решения.",
+      "Не запускать Verification на обычный conversation только из-за отсутствия memory.",
+      "Не обходить Permission Gate / Execution Coordinator.",
+      "Не логировать Cloud.ru API key."
     ]
   },
   "development_sequence_current_chat": [
@@ -782,6 +803,10 @@
     {
       "user_prompt": "Делай",
       "result": "Добавлены Cloud.ru Resilience и per-request Cognitive Trace Isolation. Schema migration 9, cognitive_request_traces, request_id/trace_id, удалён global last_cognitive_context, bounded transient retries/backoff, health cache, safe errors, provider attempts/latency/error_code, APIs /cognitive-traces и /ai-diagnostics. Первый итоговый CI нашёл self-check ordering bug; исправлен. GitHub Actions run 36994225453 прошёл Windows + Ubuntu. История сохранена."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлены Performance Observability / Latency Budget и intent-aware Verification trigger policy. Schema migration 10, performance_traces, stage timings per request_id, bottleneck/over-budget status, API /performance, Live Brain Latency node. Ordinary conversation without memory no longer auto-runs Verification; explicit verification/action safeguards remain. GitHub Actions run 36994986756 прошёл Windows + Ubuntu. История сохранена."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -798,9 +823,9 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать schema 9 Cloud.ru Resilience + per-request Cognitive Trace Isolation реализованными.",
-      "Не возвращать last_cognitive_context; использовать CognitiveTraceStore.",
-      "Следующий рекомендуемый этап: performance stage timings/latency budget и исправление избыточного Verification trigger для обычных conversation-запросов."
+      "Считать schema 10 Performance Observability + intent-aware Verification policy реализованными.",
+      "Сначала смотреть performance_traces перед оптимизацией скорости.",
+      "Следующие структурные кандидаты: proactive lifecycle dedupe/acknowledge, graph merge/audit suppression, atomic Tool Registry writes."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -1690,5 +1715,54 @@
     "snapshot_rule": "working_memory = latest persisted trace for current scope",
     "api": "GET /api/assistant/cognitive-traces",
     "concurrency_rule": "Concurrent requests write separate rows; one request cannot overwrite another request's in-process working trace."
+  },
+  "performance_observability": {
+    "repository_path": "app/core/performance.py",
+    "request_binding": "same request_id as CognitiveTraceStore",
+    "stages": [
+      "input_setup",
+      "memory_consolidation",
+      "graph_builder",
+      "planner_builder",
+      "cognition",
+      "sensors_metacognition",
+      "verification",
+      "logic_pipeline",
+      "context_orchestrator",
+      "cloud",
+      "postprocess"
+    ],
+    "default_budgets_ms": {
+      "memory_consolidation": 500,
+      "graph_builder": 500,
+      "planner_builder": 500,
+      "cognition": 700,
+      "sensors_metacognition": 500,
+      "verification": 2500,
+      "logic_pipeline": 1000,
+      "context_orchestrator": 500,
+      "cloud": 5000,
+      "postprocess": 500,
+      "total": 8000
+    },
+    "enforcement": "soft_observability_only",
+    "outputs": [
+      "stages_ms",
+      "total_ms",
+      "bottleneck",
+      "budget_status",
+      "over_budget"
+    ],
+    "table": "performance_traces",
+    "api": "GET /api/assistant/performance",
+    "live_brain_node": "Latency"
+  },
+  "verification_trigger_policy": {
+    "ordinary_conversation_no_memory": "cautious; does not auto-run Verification solely due to empty memory",
+    "explicit_verification": "always runs",
+    "needs_verification": "always runs",
+    "action_insufficient_data": "runs",
+    "conversation_insufficient_data": "does not run by should_run policy",
+    "purpose": "avoid redundant expanded recall, graph/sensor scan and extra Cloud consistency call for ordinary conversation"
   }
 }

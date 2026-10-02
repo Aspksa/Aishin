@@ -14,6 +14,7 @@ from .development_metrics import DevelopmentMetricsEngine
 from .live_brain import LiveBrainRuntime
 from .long_term_growth import LongTermGrowthEngine
 from .cognitive_intelligence import CognitiveIntelligenceEngine
+from .evolution_engine import EvolutionEngine
 from .self_reflection import SelfReflectionMetrics
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
@@ -142,6 +143,12 @@ class AishinEngine:
             growth=self.long_term_growth,
             events=self.events,
         )
+        self.evolution = EvolutionEngine(
+            growth=self.long_term_growth,
+            continuous_learning=self.continuous_learning,
+            events=self.events,
+        )
+        self.cognitive_intelligence.bind_evolution(self.evolution)
         self.live_brain = LiveBrainRuntime(self)
 
     def reload_ai(self) -> dict:
@@ -179,6 +186,10 @@ class AishinEngine:
             scope=state.current_scope,
             trigger="startup",
         )
+        evolution = self.evolution.run_cycle(
+            scope=state.current_scope,
+            trigger="startup",
+        )
         self.events.emit(
             "aishin.started",
             scope=state.current_scope,
@@ -195,6 +206,7 @@ class AishinEngine:
                     "formula_version": intelligence.get("formula_version"),
                 },
                 "proactive_intelligence": proactive_intelligence.to_dict(),
+                "evolution": evolution.to_dict(),
             },
             importance=0.6,
         )
@@ -396,6 +408,15 @@ class AishinEngine:
                 history_limit=30,
                 route_limit=20,
                 persist=True,
+            ),
+            "evolution": self.evolution.dashboard(
+                scope=state.current_scope,
+                capability_limit=30,
+                variant_limit=40,
+                curriculum_limit=40,
+                transfer_limit=40,
+                cycle_limit=30,
+                refresh=False,
             ),
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(
@@ -772,6 +793,10 @@ class AishinEngine:
             + self.proactive_intelligence.prompt_block(scope=scope)
         )
         context.system_prompt += (
+            "\n\n"
+            + self.evolution.prompt_block(scope=scope)
+        )
+        context.system_prompt += (
             "\n\nДоступные внутренние инструменты Айшин:\n"
             + "\n".join(
                 f"- {item['name']}: {item['description']} "
@@ -883,6 +908,7 @@ class AishinEngine:
             scope=scope,
             persist=True,
         )
+        evolution_state = self.evolution.state(scope=scope)
         self.events.emit(
             "cognition.phase",
             scope=scope,
@@ -991,6 +1017,16 @@ class AishinEngine:
                     "outcome_score": intelligence_outcome.get("outcome_score"),
                     "transfer_used": cognitive_route.transfer_used,
                 },
+                "evolution": {
+                    "generation": evolution_state.get("generation"),
+                    "evolution_score": evolution_state.get("evolution_score"),
+                    "stability_score": evolution_state.get("stability_score"),
+                    "plasticity_score": evolution_state.get("plasticity_score"),
+                    "variant_id": cognitive_route.evolution_variant_id,
+                    "assignment": cognitive_route.evolution_policy.get(
+                        "assignment_type"
+                    ),
+                },
             },
             importance=0.3,
         )
@@ -1043,6 +1079,11 @@ class AishinEngine:
                 "route": cognitive_route.to_dict(),
                 "outcome": intelligence_outcome,
                 "current": cognitive_intelligence,
+            },
+            "evolution": {
+                "state": evolution_state,
+                "policy": cognitive_route.evolution_policy,
+                "outcome_observation": intelligence_outcome.get("evolution"),
             },
             "proactive_intelligence": proactive_intelligence_report.to_dict(),
             "planner_notices": [

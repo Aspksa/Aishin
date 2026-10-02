@@ -75,6 +75,34 @@ def main() -> int:
                 "history_entries": len(proactive_conditions.json()),
             }
 
+            graph_search = client.get(
+                "/api/assistant/graph/search",
+                params={
+                    "scope": "relationship",
+                    "query": "Айшин",
+                    "limit": 5,
+                },
+            )
+            if graph_search.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/graph/search returned HTTP "
+                    f"{graph_search.status_code}"
+                )
+            graph_items = graph_search.json()
+            if not graph_items:
+                raise RuntimeError("Knowledge Graph seed Айшин не найден")
+            if (
+                "canonical_name" not in graph_items[0]
+                or not isinstance(graph_items[0].get("data"), dict)
+            ):
+                raise RuntimeError(
+                    "Knowledge Graph search shape несовместим с Verification"
+                )
+            checks["knowledge_graph_shape"] = {
+                "status": "ok",
+                "matches": len(graph_items),
+            }
+
             performance = client.get(
                 "/api/assistant/performance",
                 params={"scope": "personal", "limit": 1},

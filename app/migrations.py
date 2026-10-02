@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 5
+LATEST_SCHEMA_VERSION = 6
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -177,12 +177,51 @@ def _migration_005_hypotheses_and_logic_learning(conn: sqlite3.Connection) -> No
     )
 
 
+def _migration_006_counterfactual_and_decision_quality(
+    conn: sqlite3.Connection,
+) -> None:
+    """Counterfactual Reasoning and Decision Quality Scoring."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS counterfactual_assessments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            query TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            scenarios_json TEXT NOT NULL DEFAULT '[]',
+            assumptions_json TEXT NOT NULL DEFAULT '[]',
+            unresolved_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS decision_quality_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            query TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            overall REAL NOT NULL DEFAULT 0.0,
+            components_json TEXT NOT NULL DEFAULT '{}',
+            warnings_json TEXT NOT NULL DEFAULT '[]',
+            recommendation TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_counterfactual_scope_created
+        ON counterfactual_assessments(scope, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_decision_quality_scope_created
+        ON decision_quality_scores(scope, created_at DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
     (3, "logic_engine_v1", _migration_003_logic_engine),
     (4, "context_orchestrator_and_causality", _migration_004_context_and_causality),
     (5, "hypotheses_and_logic_learning", _migration_005_hypotheses_and_logic_learning),
+    (6, "counterfactual_and_decision_quality", _migration_006_counterfactual_and_decision_quality),
 )
 
 

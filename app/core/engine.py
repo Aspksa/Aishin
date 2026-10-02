@@ -21,6 +21,7 @@ from .personal import PersonalAishin
 from .semantic import SemanticMemory
 from .sensors import SensorHub
 from .tools import ToolRegistry
+from .verification import VerificationEngine
 from .state import StateManager
 
 
@@ -55,6 +56,14 @@ class AishinEngine:
             root=project_root,
             permissions=self.permissions,
             planner=self.planner,
+        )
+        self.verification = VerificationEngine(
+            ai=self.ai,
+            memory=self.memory,
+            semantic=self.semantic,
+            graph=self.graph,
+            sensors=self.sensors,
+            tools=self.tools,
         )
         self.proactive = ProactiveDecisionLoop(
             planner=self.planner,
@@ -143,6 +152,12 @@ class AishinEngine:
             "metacognition": self._metacognition_snapshot(
                 scope=state.current_scope,
             ),
+            "verification": {
+                "history": self.verification.recent(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
             "observations": [o.__dict__ for o in self.observer.inspect()],
             "recent_events": self.events.recent(limit=10),
             "recent_memories": self.memory.recent(
@@ -211,7 +226,7 @@ class AishinEngine:
             scope=scope,
             persist=False,
         )
-        meta = self.metacognition.assess(
+        initial_meta = self.metacognition.assess(
             scope=scope,
             intent=intent,
             recalled_memories=context.recalled_memories,
@@ -221,12 +236,68 @@ class AishinEngine:
             graph_stats=self.graph.stats(scope=scope),
         )
 
+        verification_report = None
+        final_memories = context.recalled_memories
+
+        if self.verification.should_run(
+            intent=intent,
+            status=initial_meta.status,
+        ):
+            verification_report = self.verification.verify(
+                cleaned,
+                scope=scope,
+                initial_status=initial_meta.status,
+            )
+            final_memories = verification_report.expanded_memories or final_memories
+
+            consistency_conflicts = len(
+                verification_report.consistency.get("conflicts", [])
+            )
+            unresolved_count = len(verification_report.unresolved)
+
+            meta = self.metacognition.assess(
+                scope=scope,
+                intent=intent,
+                recalled_memories=final_memories,
+                semantic_used=context.semantic_used,
+                planner_notices=planner_notices,
+                sensor_readings=sensor_readings,
+                graph_stats=self.graph.stats(scope=scope),
+                verification_conflicts=consistency_conflicts,
+                verification_missing=unresolved_count,
+            )
+            self.verification.record(
+                verification_report,
+                scope=scope,
+                query=cleaned,
+                final_status=meta.status,
+            )
+            context.system_prompt += (
+                "\n\n"
+                + self.verification.prompt_block(verification_report)
+            )
+            if final_memories:
+                context.system_prompt += (
+                    "\n\nРасширенная память после Verification Engine:\n"
+                    + self.memory.context_block(final_memories[:12])
+                )
+        else:
+            meta = initial_meta
+
         self.last_cognitive_context = {
             "scope": scope,
             "query": cleaned[:500],
             "semantic_used": context.semantic_used,
-            "memories": context.recalled_memories[:10],
+            "memories": final_memories[:10],
             "metacognition": meta.to_dict(),
+            "verification": (
+                verification_report.to_dict()
+                if verification_report is not None
+                else {
+                    "ran": False,
+                    "reason": "not_required",
+                }
+            ),
         }
         context.system_prompt += "\n\n" + self.metacognition.prompt_block(meta)
         context.system_prompt += "\n\n" + self.sensors.prompt_block(scope=scope)
@@ -281,6 +352,11 @@ class AishinEngine:
                 "knowledge_graph": graph_update.to_dict(),
                 "planner": planning_update.to_dict(),
                 "metacognition": meta.to_dict(),
+                "verification": (
+                    verification_report.to_dict()
+                    if verification_report is not None
+                    else {"ran": False}
+                ),
             },
             importance=0.3,
         )
@@ -300,6 +376,11 @@ class AishinEngine:
             "knowledge_graph": graph_update.to_dict(),
             "planner": planning_update.to_dict(),
             "metacognition": meta.to_dict(),
+            "verification": (
+                verification_report.to_dict()
+                if verification_report is not None
+                else {"ran": False}
+            ),
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

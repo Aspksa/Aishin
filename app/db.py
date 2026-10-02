@@ -4,6 +4,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+from .migrations import run_migrations, schema_status
+
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / 'data'
 DB_PATH = DATA_DIR / 'aishin.db'
@@ -355,7 +357,13 @@ def init_db() -> None:
                 (seed_key, "1"),
             )
 
+        run_migrations(conn)
         conn.commit()
+
+
+def database_schema_status() -> dict:
+    with connect() as conn:
+        return schema_status(conn)
 
 
 def list_modules() -> list[dict]:

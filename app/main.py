@@ -187,6 +187,54 @@ def create_timeline_event(payload: TimelineEventCreate) -> dict:
     return {'status': 'saved', 'id': event_id}
 
 
+@app.get('/api/assistant/graph/entities')
+def assistant_graph_entities(
+    scope: str = 'personal',
+    limit: int = 100,
+    entity_type: str | None = None,
+) -> list[dict]:
+    limit = max(1, min(limit, 500))
+    return engine.graph.entities(
+        scope=scope,
+        limit=limit,
+        entity_type=entity_type,
+    )
+
+
+@app.get('/api/assistant/graph/relations')
+def assistant_graph_relations(
+    scope: str = 'personal',
+    limit: int = 200,
+) -> list[dict]:
+    limit = max(1, min(limit, 500))
+    return engine.graph.relations(scope=scope, limit=limit)
+
+
+@app.get('/api/assistant/graph/search')
+def assistant_graph_search(
+    query: str,
+    scope: str = 'personal',
+    limit: int = 20,
+) -> list[dict]:
+    text = query.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail='Поисковый запрос пустой')
+    return engine.graph.search(text, scope=scope, limit=max(1, min(limit, 100)))
+
+
+@app.get('/api/assistant/graph/stats')
+def assistant_graph_stats(scope: str = 'personal') -> dict:
+    return engine.graph.stats(scope=scope)
+
+
+@app.get('/api/assistant/graph/changes')
+def assistant_graph_changes(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.graph.changes(scope=scope, limit=max(1, min(limit, 100)))
+
+
 @app.get('/api/assistant/memory')
 def assistant_memory(scope: str = 'personal', limit: int = 20) -> list[dict]:
     limit = max(1, min(limit, 100))

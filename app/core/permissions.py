@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..db import get_permission, set_permission
+from ..db import ensure_permission, get_permission, set_permission
 
 
 class PermissionGate:
@@ -26,8 +26,7 @@ class PermissionGate:
 
     def bootstrap(self) -> None:
         for capability, mode in self.SAFE_DEFAULTS.items():
-            if get_permission(capability) == "ask" and mode != "ask":
-                set_permission(capability, mode)
+            ensure_permission(capability, mode)
 
     def mode(self, capability: str) -> str:
         return get_permission(capability)

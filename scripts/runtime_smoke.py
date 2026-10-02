@@ -83,6 +83,15 @@ def main() -> int:
                 'id="research-evidence"',
                 'id="research-claims"',
                 'id="research-contradictions"',
+                '/static/communication.css',
+                '/static/communication.js',
+                'id="communication-module"',
+                'id="communication-score"',
+                'id="communication-turns"',
+                'id="communication-skills"',
+                'id="communication-runtime"',
+                'id="communication-prefs"',
+                'id="communication-events"',
             )
             missing_ui = [
                 marker for marker in required_ui
@@ -130,7 +139,23 @@ def main() -> int:
                     f"/health returned HTTP {health.status_code}: {health.text[:300]}"
                 )
             health_data = health.json()
-            checks["health"] = health_data
+            if health_data.get("version") != "0.0.10":
+                raise RuntimeError(
+                    "Health должен сообщать Aishin Core 0.0.10"
+                )
+            with connect() as conn:
+                schema_row = conn.execute(
+                    "SELECT MAX(version) AS version FROM schema_migrations"
+                ).fetchone()
+            schema_version = int(schema_row["version"] or 0)
+            if schema_version != 22:
+                raise RuntimeError(
+                    f"Ожидалась database schema 22, получено {schema_version}"
+                )
+            checks["health"] = {
+                **health_data,
+                "schema_version": schema_version,
+            }
 
             state = client.get("/api/assistant/state")
             if state.status_code != 200:
@@ -1256,6 +1281,212 @@ def main() -> int:
                 "external_network_used": False,
             }
 
+            communication_scope = "smoke:communication-v1"
+            with connect() as conn:
+                conn.execute(
+                    """DELETE FROM communication_feedback
+                       WHERE scope=?""",
+                    (communication_scope,),
+                )
+                conn.execute(
+                    """DELETE FROM communication_events
+                       WHERE scope=?""",
+                    (communication_scope,),
+                )
+                conn.execute(
+                    """DELETE FROM communication_turns
+                       WHERE scope=?""",
+                    (communication_scope,),
+                )
+                conn.execute(
+                    """DELETE FROM communication_preferences
+                       WHERE scope=?""",
+                    (communication_scope,),
+                )
+                conn.execute(
+                    """DELETE FROM communication_skills
+                       WHERE scope=?""",
+                    (communication_scope,),
+                )
+                conn.execute(
+                    """DELETE FROM communication_state
+                       WHERE scope=?""",
+                    (communication_scope,),
+                )
+                conn.commit()
+
+            communication_boot = engine.communication.bootstrap(
+                scope=communication_scope,
+            )
+            if float(
+                communication_boot.get("communication_score") or 0.0
+            ) != 0.0:
+                raise RuntimeError(
+                    "Communication Score без outcome evidence должен быть 0"
+                )
+
+            communication_plan_1 = engine.communication.prepare(
+                scope=communication_scope,
+                request_id="smoke-communication-1",
+                user_message=(
+                    "Объясни профессионально максимально подробно, "
+                    "как работает этот модуль."
+                ),
+                base_intent="question",
+                logic_mode="DEEP",
+            )
+            if communication_plan_1.depth != "expert":
+                raise RuntimeError(
+                    "Expert-маркеры должны выбирать expert depth"
+                )
+            engine.communication.record_response(
+                scope=communication_scope,
+                request_id="smoke-communication-1",
+                assistant_message=(
+                    "Сначала дам вывод, затем архитектуру, ограничения "
+                    "и проверяемые последствия."
+                ),
+            )
+
+            communication_plan_2 = engine.communication.prepare(
+                scope=communication_scope,
+                request_id="smoke-communication-2",
+                user_message="Не понял, непонятно. Объясни проще на примере.",
+                base_intent="question",
+                logic_mode="FAST",
+            )
+            if communication_plan_2.user_signals.get(
+                "positive_signal", {}
+            ).get("active"):
+                raise RuntimeError(
+                    "Негативное «непонятно» не должно считаться "
+                    "positive_signal"
+                )
+            if communication_plan_2.strategy != "clarification_recovery":
+                raise RuntimeError(
+                    "После «не понял» должен включаться "
+                    "clarification_recovery"
+                )
+            if communication_plan_2.explanation_style != (
+                "simple_after_clarification"
+            ):
+                raise RuntimeError(
+                    "Clarification recovery должен менять explanation style"
+                )
+            engine.communication.record_response(
+                scope=communication_scope,
+                request_id="smoke-communication-2",
+                assistant_message=(
+                    "Простой пример: сообщение — это вход, стратегия — "
+                    "способ объяснения, а feedback показывает, сработал ли он."
+                ),
+            )
+
+            communication_turns = engine.communication.turns(
+                scope=communication_scope,
+                limit=10,
+            )
+            first_turn = next(
+                item for item in communication_turns
+                if item["request_id"] == "smoke-communication-1"
+            )
+            if first_turn.get("outcome") != "clarification_needed":
+                raise RuntimeError(
+                    "Следующая реплика «не понял» должна оценить "
+                    "предыдущий turn как clarification_needed"
+                )
+
+            feedback_1 = client.post(
+                f"/api/assistant/communication/turns/{first_turn['id']}/feedback",
+                json={
+                    "scope": communication_scope,
+                    "feedback": "useful",
+                    "reason": "smoke override",
+                },
+            )
+            if feedback_1.status_code != 200:
+                raise RuntimeError(
+                    "Communication feedback API не принял useful feedback"
+                )
+            skills_after_first_feedback = engine.communication.skills(
+                scope=communication_scope,
+                limit=30,
+            )
+            complex_skill_1 = next(
+                item for item in skills_after_first_feedback
+                if item["skill_key"] == "complex_explanation"
+            )
+            sample_count_1 = int(complex_skill_1["sample_count"] or 0)
+
+            feedback_2 = client.post(
+                f"/api/assistant/communication/turns/{first_turn['id']}/feedback",
+                json={
+                    "scope": communication_scope,
+                    "feedback": "wrong",
+                    "reason": "smoke override second time",
+                },
+            )
+            if feedback_2.status_code != 200:
+                raise RuntimeError(
+                    "Communication feedback API не принял override feedback"
+                )
+            skills_after_second_feedback = engine.communication.skills(
+                scope=communication_scope,
+                limit=30,
+            )
+            complex_skill_2 = next(
+                item for item in skills_after_second_feedback
+                if item["skill_key"] == "complex_explanation"
+            )
+            if int(complex_skill_2["sample_count"] or 0) != sample_count_1:
+                raise RuntimeError(
+                    "Повторный feedback одного turn не должен "
+                    "удваивать skill sample_count"
+                )
+
+            communication_api = client.get(
+                "/api/assistant/communication",
+                params={"scope": communication_scope},
+            )
+            if communication_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/communication returned HTTP "
+                    f"{communication_api.status_code}"
+                )
+            communication_data = communication_api.json()
+            if communication_data.get("version") != (
+                "aishin-communication-intelligence-v1"
+            ):
+                raise RuntimeError(
+                    "Communication API вернул несовместимую версию"
+                )
+            if communication_data.get("persona", {}).get(
+                "phrase_library_version"
+            ) != "2.2.0":
+                raise RuntimeError(
+                    "Communication Runtime должен загрузить "
+                    "AISHIN_PHRASE_LIBRARY_RU 2.2.0"
+                )
+            if not isinstance(
+                communication_data.get("skills"), list
+            ):
+                raise RuntimeError(
+                    "Communication API должен возвращать skills"
+                )
+
+            checks["communication_intelligence"] = {
+                "status": "ok",
+                "version": communication_data.get("version"),
+                "score": communication_data.get(
+                    "summary", {}
+                ).get("communication_score"),
+                "expert_depth": True,
+                "clarification_recovery": True,
+                "negative_signal_disambiguated": True,
+                "feedback_override_no_double_count": True,
+                "phrase_library_version": "2.2.0",
+            }
+
             live_brain = client.get(
                 "/api/assistant/live-brain",
                 params={
@@ -1301,9 +1532,9 @@ def main() -> int:
             export_data = live_brain_export.json()
             if export_data.get("format") != "AISHIN_LIVE_BRAIN_EXPORT":
                 raise RuntimeError("Live Brain export format несовместим")
-            if int(export_data.get("format_version") or 0) != 7:
+            if int(export_data.get("format_version") or 0) != 8:
                 raise RuntimeError(
-                    "Live Brain export format должен быть version 7"
+                    "Live Brain export format должен быть version 8"
                 )
             if not isinstance(
                 live_brain_data.get("cognitive_intelligence"),
@@ -1332,6 +1563,13 @@ def main() -> int:
             ):
                 raise RuntimeError(
                     "Live Brain должен включать Research Intelligence"
+                )
+            if not isinstance(
+                live_brain_data.get("communication"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Live Brain должен включать Communication Intelligence"
                 )
 
             checks["live_brain_runtime"] = {

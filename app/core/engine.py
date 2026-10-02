@@ -28,6 +28,7 @@ from .planner import Planner
 from .planner_builder import PlannerBuilder
 from .proactive import ProactiveDecisionLoop
 from .personal import PersonalAishin
+from .performance import PerformanceHistory, PerformanceTracker
 from .semantic import SemanticMemory
 from .sensors import SensorHub
 from .tools import ToolRegistry
@@ -110,6 +111,7 @@ class AishinEngine:
             events=self.events,
         )
         self.cognitive_traces = CognitiveTraceStore()
+        self.performance = PerformanceHistory()
 
     def startup(self) -> None:
         self.permissions.bootstrap()
@@ -255,6 +257,10 @@ class AishinEngine:
                 scope=state.current_scope,
                 limit=20,
             ),
+            "performance": self.performance.recent(
+                scope=state.current_scope,
+                limit=20,
+            ),
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(
                 limit=10,
@@ -274,6 +280,7 @@ class AishinEngine:
 
     def respond(self, message: str, *, scope: str = "personal") -> dict:
         request_id = self.cognitive_traces.new_request_id()
+        perf = PerformanceTracker(request_id=request_id, scope=scope)
         cleaned = message.strip()
         intent = self.cognition.classify(cleaned)
 
@@ -300,15 +307,22 @@ class AishinEngine:
         )
 
         add_message("user", cleaned, scope=scope)
+        perf.checkpoint("input_setup")
 
         consolidation = self.consolidator.consolidate_turn(
             cleaned,
             scope=scope,
         )
+        perf.checkpoint("memory_consolidation")
+
         graph_update = self.graph_builder.ingest(cleaned, scope=scope)
+        perf.checkpoint("graph_builder")
+
         planning_update = self.planner_builder.ingest(cleaned, scope=scope)
+        perf.checkpoint("planner_builder")
 
         context = self.cognition.build_context(cleaned, scope=scope)
+        perf.checkpoint("cognition")
         planner_notices = [
             notice.__dict__
             for notice in self.planner.inspect(scope=scope)
@@ -335,6 +349,7 @@ class AishinEngine:
             contradiction_count=initial_meta.contradiction_count,
             planner_notices=planner_notices,
         )
+        perf.checkpoint("sensors_metacognition")
 
         verification_report = None
         final_memories = context.recalled_memories
@@ -386,6 +401,8 @@ class AishinEngine:
                 )
         else:
             meta = initial_meta
+
+        perf.checkpoint("verification")
 
         verification_data = (
             verification_report.to_dict()
@@ -472,6 +489,7 @@ class AishinEngine:
                 + list(counterfactual_assessment.unresolved)
             ),
         )
+        perf.checkpoint("logic_pipeline")
 
         context.system_prompt, context_trace = self.context_orchestrator.compose(
             cleaned,
@@ -535,11 +553,13 @@ class AishinEngine:
             if item["role"] in {"user", "assistant"}
         ]
         model_messages.append({"role": "user", "content": cleaned})
+        perf.checkpoint("context_orchestrator")
 
         ai_reply = self.ai.chat(
             system=context.system_prompt,
             messages=model_messages,
         )
+        perf.checkpoint("cloud")
 
         provider_runtime = {
             "provider": ai_reply.provider,
@@ -551,14 +571,6 @@ class AishinEngine:
             "error_code": ai_reply.error_code,
             "metadata": ai_reply.metadata,
         }
-        trace_id = self.cognitive_traces.record(
-            request_id=request_id,
-            scope=scope,
-            query=cleaned,
-            trace=request_trace,
-            provider=provider_runtime,
-            status="completed" if ai_reply.available else "fallback",
-        )
 
         if ai_reply.available:
             reply = ai_reply.text
@@ -569,6 +581,19 @@ class AishinEngine:
                 len(context.recalled_memories),
                 consolidation.to_dict(),
             )
+
+        perf.checkpoint("postprocess")
+        performance = perf.finish(mode=logic_trace.mode)
+        request_trace["performance"] = performance
+
+        trace_id = self.cognitive_traces.record(
+            request_id=request_id,
+            scope=scope,
+            query=cleaned,
+            trace=request_trace,
+            provider=provider_runtime,
+            status="completed" if ai_reply.available else "fallback",
+        )
 
         add_message("assistant", reply, scope=scope)
 
@@ -604,6 +629,7 @@ class AishinEngine:
                 "counterfactual": counterfactual_assessment.to_dict(),
                 "decision_quality": decision_quality.to_dict(),
                 "action_selection": action_selection.to_dict(),
+                "performance": performance,
             },
             importance=0.3,
         )
@@ -641,6 +667,7 @@ class AishinEngine:
             "counterfactual": counterfactual_assessment.to_dict(),
             "decision_quality": decision_quality.to_dict(),
             "action_selection": action_selection.to_dict(),
+            "performance": performance,
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

@@ -32,6 +32,13 @@ def main() -> int:
             "state": snapshot["state"]["status"],
             "scope": snapshot["state"]["current_scope"],
         }
+        personal = engine.personal.context(scope=snapshot["state"]["current_scope"])
+        checks["personal_core"] = {
+            "status": "ok",
+            "master_profile_fields": len(personal.master_profile),
+            "relationship_memories": len(personal.relationship_memory),
+            "timeline_events": len(personal.timeline),
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

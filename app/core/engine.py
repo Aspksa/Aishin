@@ -157,6 +157,18 @@ class AishinEngine:
         planning_update = self.planner_builder.ingest(cleaned, scope=scope)
 
         context = self.cognition.build_context(cleaned, scope=scope)
+        context.system_prompt += "\n\n" + self.sensors.prompt_block(scope=scope)
+        context.system_prompt += (
+            "\n\nДоступные внутренние инструменты Айшин:\n"
+            + "\n".join(
+                f"- {item['name']}: {item['description']} "
+                f"(capability={item['capability']})"
+                for item in self.tools.catalog()
+            )
+            + "\nИнструмент не считается выполненным, пока ToolRegistry "
+              "не вернул status=success. Если permission=ask, требуется "
+              "явное подтверждение Господина."
+        )
 
         model_messages = [
             {"role": item["role"], "content": item["content"]}

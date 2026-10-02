@@ -465,40 +465,199 @@ def touch_memory(memory_id: int) -> None:
         conn.commit()
 
 
-def upsert_entity(scope: str, entity_type: str, canonical_name: str, data: dict | None = None) -> int:
-    payload = json.dumps(data or {}, ensure_ascii=False)
+def _merge_graph_data(existing: dict, incoming: dict) -> dict:
+    result = dict(existing)
+    for key, value in incoming.items():
+        if (
+            key in result
+            and isinstance(result[key], dict)
+            and isinstance(value, dict)
+        ):
+            result[key] = _merge_graph_data(result[key], value)
+        elif (
+            key in result
+            and isinstance(result[key], list)
+            and isinstance(value, list)
+        ):
+            merged = list(result[key])
+            for item in value:
+                if item not in merged:
+                    merged.append(item)
+            result[key] = merged
+        else:
+            result[key] = value
+    return result
+
+
+def upsert_entity_with_change(
+    scope: str,
+    entity_type: str,
+    canonical_name: str,
+    data: dict | None = None,
+) -> dict:
+    incoming = data or {}
     with connect() as conn:
-        conn.execute(
-            """INSERT INTO entities(scope, entity_type, canonical_name, data_json)
-               VALUES (?, ?, ?, ?)
-               ON CONFLICT(scope, entity_type, canonical_name)
-               DO UPDATE SET data_json=excluded.data_json, updated_at=CURRENT_TIMESTAMP""",
-            (scope, entity_type, canonical_name, payload),
-        )
         row = conn.execute(
-            "SELECT id FROM entities WHERE scope=? AND entity_type=? AND canonical_name=?",
+            """SELECT id, data_json FROM entities
+               WHERE scope=? AND entity_type=? AND canonical_name=?""",
             (scope, entity_type, canonical_name),
         ).fetchone()
-        conn.commit()
-        return int(row["id"])
+
+        if row is None:
+            payload = json.dumps(
+                incoming,
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            cur = conn.execute(
+                """INSERT INTO entities(
+                       scope, entity_type, canonical_name, data_json
+                   ) VALUES (?, ?, ?, ?)""",
+                (scope, entity_type, canonical_name, payload),
+            )
+            conn.commit()
+            return {
+                "id": int(cur.lastrowid),
+                "created": True,
+                "changed": True,
+                "before": {},
+                "data": incoming,
+            }
+
+        before = json.loads(row["data_json"] or "{}")
+        merged = _merge_graph_data(before, incoming)
+        changed = merged != before
+
+        if changed:
+            conn.execute(
+                """UPDATE entities
+                   SET data_json=?, updated_at=CURRENT_TIMESTAMP
+                   WHERE id=?""",
+                (
+                    json.dumps(
+                        merged,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                    int(row["id"]),
+                ),
+            )
+            conn.commit()
+
+        return {
+            "id": int(row["id"]),
+            "created": False,
+            "changed": changed,
+            "before": before,
+            "data": merged,
+        }
 
 
-def add_relation(scope: str, source_id: int, relation_type: str, target_id: int, confidence: float = 1.0, evidence: str = "") -> int:
+def upsert_entity(
+    scope: str,
+    entity_type: str,
+    canonical_name: str,
+    data: dict | None = None,
+) -> int:
+    return int(
+        upsert_entity_with_change(
+            scope,
+            entity_type,
+            canonical_name,
+            data,
+        )["id"]
+    )
+
+
+def add_relation_with_change(
+    scope: str,
+    source_id: int,
+    relation_type: str,
+    target_id: int,
+    confidence: float = 1.0,
+    evidence: str = "",
+) -> dict:
     with connect() as conn:
-        conn.execute(
-            """INSERT INTO relations(scope, source_entity_id, relation_type, target_entity_id, confidence, evidence)
-               VALUES (?, ?, ?, ?, ?, ?)
-               ON CONFLICT(scope, source_entity_id, relation_type, target_entity_id)
-               DO UPDATE SET confidence=excluded.confidence, evidence=excluded.evidence""",
-            (scope, source_id, relation_type, target_id, confidence, evidence),
-        )
         row = conn.execute(
-            """SELECT id FROM relations
-               WHERE scope=? AND source_entity_id=? AND relation_type=? AND target_entity_id=?""",
+            """SELECT id, confidence, evidence
+               FROM relations
+               WHERE scope=? AND source_entity_id=?
+                 AND relation_type=? AND target_entity_id=?""",
             (scope, source_id, relation_type, target_id),
         ).fetchone()
-        conn.commit()
-        return int(row["id"])
+
+        if row is None:
+            cur = conn.execute(
+                """INSERT INTO relations(
+                       scope, source_entity_id, relation_type,
+                       target_entity_id, confidence, evidence
+                   ) VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    scope,
+                    source_id,
+                    relation_type,
+                    target_id,
+                    confidence,
+                    evidence,
+                ),
+            )
+            conn.commit()
+            return {
+                "id": int(cur.lastrowid),
+                "created": True,
+                "changed": True,
+                "before": {},
+                "confidence": confidence,
+                "evidence": evidence,
+            }
+
+        before_confidence = float(row["confidence"])
+        before_evidence = str(row["evidence"] or "")
+        changed = (
+            abs(before_confidence - float(confidence)) > 1e-9
+            or before_evidence != evidence
+        )
+
+        if changed:
+            conn.execute(
+                """UPDATE relations
+                   SET confidence=?, evidence=?
+                   WHERE id=?""",
+                (confidence, evidence, int(row["id"])),
+            )
+            conn.commit()
+
+        return {
+            "id": int(row["id"]),
+            "created": False,
+            "changed": changed,
+            "before": {
+                "confidence": before_confidence,
+                "evidence": before_evidence,
+            },
+            "confidence": confidence,
+            "evidence": evidence,
+        }
+
+
+def add_relation(
+    scope: str,
+    source_id: int,
+    relation_type: str,
+    target_id: int,
+    confidence: float = 1.0,
+    evidence: str = "",
+) -> int:
+    return int(
+        add_relation_with_change(
+            scope,
+            source_id,
+            relation_type,
+            target_id,
+            confidence,
+            evidence,
+        )["id"]
+    )
 
 
 def graph_neighborhood(entity_id: int, scope: str) -> list[dict]:

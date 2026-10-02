@@ -65,7 +65,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.3', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.4', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -162,7 +162,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.3',
+        'version': '0.0.4',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -215,6 +215,24 @@ def assistant_brain() -> dict:
             ],
         },
     }
+
+
+@app.get('/api/assistant/live-brain')
+def assistant_live_brain(
+    scope: str = 'personal',
+    event_limit: int = 40,
+    graph_limit: int = 18,
+) -> dict:
+    return engine.live_brain.snapshot(
+        scope=scope,
+        event_limit=max(8, min(event_limit, 120)),
+        graph_limit=max(6, min(graph_limit, 40)),
+    )
+
+
+@app.get('/api/assistant/live-brain/export')
+def assistant_live_brain_export(scope: str = 'personal') -> dict:
+    return engine.live_brain.export(scope=scope)
 
 
 @app.get('/api/assistant/personal')

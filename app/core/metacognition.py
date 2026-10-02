@@ -36,6 +36,8 @@ class Metacognition:
         planner_notices: list[dict],
         sensor_readings: list[dict],
         graph_stats: dict,
+        verification_conflicts: int = 0,
+        verification_missing: int = 0,
     ) -> MetacognitiveAssessment:
         reasons: list[str] = []
         missing: list[str] = []
@@ -111,9 +113,21 @@ class Metacognition:
                 f"Сенсоры требуют внимания: {len(sensor_attention)}."
             )
 
+        if verification_conflicts:
+            contradiction_count += int(verification_conflicts)
+            reasons.append(
+                f"Verification Engine подтвердил противоречий: {verification_conflicts}."
+            )
+
+        if verification_missing:
+            missing.append(
+                f"После перепроверки осталось нерешённых пунктов: {verification_missing}."
+            )
+            evidence_score -= min(0.20, 0.04 * verification_missing)
+
         if contradiction_count:
             reasons.append(
-                f"В рабочей памяти найдено противоречий: {contradiction_count}."
+                f"Всего обнаружено противоречий: {contradiction_count}."
             )
             evidence_score -= min(0.35, 0.15 * contradiction_count)
 

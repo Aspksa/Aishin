@@ -36,7 +36,7 @@ class VerificationReport:
 class VerificationEngine:
     """Grounded re-check loop for low-confidence or contradictory context."""
 
-    TRIGGER_STATUSES = {"needs_verification", "insufficient_data"}
+    TRIGGER_STATUSES = {"needs_verification"}
 
     def __init__(
         self,
@@ -56,7 +56,11 @@ class VerificationEngine:
         self.tools = tools
 
     def should_run(self, *, intent: str, status: str) -> bool:
-        return intent == "verification" or status in self.TRIGGER_STATUSES
+        if intent == "verification":
+            return True
+        if status in self.TRIGGER_STATUSES:
+            return True
+        return intent == "action" and status == "insufficient_data"
 
     def verify(
         self,

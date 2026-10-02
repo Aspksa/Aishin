@@ -7,3 +7,4 @@ data/*.sqlite*
 .idea/
 .vscode/
 .DS_Store
+.aishin_backups/

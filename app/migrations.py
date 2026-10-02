@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 20
+LATEST_SCHEMA_VERSION = 21
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -1145,6 +1145,203 @@ def _migration_020_evolution_engine(
     )
 
 
+def _migration_021_autonomous_research(
+    conn: sqlite3.Connection,
+) -> None:
+    """Evidence-ledger research, knowledge gaps and guarded claim promotion."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS research_state (
+            scope TEXT PRIMARY KEY,
+            research_score REAL NOT NULL DEFAULT 0.0,
+            coverage_score REAL NOT NULL DEFAULT 0.0,
+            evidence_quality REAL NOT NULL DEFAULT 0.0,
+            contradiction_resolution REAL NOT NULL DEFAULT 0.0,
+            knowledge_precision REAL NOT NULL DEFAULT 0.0,
+            open_gap_count INTEGER NOT NULL DEFAULT 0,
+            active_session_count INTEGER NOT NULL DEFAULT 0,
+            trusted_claim_count INTEGER NOT NULL DEFAULT 0,
+            conflicted_claim_count INTEGER NOT NULL DEFAULT 0,
+            last_cycle_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS research_sources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            source_key TEXT NOT NULL,
+            source_type TEXT NOT NULL,
+            label TEXT NOT NULL,
+            locator TEXT NOT NULL DEFAULT '',
+            independent_group TEXT NOT NULL DEFAULT '',
+            trust_prior REAL NOT NULL DEFAULT 0.70,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            auto_read INTEGER NOT NULL DEFAULT 0,
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, source_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS research_gaps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            gap_key TEXT NOT NULL,
+            question TEXT NOT NULL,
+            origin TEXT NOT NULL,
+            origin_ref TEXT NOT NULL DEFAULT '',
+            priority REAL NOT NULL DEFAULT 0.5,
+            uncertainty REAL NOT NULL DEFAULT 0.5,
+            impact REAL NOT NULL DEFAULT 0.5,
+            status TEXT NOT NULL DEFAULT 'open',
+            attempts INTEGER NOT NULL DEFAULT 0,
+            last_session_id INTEGER,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TEXT,
+            UNIQUE(scope, gap_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS research_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            gap_id INTEGER,
+            request_id TEXT,
+            question TEXT NOT NULL,
+            trigger TEXT NOT NULL DEFAULT 'manual',
+            status TEXT NOT NULL DEFAULT 'planned',
+            plan_json TEXT NOT NULL DEFAULT '{}',
+            source_plan_json TEXT NOT NULL DEFAULT '[]',
+            evidence_count INTEGER NOT NULL DEFAULT 0,
+            independent_groups INTEGER NOT NULL DEFAULT 0,
+            contradiction_count INTEGER NOT NULL DEFAULT 0,
+            claim_count INTEGER NOT NULL DEFAULT 0,
+            synthesis_used INTEGER NOT NULL DEFAULT 0,
+            started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT,
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(gap_id) REFERENCES research_gaps(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS research_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            session_id INTEGER NOT NULL,
+            evidence_key TEXT NOT NULL,
+            source_type TEXT NOT NULL,
+            source_ref TEXT NOT NULL DEFAULT '',
+            source_group TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            content TEXT NOT NULL,
+            stance TEXT NOT NULL DEFAULT 'context',
+            reliability REAL NOT NULL DEFAULT 0.0,
+            relevance REAL NOT NULL DEFAULT 0.0,
+            freshness REAL NOT NULL DEFAULT 1.0,
+            independence REAL NOT NULL DEFAULT 1.0,
+            evidence_score REAL NOT NULL DEFAULT 0.0,
+            content_hash TEXT NOT NULL,
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, session_id, evidence_key),
+            FOREIGN KEY(session_id) REFERENCES research_sessions(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS research_claims (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            claim_key TEXT NOT NULL,
+            session_id INTEGER NOT NULL,
+            statement TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'candidate',
+            confidence REAL NOT NULL DEFAULT 0.0,
+            weighted_support REAL NOT NULL DEFAULT 0.0,
+            weighted_contradiction REAL NOT NULL DEFAULT 0.0,
+            support_count INTEGER NOT NULL DEFAULT 0,
+            contradiction_count INTEGER NOT NULL DEFAULT 0,
+            independent_groups INTEGER NOT NULL DEFAULT 0,
+            source_diversity INTEGER NOT NULL DEFAULT 0,
+            support_evidence_json TEXT NOT NULL DEFAULT '[]',
+            contradiction_evidence_json TEXT NOT NULL DEFAULT '[]',
+            missing_json TEXT NOT NULL DEFAULT '[]',
+            promoted_memory_id INTEGER,
+            promoted_entity_id INTEGER,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            promoted_at TEXT,
+            rejected_at TEXT,
+            UNIQUE(scope, claim_key),
+            FOREIGN KEY(session_id) REFERENCES research_sessions(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS research_contradictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            session_id INTEGER NOT NULL,
+            claim_id INTEGER,
+            left_evidence_id INTEGER,
+            right_evidence_id INTEGER,
+            contradiction_type TEXT NOT NULL DEFAULT 'semantic',
+            severity REAL NOT NULL DEFAULT 0.5,
+            status TEXT NOT NULL DEFAULT 'open',
+            resolution TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TEXT,
+            FOREIGN KEY(session_id) REFERENCES research_sessions(id),
+            FOREIGN KEY(claim_id) REFERENCES research_claims(id),
+            FOREIGN KEY(left_evidence_id) REFERENCES research_evidence(id),
+            FOREIGN KEY(right_evidence_id) REFERENCES research_evidence(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS research_cycles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            trigger TEXT NOT NULL,
+            gaps_discovered INTEGER NOT NULL DEFAULT 0,
+            sessions_run INTEGER NOT NULL DEFAULT 0,
+            evidence_added INTEGER NOT NULL DEFAULT 0,
+            claims_created INTEGER NOT NULL DEFAULT 0,
+            claims_promoted INTEGER NOT NULL DEFAULT 0,
+            contradictions_open INTEGER NOT NULL DEFAULT 0,
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            summary_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS research_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            subject_type TEXT NOT NULL DEFAULT '',
+            subject_key TEXT NOT NULL DEFAULT '',
+            score REAL,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_research_gaps_scope_status
+        ON research_gaps(scope, status, priority DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_research_sessions_scope_created
+        ON research_sessions(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_research_evidence_session_score
+        ON research_evidence(session_id, evidence_score DESC, id ASC);
+
+        CREATE INDEX IF NOT EXISTS idx_research_claims_scope_status
+        ON research_claims(scope, status, confidence DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_research_contradictions_scope_status
+        ON research_contradictions(scope, status, severity DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_research_cycles_scope_created
+        ON research_cycles(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_research_events_scope_created
+        ON research_events(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -1166,6 +1363,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (18, "cognitive_intelligence", _migration_018_cognitive_intelligence),
     (19, "proactive_intelligence", _migration_019_proactive_intelligence),
     (20, "evolution_engine", _migration_020_evolution_engine),
+    (21, "autonomous_research", _migration_021_autonomous_research),
 )
 
 

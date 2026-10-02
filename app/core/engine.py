@@ -6,6 +6,8 @@ from ..ai import AIManager
 from ..db import add_message, recent_messages
 from ..personality import personality
 from .cognition import Cognition
+from .context_orchestrator import ContextOrchestrator
+from .causal import CausalReasoning
 from .consolidation import MemoryConsolidator
 from .events import EventBus
 from .graph import KnowledgeGraph
@@ -39,12 +41,18 @@ class AishinEngine:
         self.planner = Planner()
         self.metacognition = Metacognition()
         self.logic = LogicEngine()
+        self.causal = CausalReasoning()
         self.cognition = Cognition(
             self.memory,
             semantic=self.semantic,
             planner=self.planner,
         )
         self.graph = KnowledgeGraph()
+        self.context_orchestrator = ContextOrchestrator(
+            memory=self.memory,
+            graph=self.graph,
+            planner=self.planner,
+        )
         self.graph_builder = GraphBuilder(ai=self.ai, graph=self.graph, events=self.events)
         self.planner_builder = PlannerBuilder(
             ai=self.ai,
@@ -162,6 +170,18 @@ class AishinEngine:
             },
             "logic": {
                 "history": self.logic.recent(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
+            "context_orchestrator": {
+                "history": self.context_orchestrator.recent(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
+            "causal": {
+                "history": self.causal.recent(
                     scope=state.current_scope,
                     limit=20,
                 ),
@@ -324,6 +344,26 @@ class AishinEngine:
             planner_notices=planner_notices,
         )
 
+        causal_assessment = self.causal.assess(
+            cleaned,
+            scope=scope,
+            evidence=logic_trace.evidence,
+            contradictions=logic_trace.contradictions,
+        )
+
+        context.system_prompt, context_trace = self.context_orchestrator.compose(
+            cleaned,
+            scope=scope,
+            mode=logic_trace.mode,
+            memories=final_memories,
+            verification=(
+                verification_data
+                if verification_report is not None
+                else None
+            ),
+            sensor_readings=sensor_readings,
+        )
+
         self.last_cognitive_context = {
             "scope": scope,
             "query": cleaned[:500],
@@ -332,10 +372,16 @@ class AishinEngine:
             "metacognition": meta.to_dict(),
             "verification": verification_data,
             "logic": logic_trace.to_dict(),
+            "context_orchestrator": context_trace.to_dict(),
+            "causal": causal_assessment.to_dict(),
         }
         context.system_prompt += "\n\n" + self.logic.prompt_block(logic_trace)
+        context.system_prompt += "\n\n" + self.causal.prompt_block(causal_assessment)
         context.system_prompt += "\n\n" + self.metacognition.prompt_block(meta)
-        context.system_prompt += "\n\n" + self.sensors.prompt_block(scope=scope)
+        if verification_report is not None:
+            context.system_prompt += (
+                "\n\n" + self.verification.prompt_block(verification_report)
+            )
         context.system_prompt += "\n\n" + self.proactive.prompt_block(scope=scope)
         context.system_prompt += (
             "\n\nДоступные внутренние инструменты Айшин:\n"
@@ -349,9 +395,11 @@ class AishinEngine:
               "явное подтверждение Господина."
         )
 
+        history_limit = self.context_orchestrator.history_limit(logic_trace.mode)
+        selected_history = history[-history_limit:] if history_limit else []
         model_messages = [
             {"role": item["role"], "content": item["content"]}
-            for item in history
+            for item in selected_history
             if item["role"] in {"user", "assistant"}
         ]
         model_messages.append({"role": "user", "content": cleaned})
@@ -393,6 +441,8 @@ class AishinEngine:
                     else {"ran": False}
                 ),
                 "logic": logic_trace.to_dict(),
+                "context_orchestrator": context_trace.to_dict(),
+                "causal": causal_assessment.to_dict(),
             },
             importance=0.3,
         )
@@ -418,6 +468,8 @@ class AishinEngine:
                 else {"ran": False}
             ),
             "logic": logic_trace.to_dict(),
+            "context_orchestrator": context_trace.to_dict(),
+            "causal": causal_assessment.to_dict(),
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

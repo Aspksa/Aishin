@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T19:17:00+10:00",
+  "generated_at": "2026-10-02T19:29:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 3,
+      "latest_schema_version": 4,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -145,7 +145,9 @@
         "python compileall",
         "scripts/self_check.py",
         "scripts/runtime_smoke.py"
-      ]
+      ],
+      "latest_confirmed_run_id": 36989908775,
+      "latest_confirmed_head_sha": "ed52130ea4c933a62a31a3954346b7da3b98b330"
     }
   },
   "implemented_architecture": [
@@ -318,6 +320,26 @@
         "app/main.py"
       ],
       "details": "Dynamic FAST/DEEP/VERIFY/PLAN/DIAGNOSE controller, deterministic Rule Engine, Evidence Chain, Contradiction Resolver and technical Decision Journal. VERIFY/DIAGNOSE force Verification Engine before final answer. No private chain-of-thought is stored."
+    },
+    {
+      "layer": "Context Orchestrator",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/context_orchestrator.py",
+        "app/core/engine.py",
+        "app/migrations.py"
+      ],
+      "details": "Two-phase context selection. Logic Mode controls budgets for chat history, memories, graph entities, planner items, verification findings and sensors. Final Cloud.ru prompt is rebuilt from selected context, source data is not deleted."
+    },
+    {
+      "layer": "Causal Reasoning",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/causal.py",
+        "app/core/engine.py",
+        "app/migrations.py"
+      ],
+      "details": "Conservative causal classification: observed, temporal, contributory, causal_candidate. Causal confidence is capped and reduced by contradictions; correlation/sequence is not silently promoted to causality."
     }
   ],
   "current_cognitive_flow": [
@@ -325,15 +347,15 @@
     "Memory Consolidation",
     "Graph Builder",
     "Planner Builder",
-    "Hybrid Recall / Working Memory",
+    "Initial Hybrid Recall",
     "Initial Metacognition",
     "Logic Engine mode selection",
-    "Verification Engine when Logic or Metacognition requires it",
+    "Verification Engine when required",
     "Final Metacognition",
     "Logic Evidence Chain + Contradiction Resolver + Decision Journal",
-    "Sensor Context",
-    "Proactive Context",
-    "Tool Catalog / Permission Rules",
+    "Causal Reasoning",
+    "Context Orchestrator rebuilds final prompt according to Logic Mode budget",
+    "Proactive Context + Tool safety rules",
     "Cloud.ru Chat",
     "Response",
     "Event + State update"
@@ -419,7 +441,9 @@
     "metacognitive_assessments",
     "verification_runs",
     "logic_decisions",
-    "logic_rule_events"
+    "logic_rule_events",
+    "context_traces",
+    "causal_assessments"
   ],
   "important_api": [
     "GET /health",
@@ -460,7 +484,9 @@
     "GET /api/assistant/metacognition",
     "GET /api/assistant/verification",
     "POST /api/system/update",
-    "GET /api/assistant/logic"
+    "GET /api/assistant/logic",
+    "GET /api/assistant/context-traces",
+    "GET /api/assistant/causal"
   ],
   "key_fixed_bugs_and_safety_changes": [
     "Исправлена SQL-ошибка кавычек в запросе active memories.",
@@ -480,7 +506,11 @@
     "Добавлена формальная таблица schema_migrations и migration framework schema version 2.",
     "CI выявил и исправил буквальные \\\\n в app/core/__init__.py и app/core/events.py.",
     "CI выявил и исправил Windows UnicodeEncodeError диагностических JSON; self_check/runtime_smoke принудительно используют UTF-8.",
-    "GitHub Actions runtime check подтверждён success на Windows и Ubuntu Python 3.11 (run 36987889755)."
+    "GitHub Actions runtime check подтверждён success на Windows и Ubuntu Python 3.11 (run 36987889755).",
+    "Context Orchestrator rebuilds final prompt after Logic/Verification instead of carrying every available subsystem block into Cloud.ru.",
+    "FAST context budget is explicitly smaller than VERIFY; self-check validates this invariant.",
+    "Causal Reasoning does not convert temporal order or correlation into proven causality.",
+    "Initial Context Orchestrator newline literal syntax failure was detected by CI and fixed; run 36989908775 passed on Windows and Ubuntu."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -521,15 +551,16 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Aishin Logic Engine v1 implemented on top of Metacognition and Verification.",
-    "last_implemented_feature": "Dynamic FAST/DEEP/VERIFY/PLAN/DIAGNOSE logic controller with Rule Engine, Evidence Chain, Contradiction Resolver and technical Decision Journal.",
-    "next_recommended_step": "After CI confirmation, implement Context Budgeter / Context Orchestrator so logic can choose not only how to think but what context to spend on each mode.",
+    "milestone": "Context Orchestrator + Causal Reasoning completed and cross-platform runtime validated.",
+    "last_implemented_feature": "Mode-aware final prompt budgeting plus conservative causal classification integrated after Logic/Verification.",
+    "next_recommended_step": "Hypothesis Manager for DIAGNOSE/VERIFY: keep competing hypotheses, choose discriminating checks, update confidence, then Logic Learning from successful technical strategies.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не превращать Aishin в multi-user SaaS.",
       "Не смешивать память Aishin с TooruDragon.",
       "Не сохранять и не экспонировать private chain-of-thought.",
+      "Не считать temporal/correlation evidence доказанной причинностью.",
       "Не коммитить Cloud.ru API key или другие секреты."
     ]
   },
@@ -589,6 +620,10 @@
     {
       "user_prompt": "Давай на логику / Делай",
       "result": "Добавлен Aishin Logic Engine v1: Reasoning Controller, Rule Engine, Evidence Chain, Contradiction Resolver, dynamic FAST/DEEP/VERIFY/PLAN/DIAGNOSE mode selection, Decision Journal, schema migration 3, API and Live Brain node."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлены Context Orchestrator и Causal Reasoning. Schema migration 4, context_traces, causal_assessments, mode-aware prompt budgets, APIs, Live Brain nodes, self-check/runtime smoke. Первый CI обнаружил newline syntax bug в Context Orchestrator; после полного rewrite run 36989908775 успешно прошёл Windows + Ubuntu."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -605,8 +640,8 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать Aishin Logic Engine v1 уже реализованным; не переписывать без причины.",
-      "Следующий рекомендуемый этап: Context Budgeter / Context Orchestrator, затем Cloud.ru resilience."
+      "Считать Logic Engine v1, Context Orchestrator и Causal Reasoning уже реализованными.",
+      "Следующий рекомендуемый логический этап: Hypothesis Manager, затем Logic Learning."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -1212,5 +1247,65 @@
     "live_brain_node": "Logic Engine",
     "safety_rule": "Decision Journal хранит только техническую трассу решения и evidence; скрытые внутренние chain-of-thought не сохраняются и не экспонируются.",
     "verification_rule": "Modes VERIFY and DIAGNOSE force Verification Engine before final response."
+  },
+  "context_orchestrator": {
+    "repository_path": "app/core/context_orchestrator.py",
+    "budgets": {
+      "FAST": {
+        "history": 4,
+        "memories": 4,
+        "graph_entities": 0,
+        "planner_items": 2,
+        "verification_items": 0,
+        "sensor_items": 2
+      },
+      "DEEP": {
+        "history": 8,
+        "memories": 8,
+        "graph_entities": 8,
+        "planner_items": 5,
+        "verification_items": 4,
+        "sensor_items": 4
+      },
+      "VERIFY": {
+        "history": 6,
+        "memories": 12,
+        "graph_entities": 12,
+        "planner_items": 4,
+        "verification_items": 8,
+        "sensor_items": 5
+      },
+      "PLAN": {
+        "history": 6,
+        "memories": 6,
+        "graph_entities": 6,
+        "planner_items": 12,
+        "verification_items": 3,
+        "sensor_items": 3
+      },
+      "DIAGNOSE": {
+        "history": 8,
+        "memories": 10,
+        "graph_entities": 8,
+        "planner_items": 8,
+        "verification_items": 8,
+        "sensor_items": 6
+      }
+    },
+    "table": "context_traces",
+    "api": "GET /api/assistant/context-traces",
+    "rule": "Context budget controls only the current prompt; it never deletes long-term memory."
+  },
+  "causal_reasoning": {
+    "repository_path": "app/core/causal.py",
+    "relation_classes": [
+      "observed",
+      "temporal",
+      "contributory",
+      "causal_candidate"
+    ],
+    "table": "causal_assessments",
+    "api": "GET /api/assistant/causal",
+    "rule": "Temporal order or correlation alone must not be reported as proven causality. Evidence must support both cause and effect; contradictions lower confidence."
   }
 }

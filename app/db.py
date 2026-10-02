@@ -107,6 +107,37 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS master_profile (
+                key TEXT PRIMARY KEY,
+                value_json TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'explicit_user',
+                confidence REAL NOT NULL DEFAULT 1.0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS relationship_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL,
+                content TEXT NOT NULL,
+                importance REAL NOT NULL DEFAULT 0.7,
+                confidence REAL NOT NULL DEFAULT 1.0,
+                source TEXT NOT NULL DEFAULT 'conversation',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS personal_timeline (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                details TEXT NOT NULL DEFAULT '',
+                scope TEXT NOT NULL DEFAULT 'personal',
+                importance REAL NOT NULL DEFAULT 0.5,
+                occurred_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -313,3 +344,91 @@ def ensure_permission(capability: str, mode: str) -> None:
             (capability, mode),
         )
         conn.commit()
+
+
+def set_master_profile_value(key: str, value, source: str = "explicit_user", confidence: float = 1.0) -> None:
+    payload = json.dumps(value, ensure_ascii=False)
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO master_profile(key, value_json, source, confidence, updated_at)
+               VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(key) DO UPDATE SET
+                 value_json=excluded.value_json,
+                 source=excluded.source,
+                 confidence=excluded.confidence,
+                 updated_at=CURRENT_TIMESTAMP""",
+            (key, payload, source, confidence),
+        )
+        conn.commit()
+
+
+def get_master_profile() -> dict:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT key, value_json, source, confidence, updated_at FROM master_profile ORDER BY key"
+        ).fetchall()
+    result = {}
+    for row in rows:
+        result[row["key"]] = {
+            "value": json.loads(row["value_json"]),
+            "source": row["source"],
+            "confidence": row["confidence"],
+            "updated_at": row["updated_at"],
+        }
+    return result
+
+
+def add_relationship_memory(kind: str, content: str, importance: float = 0.7, confidence: float = 1.0, source: str = "conversation") -> int:
+    with connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO relationship_memory(kind, content, importance, confidence, source)
+               VALUES (?, ?, ?, ?, ?)""",
+            (kind, content, importance, confidence, source),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def recent_relationship_memories(limit: int = 12) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT * FROM relationship_memory
+               ORDER BY importance DESC, id DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def add_timeline_event(event_type: str, title: str, details: str = "", scope: str = "personal", importance: float = 0.5, occurred_at: str | None = None) -> int:
+    with connect() as conn:
+        if occurred_at:
+            cur = conn.execute(
+                """INSERT INTO personal_timeline(event_type, title, details, scope, importance, occurred_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (event_type, title, details, scope, importance, occurred_at),
+            )
+        else:
+            cur = conn.execute(
+                """INSERT INTO personal_timeline(event_type, title, details, scope, importance)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (event_type, title, details, scope, importance),
+            )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def recent_timeline(limit: int = 20, scope: str | None = None) -> list[dict]:
+    with connect() as conn:
+        if scope:
+            rows = conn.execute(
+                """SELECT * FROM personal_timeline
+                   WHERE scope=? ORDER BY occurred_at DESC, id DESC LIMIT ?""",
+                (scope, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM personal_timeline
+                   ORDER BY occurred_at DESC, id DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+    return [dict(row) for row in rows]

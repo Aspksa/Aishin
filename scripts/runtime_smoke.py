@@ -75,6 +75,14 @@ def main() -> int:
                 'id="evolution-capabilities"',
                 'id="evolution-variants"',
                 'id="evolution-curriculum"',
+                '/static/research.css',
+                '/static/research.js',
+                'id="research-module"',
+                'id="research-score"',
+                'id="research-gaps"',
+                'id="research-evidence"',
+                'id="research-claims"',
+                'id="research-contradictions"',
             )
             missing_ui = [
                 marker for marker in required_ui
@@ -1006,6 +1014,248 @@ def main() -> int:
                 "self_modifying_code": False,
             }
 
+            research_scope = "__research_smoke__"
+            with connect() as conn:
+                for table in (
+                    "research_contradictions",
+                    "research_claims",
+                    "research_evidence",
+                    "research_sessions",
+                    "research_gaps",
+                    "research_cycles",
+                    "research_events",
+                    "research_sources",
+                    "research_state",
+                ):
+                    conn.execute(
+                        f"DELETE FROM {table} WHERE scope=?",
+                        (research_scope,),
+                    )
+                conn.execute(
+                    "DELETE FROM memories WHERE scope=?",
+                    (research_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM entities WHERE scope=?",
+                    (research_scope,),
+                )
+                conn.commit()
+
+            research_question = (
+                "Контрольный факт: система Alpha использует "
+                "трёхисточниковую проверку evidence."
+            )
+            for index, group in enumerate(("source-a", "source-b", "source-c"), start=1):
+                engine.research.register_source(
+                    scope=research_scope,
+                    source_key=f"manual:{index}",
+                    source_type="manual_reference",
+                    label=f"Independent source {index}",
+                    independent_group=group,
+                    trust_prior=0.99,
+                    enabled=True,
+                    auto_read=True,
+                    metadata={
+                        "content": (
+                            research_question
+                            + f" Независимое подтверждение #{index}."
+                        )
+                    },
+                )
+
+            research_run = engine.research.research_query(
+                scope=research_scope,
+                question=research_question,
+                trigger="runtime_smoke",
+                synthesize=False,
+            )
+            if research_run.evidence_count < 3:
+                raise RuntimeError(
+                    "Research Engine не собрал 3 независимых evidence"
+                )
+            research_evidence = engine.research.evidence(
+                scope=research_scope,
+                session_id=research_run.session_id,
+                limit=20,
+            )
+            evidence_groups = {
+                item.get("source_group")
+                for item in research_evidence
+            }
+            if not {"source-a", "source-b", "source-c"}.issubset(
+                evidence_groups
+            ):
+                raise RuntimeError(
+                    "Research Engine потерял независимость source groups"
+                )
+
+            support_ids = [
+                int(item["id"])
+                for item in research_evidence
+                if item.get("source_group") in {
+                    "source-a",
+                    "source-b",
+                    "source-c",
+                }
+            ][:3]
+            trusted_claim = engine.research.evaluate_claim(
+                scope=research_scope,
+                session_id=research_run.session_id,
+                statement=(
+                    "Система Alpha использует трёхисточниковую "
+                    "проверку evidence."
+                ),
+                support_evidence_ids=support_ids,
+                contradiction_evidence_ids=[],
+                missing=[],
+            )
+            if trusted_claim.get("status") != "trusted":
+                raise RuntimeError(
+                    "Evidence Gate не promoted claim с 3 сильными "
+                    "независимыми источниками"
+                )
+            promoted_memory_id = trusted_claim.get(
+                "promoted_memory_id"
+            )
+            if not promoted_memory_id:
+                raise RuntimeError(
+                    "Trusted research claim не получил provenance memory"
+                )
+            with connect() as conn:
+                promoted_memory = conn.execute(
+                    """SELECT * FROM memories
+                       WHERE id=? AND scope=? AND status='active'""",
+                    (int(promoted_memory_id), research_scope),
+                ).fetchone()
+            if promoted_memory is None:
+                raise RuntimeError(
+                    "Promoted research memory не найдена"
+                )
+
+            counter_evidence = engine.research.add_evidence(
+                scope=research_scope,
+                session_id=research_run.session_id,
+                source_type="manual_reference",
+                source_ref="manual:counter",
+                source_group="source-counter",
+                title="Independent counter source",
+                content=(
+                    "Контрольный факт: система Alpha НЕ использует "
+                    "трёхисточниковую проверку evidence."
+                ),
+                reliability=0.99,
+                relevance=1.0,
+                freshness=1.0,
+                independence=1.0,
+                metadata={"runtime_smoke": True},
+            )
+            conflicted_claim = engine.research.evaluate_claim(
+                scope=research_scope,
+                session_id=research_run.session_id,
+                statement=(
+                    "Система Alpha использует трёхисточниковую "
+                    "проверку evidence."
+                ),
+                support_evidence_ids=support_ids,
+                contradiction_evidence_ids=[
+                    int(counter_evidence["id"])
+                ],
+                missing=[],
+            )
+            if conflicted_claim.get("status") != "conflicted":
+                raise RuntimeError(
+                    "Counter-evidence должен переводить claim в conflicted"
+                )
+            if not engine.research.contradictions(
+                scope=research_scope,
+                session_id=research_run.session_id,
+                status="open",
+                limit=20,
+            ):
+                raise RuntimeError(
+                    "Contradiction Matrix не сохранила counter-evidence"
+                )
+            with connect() as conn:
+                memory_after_conflict = conn.execute(
+                    """SELECT status FROM memories
+                       WHERE id=? AND scope=?""",
+                    (int(promoted_memory_id), research_scope),
+                ).fetchone()
+            if (
+                memory_after_conflict is None
+                or memory_after_conflict["status"] != "active"
+            ):
+                raise RuntimeError(
+                    "Research regression не должна молча удалять "
+                    "ранее promoted memory"
+                )
+
+            network_source = engine.research.register_source(
+                scope=research_scope,
+                source_key="external:disabled-adapter",
+                source_type="external_connector",
+                label="External adapter placeholder",
+                independent_group="external",
+                trust_prior=0.9,
+                enabled=True,
+                auto_read=True,
+                metadata={"url": "https://example.invalid/"},
+            )
+            if network_source.get("source_type") != "external_connector":
+                raise RuntimeError(
+                    "Research source registry shape несовместим"
+                )
+            research_dashboard = engine.research.dashboard(
+                scope=research_scope,
+                gap_limit=40,
+                session_limit=40,
+                claim_limit=40,
+                evidence_limit=60,
+                cycle_limit=20,
+            )
+            research_summary = research_dashboard.get("summary") or {}
+            research_score = float(
+                research_summary.get("research_score") or 0.0
+            )
+            if not 0.0 <= research_score <= 100.0:
+                raise RuntimeError(
+                    "Research Score должен оставаться в диапазоне 0..100"
+                )
+            if not any(
+                "Model synthesis is never evidence" in str(item)
+                for item in research_dashboard.get("principles") or []
+            ):
+                raise RuntimeError(
+                    "Research Engine должен явно запрещать "
+                    "self-confirmation модели"
+                )
+            research_api = client.get(
+                "/api/assistant/research",
+                params={"scope": research_scope},
+            )
+            if research_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/research returned HTTP "
+                    f"{research_api.status_code}"
+                )
+            if research_api.json().get("version") != (
+                "aishin-autonomous-research-v1"
+            ):
+                raise RuntimeError(
+                    "Research API вернул несовместимую версию"
+                )
+
+            checks["autonomous_research"] = {
+                "status": "ok",
+                "version": research_dashboard.get("version"),
+                "research_score": research_score,
+                "evidence": len(research_evidence),
+                "trusted_promotion": True,
+                "counter_evidence_blocks_trust": True,
+                "promoted_memory_preserved_for_review": True,
+                "external_network_used": False,
+            }
+
             live_brain = client.get(
                 "/api/assistant/live-brain",
                 params={
@@ -1051,9 +1301,9 @@ def main() -> int:
             export_data = live_brain_export.json()
             if export_data.get("format") != "AISHIN_LIVE_BRAIN_EXPORT":
                 raise RuntimeError("Live Brain export format несовместим")
-            if int(export_data.get("format_version") or 0) != 6:
+            if int(export_data.get("format_version") or 0) != 7:
                 raise RuntimeError(
-                    "Live Brain export format должен быть version 6"
+                    "Live Brain export format должен быть version 7"
                 )
             if not isinstance(
                 live_brain_data.get("cognitive_intelligence"),
@@ -1075,6 +1325,13 @@ def main() -> int:
             ):
                 raise RuntimeError(
                     "Live Brain должен включать Evolution Engine"
+                )
+            if not isinstance(
+                live_brain_data.get("research"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Live Brain должен включать Research Intelligence"
                 )
 
             checks["live_brain_runtime"] = {

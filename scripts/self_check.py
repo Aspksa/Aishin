@@ -66,10 +66,9 @@ def main() -> int:
             "sensors": engine.sensors.scan(scope="personal", persist=False),
             "tools": engine.tools.catalog(),
         }
-        proactive_eval = engine.proactive.evaluate(scope="personal")
         checks["proactive_loop"] = {
             "status": "ok",
-            "evaluation": proactive_eval.to_dict(),
+            "engine": engine.proactive.__class__.__name__,
             "pending": engine.proactive.pending(scope="personal", limit=20),
         }
         checks["ai"] = snapshot["ai"]

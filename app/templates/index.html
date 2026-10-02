@@ -26,6 +26,10 @@
           </span>
         </button>
         {% endfor %}
+        <button class="nav-item" data-module="settings">
+          <span class="nav-icon"></span>
+          <span class="nav-copy"><strong>Настройки</strong></span>
+        </button>
       </nav>
 
       <div class="sidebar-bottom">
@@ -197,6 +201,7 @@
             </div>
 
             <div id="brain-flow" class="brain-flow">
+              <svg id="brain-links" class="brain-links" aria-hidden="true"></svg>
               <div class="brain-node" data-brain-node="sensors"><small>01</small><strong>Восприятие</strong><em id="brain-sensors-detail">ожидание</em></div>
               <div class="brain-node" data-brain-node="memory"><small>02</small><strong>Память</strong><em id="brain-memory-detail">ожидание</em></div>
               <div class="brain-node" data-brain-node="graph"><small>03</small><strong>Связи</strong><em id="brain-graph-detail">ожидание</em></div>
@@ -244,6 +249,67 @@
             </div>
           </div>
         </details>
+      </section>
+
+      <section id="settings-module" class="module-page">
+        <div class="settings-page">
+          <div class="settings-header">
+            <div>
+              <p class="overline">НАСТРОЙКИ</p>
+              <h2>Подключение AI</h2>
+              <p>Ключ хранится только в локальном файле <code>.env</code> и не отправляется в GitHub.</p>
+            </div>
+          </div>
+
+          <article class="settings-card cloud-card">
+            <div class="settings-card-head">
+              <div>
+                <span class="settings-icon">☁</span>
+                <div>
+                  <h3>Cloud.ru</h3>
+                  <p>Evolution Foundation Models</p>
+                </div>
+              </div>
+              <span id="cloud-status-badge" class="settings-badge">проверяю…</span>
+            </div>
+
+            <div class="settings-grid">
+              <label class="settings-field">
+                <span>API-ключ</span>
+                <input id="cloud-api-key" type="password" autocomplete="off" placeholder="Вставьте Key Secret Cloud.ru">
+                <small>После сохранения ключ не показывается обратно.</small>
+              </label>
+              <div class="settings-info">
+                <span>Модель чата</span>
+                <strong id="cloud-model">—</strong>
+              </div>
+              <div class="settings-info">
+                <span>Модель памяти</span>
+                <strong id="cloud-embedding-model">—</strong>
+              </div>
+            </div>
+
+            <div class="settings-actions">
+              <button id="cloud-save-btn" class="primary-button" type="button">Сохранить ключ</button>
+              <button id="cloud-test-btn" class="ghost-button" type="button">Проверить подключение</button>
+              <span id="cloud-settings-message" class="settings-message"></span>
+            </div>
+          </article>
+
+          <article class="settings-card update-card">
+            <div class="settings-card-head">
+              <div>
+                <span class="settings-icon">↻</span>
+                <div>
+                  <h3>Обновление проекта</h3>
+                  <p>Git checkout или безопасное ZIP-обновление для папки Aishin-main.</p>
+                </div>
+              </div>
+              <span id="update-mode-badge" class="settings-badge">—</span>
+            </div>
+            <p class="settings-note">При ZIP-обновлении сохраняются <code>.env</code>, база данных, память, логи, backups и виртуальное окружение.</p>
+          </article>
+        </div>
       </section>
 
       <section id="placeholder-module" class="module-page">

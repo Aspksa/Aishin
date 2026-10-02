@@ -68,7 +68,6 @@ class AishinEngine:
             ai=self.ai,
             planner=self.planner,
             events=self.events,
-            coordinator=self.execution_coordinator,
         )
         self.permissions = PermissionGate()
         project_root = Path(__file__).resolve().parents[2]
@@ -100,6 +99,7 @@ class AishinEngine:
             tools=self.tools,
             permissions=self.permissions,
             events=self.events,
+            coordinator=self.execution_coordinator,
         )
         self.observer = Observer(self.state, self.events)
         self.consolidator = MemoryConsolidator(

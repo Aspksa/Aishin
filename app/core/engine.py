@@ -15,6 +15,7 @@ from .observer import Observer
 from .permissions import PermissionGate
 from .planner import Planner
 from .planner_builder import PlannerBuilder
+from .proactive import ProactiveDecisionLoop
 from .personal import PersonalAishin
 from .semantic import SemanticMemory
 from .sensors import SensorHub
@@ -52,6 +53,13 @@ class AishinEngine:
             root=project_root,
             permissions=self.permissions,
             planner=self.planner,
+        )
+        self.proactive = ProactiveDecisionLoop(
+            planner=self.planner,
+            sensors=self.sensors,
+            tools=self.tools,
+            permissions=self.permissions,
+            events=self.events,
         )
         self.observer = Observer(self.state, self.events)
         self.consolidator = MemoryConsolidator(
@@ -114,6 +122,16 @@ class AishinEngine:
                     limit=10,
                 ),
             },
+            "proactive": {
+                "pending": self.proactive.pending(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+                "history": self.proactive.history(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
             "observations": [o.__dict__ for o in self.observer.inspect()],
             "recent_events": self.events.recent(limit=10),
             "recent_memories": self.memory.recent(
@@ -158,6 +176,7 @@ class AishinEngine:
 
         context = self.cognition.build_context(cleaned, scope=scope)
         context.system_prompt += "\n\n" + self.sensors.prompt_block(scope=scope)
+        context.system_prompt += "\n\n" + self.proactive.prompt_block(scope=scope)
         context.system_prompt += (
             "\n\nДоступные внутренние инструменты Айшин:\n"
             + "\n".join(

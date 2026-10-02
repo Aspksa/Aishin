@@ -1298,3 +1298,87 @@ CI дополнительно проверяет:
 Подтверждено GitHub Actions run `37006308613`:
 - Ubuntu / Python 3.11: success;
 - Windows / Python 3.11: success.
+
+
+## Self-Reflection Metrics + Learning Planner + Safe Experiment Manager + Context Budgeter
+
+Следующий слой самообучения реализован поверх Continuous Learning и Learning Quality Gate без повышения версии приложения.
+
+### Self-Reflection Metrics
+После каждого фактического ответа ядро детерминированно оценивает наблюдаемые сигналы качества:
+- доступность AI-провайдера;
+- confidence Metacognition;
+- Decision Quality;
+- unresolved evidence и contradictions;
+- latency/budget status;
+- явные пользовательские сигналы повторного исправления.
+
+Self-Reflection не просит LLM «оценить саму себя» и не считает собственный ответ доказательством успеха.
+
+Хранилище:
+- `self_reflection_runs`
+
+API:
+- `GET /api/assistant/self-reflection`
+
+### Learning Planner
+Learning Planner агрегирует повторяющиеся слабые места Self-Reflection и создаёт отдельные learning objectives только после накопления измеряемых сигналов.
+
+Примеры целей:
+- уменьшение пользовательских исправлений;
+- повышение evidence/confidence;
+- снижение reasoning latency;
+- повышение устойчивости к сбоям провайдера;
+- повышение средней измеряемой response quality.
+
+Хранилище:
+- `learning_plans`
+- `learning_plan_events`
+
+API:
+- `GET /api/assistant/learning-plans`
+
+### Safe Experiment Manager
+Эксперименты работают только в `shadow`-режиме:
+- активная логика не заменяется автоматически;
+- baseline и candidate сравниваются отдельно;
+- требуется минимум накопленных наблюдений;
+- promising candidate получает только статус `ready_for_review`;
+- автоматическое promotion запрещено.
+
+Хранилище:
+- `safe_experiments`
+- `experiment_observations`
+
+API:
+- `GET /api/assistant/safe-experiments`
+
+### Context Budgeter
+Финальный бюджет применяется непосредственно перед вызовом Cloud.ru, то есть после сборки personality, memory, graph, planner, verification, logic и остальных динамических блоков.
+
+Budgeter:
+- имеет отдельный token budget для FAST/DEEP/VERIFY/PLAN/DIAGNOSE;
+- резервирует место для ответа модели;
+- сначала удаляет старую историю;
+- затем при необходимости сокращает низкоприоритетную часть system context;
+- сохраняет отчёт до/после для диагностики;
+- не удаляет исходные данные из долговременной памяти.
+
+Хранилище:
+- `context_budget_reports`
+
+API:
+- `GET /api/assistant/context-budget`
+
+Schema migration: `14`.
+Версия приложения остаётся `0.0.3`.
+
+### Подтверждение runtime
+GitHub Actions run `37008371575`:
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall: success;
+- self-check: success;
+- FastAPI runtime smoke: success;
+- Windows launcher check-only: success.
+

@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 4
+LATEST_SCHEMA_VERSION = 5
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -123,11 +123,66 @@ def _migration_004_context_and_causality(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_005_hypotheses_and_logic_learning(conn: sqlite3.Connection) -> None:
+    """Hypothesis Manager and feedback-grounded Logic Learning."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS hypothesis_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            query TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            hypotheses_json TEXT NOT NULL DEFAULT '[]',
+            selected_test_json TEXT NOT NULL DEFAULT '{}',
+            stop_reason TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS logic_strategies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            strategy_key TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            strategy TEXT NOT NULL,
+            successes INTEGER NOT NULL DEFAULT 0,
+            failures INTEGER NOT NULL DEFAULT 0,
+            reliability REAL NOT NULL DEFAULT 0.5,
+            last_feedback TEXT NOT NULL DEFAULT '',
+            last_used_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, strategy_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS logic_learning_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            strategy_id INTEGER,
+            feedback TEXT NOT NULL,
+            outcome TEXT NOT NULL,
+            delta REAL NOT NULL DEFAULT 0.0,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(strategy_id) REFERENCES logic_strategies(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_hypothesis_runs_scope_created
+        ON hypothesis_runs(scope, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_logic_strategies_scope_reliability
+        ON logic_strategies(scope, reliability DESC, updated_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_logic_learning_events_scope_created
+        ON logic_learning_events(scope, created_at DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
     (3, "logic_engine_v1", _migration_003_logic_engine),
     (4, "context_orchestrator_and_causality", _migration_004_context_and_causality),
+    (5, "hypotheses_and_logic_learning", _migration_005_hypotheses_and_logic_learning),
 )
 
 

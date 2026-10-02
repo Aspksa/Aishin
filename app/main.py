@@ -147,6 +147,13 @@ def assistant_brain() -> dict:
         'state': engine.state.load().to_dict(),
         'permissions': {k: engine.permissions.mode(k) for k in engine.permissions.SAFE_DEFAULTS},
         'observations': [o.__dict__ for o in engine.observer.inspect()],
+        'planner': {
+            'open_items': engine.planner.open_items(scope=engine.state.load().current_scope),
+            'notices': [
+                notice.__dict__
+                for notice in engine.planner.inspect(scope=engine.state.load().current_scope)
+            ],
+        },
     }
 
 
@@ -325,16 +332,19 @@ def create_planner_task(payload: TaskCreate) -> dict:
     title = payload.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail='Название задачи пустое')
-    task_id = engine.planner.create_task(
-        scope=payload.scope.strip() or 'personal',
-        title=title,
-        description=payload.description.strip(),
-        goal_id=payload.goal_id,
-        priority=max(0.0, min(1.0, payload.priority)),
-        source='explicit_user',
-        evidence=title,
-        due_at=payload.due_at,
-    )
+    try:
+        task_id = engine.planner.create_task(
+            scope=payload.scope.strip() or 'personal',
+            title=title,
+            description=payload.description.strip(),
+            goal_id=payload.goal_id,
+            priority=max(0.0, min(1.0, payload.priority)),
+            source='explicit_user',
+            evidence=title,
+            due_at=payload.due_at,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return {'status': 'created', 'id': task_id}
 
 

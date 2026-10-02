@@ -330,6 +330,7 @@ class CommunicationIntelligenceEngine:
         emotional = profile.get("emotional_behavior", {})
         care = profile.get("care", {})
         humor = profile.get("humor", {})
+        runtime_kernel = profile.get("runtime_personality_kernel", {})
         recent = plan.recent_openers[-6:]
 
         parts = [
@@ -443,6 +444,12 @@ class CommunicationIntelligenceEngine:
         style = speech.get("style") or []
         if style:
             parts.append("Канонический стиль: " + ", ".join(style) + ".")
+        priorities = runtime_kernel.get("priority_rules") or []
+        if priorities:
+            parts.append(
+                "Канонические приоритеты личности имеют высший приоритет: "
+                + "; ".join(str(item) for item in priorities)
+            )
 
         return "\n".join(parts)
 
@@ -746,7 +753,7 @@ class CommunicationIntelligenceEngine:
                 "evidence": hits[:5],
             }
 
-        return {
+        result = {
             "confusion_signal": signal(self.NEGATIVE_CUES, 0.84),
             "positive_signal": signal(self.POSITIVE_CUES, 0.70),
             "frustration_signal": signal(self.FRUSTRATION_CUES, 0.68),
@@ -758,6 +765,13 @@ class CommunicationIntelligenceEngine:
             "simple_explanation_signal": signal(self.SIMPLE_CUES, 0.88),
             "continuation_signal": signal(self.CONTINUE_CUES, 0.78),
         }
+        if result["confusion_signal"]["active"]:
+            result["positive_signal"] = {
+                "active": False,
+                "confidence": 0.0,
+                "evidence": [],
+            }
+        return result
 
     def _communication_intent(
         self,
@@ -1040,7 +1054,7 @@ class CommunicationIntelligenceEngine:
             )
             conn.commit()
 
-        self._update_skill_outcome(turn=turn, score=score)
+        self._rebuild_skills(scope=scope)
         self._event(
             scope=scope,
             event_type="communication.outcome.observed",
@@ -1053,6 +1067,90 @@ class CommunicationIntelligenceEngine:
             },
         )
         self._refresh_state(scope)
+
+    def _rebuild_skills(self, *, scope: str) -> None:
+        self._ensure_skills(scope)
+        with connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM communication_turns
+                   WHERE scope=? AND outcome_score IS NOT NULL
+                   ORDER BY id ASC""",
+                (scope,),
+            ).fetchall()
+
+        grouped: dict[str, list[tuple[float, str | None]]] = {
+            key: [] for key in self.SKILLS
+        }
+        for row in rows:
+            turn = self._decode_turn(dict(row))
+            score = self._clamp(float(turn["outcome_score"] or 0.0))
+            stamp = turn.get("evaluated_at") or turn.get("completed_at")
+            for key in self._skills_for_turn(turn):
+                grouped.setdefault(key, []).append((score, stamp))
+
+        with connect() as conn:
+            for key, label in self.SKILLS.items():
+                samples = grouped.get(key, [])
+                values = [item[0] for item in samples]
+                count = len(values)
+                successes = sum(1 for value in values if value >= 0.70)
+                failures = sum(1 for value in values if value < 0.45)
+                average = self._average(values)
+                recent_values = values[-5:]
+                baseline_values = values[:-5][-15:]
+                recent = self._average(recent_values)
+                baseline = (
+                    self._average(baseline_values)
+                    if baseline_values
+                    else average
+                )
+                trend = recent - baseline if count >= 4 else 0.0
+                volume = self._sat(count, 20.0)
+                mastery = self._clamp(
+                    average * (0.35 + 0.65 * volume)
+                )
+                if count >= 2:
+                    variance = self._average(
+                        [(value - average) ** 2 for value in values]
+                    )
+                    consistency = self._clamp(1.0 - math.sqrt(variance))
+                else:
+                    consistency = 0.50 if count else 0.0
+                stability = self._clamp(
+                    consistency
+                    * (0.40 + 0.60 * volume)
+                    * (1.0 - min(0.65, abs(trend)))
+                )
+                last_evidence = samples[-1][1] if samples else None
+                freshness = 1.0 if samples else 0.0
+
+                conn.execute(
+                    """UPDATE communication_skills
+                       SET label=?, sample_count=?, success_count=?,
+                           failure_count=?, average_score=?,
+                           recent_score=?, baseline_score=?, trend=?,
+                           mastery=?, stability=?, freshness=?,
+                           last_evidence_at=?,
+                           updated_at=CURRENT_TIMESTAMP
+                       WHERE scope=? AND skill_key=?""",
+                    (
+                        label,
+                        count,
+                        successes,
+                        failures,
+                        round(average, 5),
+                        round(recent, 5),
+                        round(baseline, 5),
+                        round(trend, 5),
+                        round(mastery, 5),
+                        round(stability, 5),
+                        freshness,
+                        last_evidence,
+                        scope,
+                        key,
+                    ),
+                )
+            conn.commit()
 
     def _update_skill_outcome(self, *, turn: dict, score: float) -> None:
         keys = self._skills_for_turn(turn)

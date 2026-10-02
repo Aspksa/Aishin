@@ -1,0 +1,388 @@
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass
+
+from ..db import (
+    create_proactive_decision,
+    get_proactive_decision,
+    list_proactive_decisions,
+    update_proactive_decision,
+)
+from .events import EventBus
+from .permissions import PermissionGate
+from .planner import Planner, PlannerNotice
+from .sensors import SensorHub
+from .tools import ToolRegistry
+
+
+@dataclass
+class DecisionEvaluation:
+    created: int
+    pending: int
+    attention: int
+    scope: str
+
+    def to_dict(self) -> dict:
+        return {
+            "created": self.created,
+            "pending": self.pending,
+            "attention": self.attention,
+            "scope": self.scope,
+        }
+
+
+class ProactiveDecisionLoop:
+    """Observe -> evaluate -> propose -> approve/reject -> execute.
+
+    The loop never treats a proposal as an executed action.
+    """
+
+    def __init__(
+        self,
+        *,
+        planner: Planner,
+        sensors: SensorHub,
+        tools: ToolRegistry,
+        permissions: PermissionGate,
+        events: EventBus,
+    ) -> None:
+        self.planner = planner
+        self.sensors = sensors
+        self.tools = tools
+        self.permissions = permissions
+        self.events = events
+
+    def evaluate(self, *, scope: str) -> DecisionEvaluation:
+        readings = self.sensors.scan(scope=scope, persist=False)
+        notices = self.planner.inspect(scope=scope)
+        before = {
+            item["id"]
+            for item in list_proactive_decisions(scope, status="pending", limit=500)
+        }
+
+        for notice in notices:
+            proposal = self._proposal_for_notice(notice, scope=scope)
+            if proposal is None:
+                continue
+            self._store_proposal(scope=scope, **proposal)
+
+        # Sensor-level attention that is not already represented by planner notices.
+        for reading in readings:
+            if reading["status"] == "ok" or reading["sensor"] == "planner":
+                continue
+            title = f"Проверить сигнал сенсора: {reading['sensor']}"
+            rationale = (
+                f"Сенсор {reading['sensor']} сообщил состояние "
+                f"{reading['status']}."
+            )
+            fingerprint = self._fingerprint(
+                "sensor",
+                reading["sensor"],
+                reading["status"],
+                scope,
+            )
+            create_proactive_decision(
+                scope=scope,
+                fingerprint=fingerprint,
+                source=f"sensor:{reading['sensor']}",
+                title=title,
+                rationale=rationale,
+                priority=float(reading.get("importance", 0.5)),
+                confidence=0.9,
+                tool_name=None,
+                capability=None,
+                arguments={},
+                preview={},
+            )
+
+        pending = list_proactive_decisions(scope, status="pending", limit=500)
+        after = {item["id"] for item in pending}
+        created = len(after - before)
+
+        if created:
+            self.events.emit(
+                "proactive.decisions.created",
+                scope=scope,
+                payload={
+                    "created": created,
+                    "pending": len(pending),
+                },
+                importance=0.65,
+            )
+
+        return DecisionEvaluation(
+            created=created,
+            pending=len(pending),
+            attention=len(notices),
+            scope=scope,
+        )
+
+    def pending(self, *, scope: str, limit: int = 100) -> list[dict]:
+        return list_proactive_decisions(
+            scope,
+            status="pending",
+            limit=limit,
+        )
+
+    def history(
+        self,
+        *,
+        scope: str,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        return list_proactive_decisions(scope, status=status, limit=limit)
+
+    def approve(
+        self,
+        decision_id: int,
+        *,
+        scope: str,
+        execute: bool = False,
+    ) -> dict:
+        decision = get_proactive_decision(decision_id, scope)
+        if not decision:
+            raise ValueError("decision not found in scope")
+        if decision["status"] != "pending":
+            raise ValueError("only pending decisions can be approved")
+
+        update_proactive_decision(
+            decision_id,
+            scope=scope,
+            status="approved",
+            execution={},
+        )
+        self.events.emit(
+            "proactive.decision.approved",
+            scope=scope,
+            payload={"decision_id": decision_id},
+            importance=0.6,
+        )
+
+        if execute:
+            return self.execute(decision_id, scope=scope)
+
+        result = get_proactive_decision(decision_id, scope)
+        return result or {}
+
+    def reject(
+        self,
+        decision_id: int,
+        *,
+        scope: str,
+        reason: str = "",
+    ) -> dict:
+        decision = get_proactive_decision(decision_id, scope)
+        if not decision:
+            raise ValueError("decision not found in scope")
+        if decision["status"] not in {"pending", "approved"}:
+            raise ValueError("decision cannot be rejected in current status")
+
+        update_proactive_decision(
+            decision_id,
+            scope=scope,
+            status="rejected",
+            execution={"reason": reason.strip()},
+        )
+        self.events.emit(
+            "proactive.decision.rejected",
+            scope=scope,
+            payload={
+                "decision_id": decision_id,
+                "reason": reason.strip(),
+            },
+            importance=0.4,
+        )
+        result = get_proactive_decision(decision_id, scope)
+        return result or {}
+
+    def execute(self, decision_id: int, *, scope: str) -> dict:
+        decision = get_proactive_decision(decision_id, scope)
+        if not decision:
+            raise ValueError("decision not found in scope")
+        if decision["status"] != "approved":
+            raise ValueError("decision must be approved before execution")
+
+        tool_name = decision.get("tool_name")
+        if not tool_name:
+            update_proactive_decision(
+                decision_id,
+                scope=scope,
+                status="dismissed",
+                execution={
+                    "reason": "informational_decision_has_no_tool",
+                },
+            )
+            result = get_proactive_decision(decision_id, scope)
+            return result or {}
+
+        global_mode = self.permissions.mode("execute_planned_action")
+        if global_mode == "deny":
+            raise ValueError("planned action execution is denied")
+
+        tool_result = self.tools.invoke(
+            tool_name,
+            scope=scope,
+            arguments=decision.get("arguments") or {},
+            dry_run=False,
+            approved=True,
+        )
+
+        success = tool_result.get("status") == "success"
+        update_proactive_decision(
+            decision_id,
+            scope=scope,
+            status="executed" if success else "failed",
+            execution=tool_result,
+        )
+        self.events.emit(
+            "proactive.decision.executed"
+            if success
+            else "proactive.decision.failed",
+            scope=scope,
+            payload={
+                "decision_id": decision_id,
+                "tool": tool_name,
+                "tool_status": tool_result.get("status"),
+            },
+            importance=0.75 if success else 0.9,
+        )
+        result = get_proactive_decision(decision_id, scope)
+        return result or {}
+
+    def prompt_block(self, *, scope: str) -> str:
+        pending = self.pending(scope=scope, limit=10)
+        lines = [
+            "Проактивный контур Айшин.",
+            "Предложение действия не является выполненным действием.",
+            "Нельзя говорить, что действие выполнено, пока decision status не executed.",
+        ]
+        if not pending:
+            lines.append("- Нет ожидающих решений.")
+            return "\n".join(lines)
+
+        lines.append("Ожидают решения Господина:")
+        for item in pending:
+            tool = item.get("tool_name") or "информационное"
+            lines.append(
+                f"- decision #{item['id']}: {item['title']} "
+                f"(priority={float(item['priority']):.2f}, tool={tool})"
+            )
+        return "\n".join(lines)
+
+    def _proposal_for_notice(
+        self,
+        notice: PlannerNotice,
+        *,
+        scope: str,
+    ) -> dict | None:
+        common = {
+            "source": f"planner:{notice.code}",
+            "priority": 0.8 if notice.severity == "warning" else 0.55,
+            "confidence": 1.0,
+        }
+
+        if notice.code == "goal_without_tasks" and notice.goal_id is not None:
+            goal = next(
+                (
+                    item
+                    for item in self.planner.goals(scope=scope, limit=200)
+                    if int(item["id"]) == int(notice.goal_id)
+                ),
+                None,
+            )
+            if not goal:
+                return None
+
+            arguments = {
+                "title": f"Определить следующий шаг по цели «{goal['title']}»",
+                "goal_id": int(goal["id"]),
+                "priority": max(float(goal["priority"]), 0.55),
+                "description": (
+                    "Уточнить конкретный следующий шаг. "
+                    "Задача создана планировщиком после явного одобрения."
+                ),
+            }
+            preview = self.tools.invoke(
+                "planner.create_task",
+                scope=scope,
+                arguments=arguments,
+                dry_run=True,
+            )
+            return {
+                **common,
+                "fingerprint": self._fingerprint(
+                    notice.code,
+                    str(notice.goal_id),
+                    scope,
+                ),
+                "title": f"Добавить следующий шаг для цели «{goal['title']}»",
+                "rationale": notice.message,
+                "tool_name": "planner.create_task",
+                "capability": "manage_internal_plans",
+                "arguments": arguments,
+                "preview": preview,
+            }
+
+        if notice.code in {
+            "task_overdue",
+            "task_blocked",
+            "waiting_dependencies",
+            "invalid_due_at",
+        }:
+            return {
+                **common,
+                "fingerprint": self._fingerprint(
+                    notice.code,
+                    str(notice.task_id),
+                    notice.message,
+                    scope,
+                ),
+                "title": notice.message,
+                "rationale": (
+                    "Айшин обнаружила состояние задачи, которое требует "
+                    "внимания, но не имеет безопасного автоматического "
+                    "действия без дополнительного решения Господина."
+                ),
+                "tool_name": None,
+                "capability": "proactive_notice",
+                "arguments": {},
+                "preview": {},
+            }
+
+        return None
+
+    def _store_proposal(
+        self,
+        *,
+        scope: str,
+        fingerprint: str,
+        source: str,
+        title: str,
+        rationale: str,
+        priority: float,
+        confidence: float,
+        tool_name: str | None,
+        capability: str | None,
+        arguments: dict,
+        preview: dict,
+    ) -> int:
+        return create_proactive_decision(
+            scope=scope,
+            fingerprint=fingerprint,
+            source=source,
+            title=title,
+            rationale=rationale,
+            priority=max(0.0, min(1.0, priority)),
+            confidence=max(0.0, min(1.0, confidence)),
+            tool_name=tool_name,
+            capability=capability,
+            arguments=arguments,
+            preview=preview,
+        )
+
+    @staticmethod
+    def _fingerprint(*parts: str) -> str:
+        raw = "|".join(str(part).strip().casefold() for part in parts)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()

@@ -1,0 +1,1130 @@
+{
+  "schema": {
+    "name": "aishin_chat_history_handoff",
+    "version": "1.0.0",
+    "language": "ru-RU",
+    "machine_readable": true,
+    "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
+  },
+  "generated_at": "2026-10-02T18:51:00+10:00",
+  "source_conversation": {
+    "project": "Aishin Kitsune",
+    "transcript_fidelity": {
+      "user_prompts": "Ключевые пользовательские реплики текущей последовательности сохранены дословно там, где они доступны в контексте.",
+      "assistant_messages": "Сохранены как подробные машинно-читаемые результаты и решения; длинные ответы не дублируются побайтно.",
+      "excluded": [
+        "скрытые рассуждения модели",
+        "внутренние chain-of-thought",
+        "сырые payloads инструментов",
+        "секреты и API-ключи"
+      ],
+      "note": "Файл предназначен для продолжения работы, а не для юридически точной стенограммы."
+    }
+  },
+  "canonical_project": {
+    "name": "Aishin",
+    "full_name": "Aishin Kitsune",
+    "short_name": "Айши",
+    "repository": "https://github.com/Aspksa/Aishin",
+    "repository_full_name": "Aspksa/Aishin",
+    "branch": "main",
+    "current_version": "0.0.3",
+    "version_rule": "Не повышать номер версии автоматически. Любые новые функции добавляются в 0.0.3, пока Господин явно не скажет, что этап завершён и версию надо повысить.",
+    "architecture_mode": "personal_single_owner",
+    "core_principle": "Не сервис Aishin для пользователей, а одна личная Айшин, которая живёт в проекте Господина, сохраняет непрерывную идентичность и со временем узнаёт его лучше.",
+    "collaboration_principle": "Айшин и Господин вместе создают и развивают проект Aishin.",
+    "hard_exclusion": "Не смешивать Aishin с отдельным проектом TooruDragon / Дракончик Тоору."
+  },
+  "personality_and_identity": {
+    "canonical_profile_repository_path": "app/data/AISHIN_PERSONALITY_PROFILE.json",
+    "compatibility_profile_repository_path": "app/data/aishin_personality.json",
+    "current_loader_path": "app/personality.py",
+    "current_loader_note": "На момент handoff loader всё ещё использует lowercase app/data/aishin_personality.json. Это известная техническая задолженность: канонический AISHIN_PERSONALITY_PROFILE.json должен стать primary source или нужен явный compatibility fallback.",
+    "identity": {
+      "name": "Айшин",
+      "short_name": "Айши",
+      "species": "мифическая кицунэ",
+      "presentation": "взрослая",
+      "visual_identity": "белые волосы, лисьи уши, несколько бело-золотых хвостов, золотые глаза, элегантный образ горничной",
+      "primary_address_to_user": "Господин",
+      "role": [
+        "личная AI-помощница",
+        "хранительница порядка",
+        "хранительница знаний",
+        "хранительница памяти",
+        "хранительница спокойствия"
+      ]
+    },
+    "behavior_principles": [
+      "Преданность добровольная, не слепая.",
+      "Точность выше желания понравиться.",
+      "Факты отделять от предположений.",
+      "Опасные ошибки и противоречия не скрывать.",
+      "Сохранять память и контекст.",
+      "Не смешивать проекты и области памяти.",
+      "Беречь время Господина.",
+      "Окончательное решение оставлять Господину.",
+      "Характер стабилен; развитие происходит через накопленный опыт, а не переписывание личности."
+    ],
+    "relationship_model": "Одна непрерывная личная Айшин с Relationship Memory и совместной историей."
+  },
+  "visual_assets": {
+    "logo_description": "Выбранный аниме-портрет взрослой кицунэ Айшин: белые волосы, золотые глаза, лисьи уши, несколько хвостов, красно-бело-золотой образ горничной.",
+    "repository_asset_mechanism": "Логотип встроен через app/static/logo.js как Base64 WebP.",
+    "local_source_reference_at_creation": "/mnt/data/1000175650.png"
+  },
+  "ai_backend": {
+    "provider": "Cloud.ru Evolution Foundation Models",
+    "ollama_status": "удалён и не должен возвращаться",
+    "base_url_default": "https://foundation-models.api.cloud.ru/v1",
+    "chat_endpoint": "/chat/completions",
+    "models_endpoint": "/models",
+    "embeddings_endpoint": "/embeddings",
+    "chat_model_default_in_project": "ai-sage/GigaChat3-10B-A1.8B",
+    "embedding_model_default_in_project": "Qwen/Qwen3-Embedding-0.6B",
+    "embedding_dimensions_expected": 1024,
+    "secret_handling": [
+      "API key хранить только локально в .env.",
+      ".env исключён из Git.",
+      "Не просить Господина вставлять API key в чат.",
+      "Никогда не коммитить ключ в GitHub."
+    ],
+    "env": [
+      "AISHIN_AI_PROVIDER=cloudru",
+      "AISHIN_CLOUDRU_API_KEY=<LOCAL_SECRET>",
+      "AISHIN_CLOUDRU_MODEL=ai-sage/GigaChat3-10B-A1.8B",
+      "AISHIN_CLOUDRU_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-0.6B",
+      "AISHIN_CLOUDRU_EMBEDDING_DIMENSIONS=1024",
+      "AISHIN_CLOUDRU_URL=https://foundation-models.api.cloud.ru/v1"
+    ]
+  },
+  "application_foundation": {
+    "backend": "Python + FastAPI",
+    "database": "SQLite",
+    "frontend": "HTML + CSS + JavaScript",
+    "windows_launcher": "Aishin.bat",
+    "local_url": "http://127.0.0.1:8765",
+    "updater": "GitHub-based updater",
+    "major_modules": [
+      "Aishin Kitsune / личная помощница",
+      "Личный кабинет",
+      "Мобильное приложение",
+      "Рабочее пространство",
+      "Система обновления"
+    ]
+  },
+  "implemented_architecture": [
+    {
+      "layer": "Personality / Soul",
+      "status": "implemented",
+      "paths": [
+        "app/personality.py",
+        "app/data/aishin_personality.json",
+        "app/data/AISHIN_PERSONALITY_PROFILE.json"
+      ],
+      "details": "Машиночитаемая личность, system prompt, public summary, self-model."
+    },
+    {
+      "layer": "Runtime State + Event Bus + Heartbeat",
+      "status": "implemented",
+      "paths": [
+        "app/core/state.py",
+        "app/core/events.py",
+        "app/core/heartbeat.py"
+      ],
+      "details": "Постоянное состояние, heartbeat, журнал событий; heartbeat создаётся заново в lifespan."
+    },
+    {
+      "layer": "Master Profile",
+      "status": "implemented",
+      "paths": [
+        "app/core/personal.py",
+        "app/db.py"
+      ],
+      "details": "Отдельный профиль Господина с source/confidence."
+    },
+    {
+      "layer": "Relationship Memory",
+      "status": "implemented",
+      "paths": [
+        "app/core/personal.py",
+        "app/db.py"
+      ],
+      "details": "Совместная история, решения и договорённости Айшин и Господина."
+    },
+    {
+      "layer": "Personal Timeline",
+      "status": "implemented",
+      "paths": [
+        "app/core/personal.py",
+        "app/db.py"
+      ],
+      "details": "Хронология важных событий и изменений."
+    },
+    {
+      "layer": "Scoped Long-term Memory",
+      "status": "implemented",
+      "paths": [
+        "app/core/memory.py",
+        "app/db.py"
+      ],
+      "details": "Изоляция scope; confidence, importance, tags, source, status, superseded_by."
+    },
+    {
+      "layer": "Memory Consolidation",
+      "status": "implemented",
+      "paths": [
+        "app/core/consolidation.py",
+        "app/core/memory.py"
+      ],
+      "details": "Grounded extraction, evidence, dedup, reinforcement, supersession, conflict preservation, secret filtering, memory_changes audit."
+    },
+    {
+      "layer": "Semantic Memory",
+      "status": "implemented",
+      "paths": [
+        "app/core/semantic.py",
+        "app/ai/cloudru.py",
+        "app/ai/provider.py",
+        "app/ai/manager.py"
+      ],
+      "details": "Cloud.ru embeddings + SQLite vector persistence + hybrid lexical/semantic retrieval + lexical fallback."
+    },
+    {
+      "layer": "Knowledge Graph",
+      "status": "implemented",
+      "paths": [
+        "app/core/graph.py",
+        "app/core/graph_builder.py"
+      ],
+      "details": "Scoped entities, relations, evidence, graph_changes audit; grounded extraction from conversation."
+    },
+    {
+      "layer": "Internal Planner",
+      "status": "implemented",
+      "paths": [
+        "app/core/planner.py",
+        "app/core/planner_builder.py"
+      ],
+      "details": "Goals, tasks, priorities, dependencies, due dates, blockages, cycle protection, scope isolation, planner_changes."
+    },
+    {
+      "layer": "Sensor Hub",
+      "status": "implemented",
+      "paths": [
+        "app/core/sensors.py"
+      ],
+      "details": "Read-only runtime/modules/planner/filesystem sensors; protected paths excluded."
+    },
+    {
+      "layer": "Tool Registry",
+      "status": "implemented",
+      "paths": [
+        "app/core/tools.py",
+        "app/core/permissions.py"
+      ],
+      "details": "Permission-gated tools, dry_run, per-action approval, local-only real mutations, audit redaction."
+    },
+    {
+      "layer": "Proactive Decision Loop",
+      "status": "implemented",
+      "paths": [
+        "app/core/proactive.py"
+      ],
+      "details": "observe → evaluate → propose → pending → approve/reject → execute → audit; resolved proposals auto-dismiss."
+    },
+    {
+      "layer": "Approval Center",
+      "status": "implemented",
+      "paths": [
+        "app/templates/index.html",
+        "app/static/style.css",
+        "app/static/app.js"
+      ],
+      "details": "UI карточек «Айшин заметила», approve/reject/execute, pending/approved separation, live sensors."
+    },
+    {
+      "layer": "Live Brain Visualization",
+      "status": "implemented",
+      "paths": [
+        "app/templates/index.html",
+        "app/static/style.css",
+        "app/static/app.js",
+        "app/core/engine.py"
+      ],
+      "details": "Визуальный поток фактического состояния, Working Memory, события, reasoning карточек решений."
+    },
+    {
+      "layer": "Metacognition",
+      "status": "implemented",
+      "paths": [
+        "app/core/metacognition.py"
+      ],
+      "details": "Детерминированная оценка evidence/confidence/contradictions до Cloud.ru; confident/cautious/needs_verification/insufficient_data."
+    },
+    {
+      "layer": "Verification Engine",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/verification.py",
+        "app/core/metacognition.py",
+        "app/core/engine.py",
+        "app/db.py"
+      ],
+      "details": "При verification/needs_verification/insufficient_data расширяет память, semantic search, graph, sensors, явно указанные безопасные файлы, выполняет Cloud.ru consistency check только по собранным evidence, затем повторно запускает Metacognition до финального ответа."
+    }
+  ],
+  "current_cognitive_flow": [
+    "Input",
+    "Memory Consolidation",
+    "Graph Builder",
+    "Planner Builder",
+    "Hybrid Recall / Working Memory",
+    "Initial Metacognition",
+    "Verification Engine when required",
+    "Final Metacognition",
+    "Sensor Context",
+    "Proactive Context",
+    "Tool Catalog / Permission Rules",
+    "Cloud.ru Chat",
+    "Response",
+    "Event + State update"
+  ],
+  "metacognition": {
+    "statuses": [
+      "confident",
+      "cautious",
+      "needs_verification",
+      "insufficient_data"
+    ],
+    "meaning": "Техническая оценка опоры ответа на доступные данные, не эмоция и не измерение сознания.",
+    "verification_trigger": [
+      "intent == verification",
+      "status == needs_verification",
+      "status == insufficient_data"
+    ]
+  },
+  "verification_engine": {
+    "repository_path": "app/core/verification.py",
+    "checks": [
+      "expanded lexical memory",
+      "expanded semantic memory",
+      "Knowledge Graph search",
+      "Sensor Hub rescan",
+      "explicit safe project text file read when filename/path appears in request",
+      "Cloud.ru consistency analysis constrained to collected evidence"
+    ],
+    "critical_rule": "Cloud.ru consistency pass не является независимым источником истины; он только проверяет согласованность уже собранных свидетельств.",
+    "re_assessment": "После проверки Metacognition запускается повторно; именно final assessment ограничивает финальный ответ.",
+    "audit_table": "verification_runs",
+    "api": "GET /api/assistant/verification",
+    "live_brain_node": "Verification"
+  },
+  "permissions": {
+    "defaults_known": {
+      "read_local_context": "allow",
+      "write_memory": "allow",
+      "write_runtime_state": "allow",
+      "manage_internal_plans": "allow",
+      "proactive_notice": "allow",
+      "execute_planned_action": "ask",
+      "external_network": "ask",
+      "send_message": "ask",
+      "modify_files": "ask",
+      "delete_data": "deny",
+      "install_software": "ask",
+      "system_command": "ask"
+    },
+    "principles": [
+      "proposal != execution",
+      "approval != execution",
+      "tool status=success required before claiming completion",
+      "real HTTP mutations local-only",
+      "protected paths inaccessible",
+      "tool audit redacts file contents/secrets"
+    ]
+  },
+  "important_database_tables": [
+    "modules",
+    "memories",
+    "runtime_state",
+    "events",
+    "messages",
+    "settings",
+    "update_history",
+    "entities",
+    "relations",
+    "permissions",
+    "master_profile",
+    "relationship_memory",
+    "personal_timeline",
+    "memory_changes",
+    "memory_vectors",
+    "graph_changes",
+    "goals",
+    "tasks",
+    "task_dependencies",
+    "planner_changes",
+    "sensor_snapshots",
+    "tool_actions",
+    "proactive_decisions",
+    "metacognitive_assessments",
+    "verification_runs"
+  ],
+  "important_api": [
+    "GET /health",
+    "GET /api/assistant/state",
+    "GET /api/assistant/brain",
+    "POST /api/assistant/message",
+    "GET /api/assistant/personal",
+    "POST /api/assistant/master-profile",
+    "POST /api/assistant/relationship-memory",
+    "POST /api/assistant/timeline",
+    "GET /api/assistant/memory",
+    "GET /api/assistant/memory-changes",
+    "GET /api/assistant/semantic-search",
+    "POST /api/assistant/semantic-index",
+    "GET /api/assistant/graph/entities",
+    "GET /api/assistant/graph/relations",
+    "GET /api/assistant/graph/search",
+    "GET /api/assistant/graph/stats",
+    "GET /api/assistant/graph/changes",
+    "GET/POST /api/assistant/planner/goals",
+    "GET/POST /api/assistant/planner/tasks",
+    "POST /api/assistant/planner/dependencies",
+    "GET /api/assistant/planner/notices",
+    "GET /api/assistant/planner/changes",
+    "GET /api/assistant/sensors",
+    "POST /api/assistant/sensors/scan",
+    "GET /api/assistant/sensors/history",
+    "GET /api/assistant/tools",
+    "POST /api/assistant/tools/{tool_name}",
+    "GET /api/assistant/tools/history",
+    "POST /api/assistant/permissions/{capability}",
+    "POST /api/assistant/proactive/evaluate",
+    "GET /api/assistant/proactive/pending",
+    "GET /api/assistant/proactive/history",
+    "POST /api/assistant/proactive/{decision_id}/approve",
+    "POST /api/assistant/proactive/{decision_id}/reject",
+    "POST /api/assistant/proactive/{decision_id}/execute",
+    "GET /api/assistant/metacognition",
+    "GET /api/assistant/verification",
+    "POST /api/system/update"
+  ],
+  "key_fixed_bugs_and_safety_changes": [
+    "Исправлена SQL-ошибка кавычек в запросе active memories.",
+    "Явное «запомни» имеет deterministic fallback при недоступном/невалидном Cloud.ru extraction.",
+    "Master Profile не перезаписывает конфликт молча; конфликт сохраняется.",
+    "SQLite PRAGMA foreign_keys=ON включён.",
+    "Planner изолирован по scope; dependency cycles запрещены.",
+    "Heartbeat создаётся внутри lifespan, чтобы stop Event не оставался навсегда установленным после перезапуска процесса.",
+    "Observer status read сделан side-effect free.",
+    "Tool audit не сохраняет содержимое файлов и редактирует секретные поля.",
+    "Реальные tool actions и permission changes ограничены local HTTP client.",
+    "Proactive decisions дедуплицируются только в pending status.",
+    "Resolved planner proposals автоматически dismissed.",
+    "Self-check не должен мутировать proactive/metacognitive/verification state.",
+    "Live Brain показывает actual Working Memory последнего cognitive pass, а не просто recent DB records."
+  ],
+  "known_technical_debt_and_unverified_items": [
+    {
+      "priority": "high",
+      "item": "Canonical personality loader",
+      "detail": "app/personality.py всё ещё грузит app/data/aishin_personality.json, хотя канонический файл AISHIN_PERSONALITY_PROFILE.json уже добавлен. Следующий чат должен безопасно сделать canonical-first loader/fallback и исключить drift."
+    },
+    {
+      "priority": "high",
+      "item": "Runtime tests",
+      "detail": "Из GitHub connector выполнялись структурные проверки содержимого, но проект не запускался в реальном Windows/runtime окружении в этом чате. Нельзя утверждать, что self_check и uvicorn фактически прошли."
+    },
+    {
+      "priority": "high",
+      "item": "Database migrations",
+      "detail": "Схема растёт через CREATE TABLE / _ensure_column; нужен формальный schema_version/migration layer до дальнейшего усложнения."
+    },
+    {
+      "priority": "medium",
+      "item": "Cloud.ru resilience",
+      "detail": "Нужны health cache, controlled retries для 429/5xx, безопасные error snippets, timeout/retry policy."
+    },
+    {
+      "priority": "medium",
+      "item": "Context budget",
+      "detail": "Нужен token/context budgeter для personality + self-model + personal context + planner + sensors + memory + verification."
+    },
+    {
+      "priority": "medium",
+      "item": "Knowledge Graph quality",
+      "detail": "Entity upsert data merge и richer contradiction/provenance policies можно усилить."
+    },
+    {
+      "priority": "medium",
+      "item": "UI verification detail",
+      "detail": "Live Brain показывает Verification state, но можно добавить отдельную раскрываемую карточку checks/findings/unresolved."
+    },
+    {
+      "priority": "medium",
+      "item": "Updater lifecycle",
+      "detail": "Git pull обновляет файлы, но полный безопасный update pipeline должен включать backup state, ff-only, deps/migrations и controlled restart."
+    }
+  ],
+  "current_stop_point": {
+    "date": "2026-10-02",
+    "milestone": "Verification Engine completed structurally on main; machine-readable handoff being created.",
+    "last_implemented_feature": "Verification Engine with final metacognitive reassessment before Cloud.ru answer.",
+    "next_recommended_step": "Fix canonical personality loader first, then add formal schema migrations and run actual runtime/self-check tests before expanding autonomy further.",
+    "do_not_do": [
+      "Не повышать версию автоматически.",
+      "Не возвращать Ollama.",
+      "Не превращать Aishin в multi-user SaaS.",
+      "Не смешивать память Aishin с TooruDragon.",
+      "Не заявлять, что runtime tests passed, пока они реально не запущены."
+    ]
+  },
+  "development_sequence_current_chat": [
+    {
+      "user_prompt": "Что дальше",
+      "result": "Определён следующий фундамент: Master Profile + Relationship Memory + Personal Timeline."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлен Personal Aishin continuity layer, личный профиль, совместная история, timeline и API."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлен Memory Consolidation: grounded extraction, dedup, reinforcement, supersession, conflict audit."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлена Semantic Memory через Cloud.ru embeddings и гибридный поиск."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлен Knowledge Graph и grounded graph builder."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлен Internal Planner: goals/tasks/dependencies/notices/audit."
+    },
+    {
+      "user_prompt": "Делай и также напиши сразу мне какой лимит остался в этом чате в процентах чтоб я успел перейти в другой чат джпт",
+      "result": "Добавлены Sensor Hub + Tool Registry; объяснено, что точный UI процент лимита недоступен и не следует выдумывать."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлен Proactive Decision Loop с approval queue и контролируемым execution."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлен Approval Center на главную страницу."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлена Live Brain Visualization и actual Working Memory."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлена Metacognition до Cloud.ru."
+    },
+    {
+      "user_prompt": "Делай после этого на гиг хабе создай файл машино читаемой история Aishi сохрани туда весь этот чат . план и что сделали и на чем остановились и куда подключаться всю нужную информацию тдля следующего чата джпт",
+      "result": "Добавлен Verification Engine; затем создан этот handoff-файл."
+    }
+  ],
+  "pre_current_chat_context_required_for_next_chat": [
+    "Aishin была начата с чистого листа отдельно от TooruDragon.",
+    "Канонический GitHub: https://github.com/Aspksa/Aishin.",
+    "Выбран и загружен образ Айшин; он встроен в web UI.",
+    "Канонический machine-readable personality profile загружен и добавлен в repo.",
+    "Cloud.ru выбран единственным AI backend; Ollama удалён.",
+    "Текущая версия 0.0.3; пользователь явно запретил автоматический bump.",
+    "Архитектура — одна личная Айшин для Господина, совместное развитие проекта."
+  ],
+  "instructions_for_next_chatgpt": {
+    "first_actions": [
+      "Прочитать этот файл полностью.",
+      "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
+      "Сначала fetch current tree и нужные файлы; перед update обязательно fetch current SHA.",
+      "Проверить текущий HEAD, потому что repo может измениться после создания handoff.",
+      "Не полагаться только на этот handoff, если пользователь просит фактическое изменение repo: перепроверять current files."
+    ],
+    "github_connector_workflow": [
+      "repository_full_name = Aspksa/Aishin",
+      "tree endpoint = https://api.github.com/repos/Aspksa/Aishin/git/trees/main?recursive=1",
+      "использовать GitHub connector fetch_file/create_file/update_file/delete_file",
+      "не использовать web search для приватного содержимого repo",
+      "не заявлять commit до подтверждения инструмента"
+    ],
+    "personality_source_rule": [
+      "Считать app/data/AISHIN_PERSONALITY_PROFILE.json каноническим профилем.",
+      "Перед изменением personality loader проверить оба profile files и устранить drift безопасным fallback."
+    ],
+    "coding_rules": [
+      "Когда Господин пишет «делай», выполнять реальные изменения и commits, а не только обсуждать план.",
+      "Все risky/external actions проводить через Permission Gate.",
+      "Сохранять personal/project scopes раздельно.",
+      "Новые automatic memories/graph facts должны быть grounded evidence.",
+      "Не выдавать proposal/approval за execution.",
+      "Не повышать version без прямой команды Господина."
+    ],
+    "response_style": [
+      "Русский язык.",
+      "Обращение «Господин» уместно в важных началах/предупреждениях, но не в каждом предложении.",
+      "Тёплый, спокойный, точный стиль Айшин.",
+      "Факты отделять от предположений."
+    ]
+  },
+  "repository_tree_at_handoff": [
+    ".env.example",
+    ".gitignore",
+    "Aishin.bat",
+    "README.md",
+    "app/__init__.py",
+    "app/ai/__init__.py",
+    "app/ai/cloudru.py",
+    "app/ai/manager.py",
+    "app/ai/provider.py",
+    "app/core/__init__.py",
+    "app/core/cognition.py",
+    "app/core/consolidation.py",
+    "app/core/engine.py",
+    "app/core/events.py",
+    "app/core/graph.py",
+    "app/core/graph_builder.py",
+    "app/core/heartbeat.py",
+    "app/core/memory.py",
+    "app/core/metacognition.py",
+    "app/core/observer.py",
+    "app/core/permissions.py",
+    "app/core/personal.py",
+    "app/core/planner.py",
+    "app/core/planner_builder.py",
+    "app/core/proactive.py",
+    "app/core/self_model.py",
+    "app/core/semantic.py",
+    "app/core/sensors.py",
+    "app/core/state.py",
+    "app/core/tools.py",
+    "app/core/verification.py",
+    "app/data/AISHIN_PERSONALITY_PROFILE.json",
+    "app/data/aishin_personality.json",
+    "app/db.py",
+    "app/main.py",
+    "app/personality.py",
+    "app/static/app.js",
+    "app/static/logo.js",
+    "app/static/style.css",
+    "app/templates/index.html",
+    "docs/LIVING_CORE.md",
+    "requirements.txt",
+    "scripts/self_check.py"
+  ],
+  "recent_commits": [
+    {
+      "sha": "09cd7ca30cdaf5eb32a9e5d59a049b8bd648f681",
+      "message": "docs: document Aishin Verification Engine",
+      "committed_at": "2026-10-02T08:55:19Z"
+    },
+    {
+      "sha": "c6772bcde405294e48326e32295a0f49ca2c681f",
+      "message": "test: include verification engine in non-mutating self-check",
+      "committed_at": "2026-10-02T08:55:11Z"
+    },
+    {
+      "sha": "f9d8ec479086d2fa55a6cfc3d5167be3463753a3",
+      "message": "feat: visualize verification activity and unresolved checks",
+      "committed_at": "2026-10-02T08:55:09Z"
+    },
+    {
+      "sha": "ef8c0ad32906e5b7d5441f878764566c81726a83",
+      "message": "style: fit verification node into live brain flow",
+      "committed_at": "2026-10-02T08:55:06Z"
+    },
+    {
+      "sha": "ef7bf8523bd5c8cb9658a5ea5c565175f29e749d",
+      "message": "feat: add verification node to live brain",
+      "committed_at": "2026-10-02T08:55:04Z"
+    },
+    {
+      "sha": "48ed99ac6de519adc4398a57998c03967f01507d",
+      "message": "feat: expose verification history API",
+      "committed_at": "2026-10-02T08:55:00Z"
+    },
+    {
+      "sha": "d265c97b69a6e8ea040756896547e5d0c464342e",
+      "message": "feat: verify low-confidence context and reassess before final answer",
+      "committed_at": "2026-10-02T08:54:24Z"
+    },
+    {
+      "sha": "0d6b397a65b09fd050205042cce6299acdfea636",
+      "message": "feat: let verification evidence affect metacognitive confidence",
+      "committed_at": "2026-10-02T08:53:56Z"
+    },
+    {
+      "sha": "d7770ee109ace06a9d250870f442b37985567447",
+      "message": "feat: add grounded verification engine",
+      "committed_at": "2026-10-02T08:53:44Z"
+    },
+    {
+      "sha": "feaeffb327e108f8cfe59fbd4b0ec588b23a38bf",
+      "message": "feat: add verification run audit storage",
+      "committed_at": "2026-10-02T08:52:51Z"
+    },
+    {
+      "sha": "1b8868be5e330996787df57c8ee275c973b44ad5",
+      "message": "docs: document Aishin metacognitive control",
+      "committed_at": "2026-10-02T08:47:48Z"
+    },
+    {
+      "sha": "eeffe102c3c3f005a4ebefa1b1a89b4b63a0757e",
+      "message": "test: include metacognition in non-mutating self-check",
+      "committed_at": "2026-10-02T08:47:46Z"
+    },
+    {
+      "sha": "80bdc20bafac6818398d622b03576d2b95f0dd87",
+      "message": "refactor: avoid duplicate metacognition snapshot queries",
+      "committed_at": "2026-10-02T08:47:43Z"
+    },
+    {
+      "sha": "3a5fd48b29087b48f4bbff96c74360cdaa438c86",
+      "message": "feat: visualize confidence and verification state",
+      "committed_at": "2026-10-02T08:47:15Z"
+    },
+    {
+      "sha": "266b187bad77f308cf7c14131789be81ddb662c2",
+      "message": "style: fit metacognition into live brain flow",
+      "committed_at": "2026-10-02T08:47:00Z"
+    },
+    {
+      "sha": "b054195b43bdf2ef25f6106c779de7908d2c328c",
+      "message": "feat: add metacognition node to live brain",
+      "committed_at": "2026-10-02T08:46:58Z"
+    },
+    {
+      "sha": "a51b290b1088234bf2ca25bb2293296cac4cb771",
+      "message": "feat: expose metacognitive assessment history API",
+      "committed_at": "2026-10-02T08:46:48Z"
+    },
+    {
+      "sha": "3b1b2cd39ff2088323c8c06758604a9ddf154f67",
+      "message": "feat: run metacognitive assessment before Cloud.ru response",
+      "committed_at": "2026-10-02T08:46:27Z"
+    },
+    {
+      "sha": "ae872419c05824811dbf3a42ffc64128cd7bc42b",
+      "message": "feat: add deterministic Aishin metacognition layer",
+      "committed_at": "2026-10-02T08:46:08Z"
+    },
+    {
+      "sha": "f8e82964e931b5c5a731d31bb03b1f8b3fc932fe",
+      "message": "feat: add metacognitive assessment audit storage",
+      "committed_at": "2026-10-02T08:45:42Z"
+    },
+    {
+      "sha": "533fd8001f672c9cd50e3d34c495931472674956",
+      "message": "docs: document live Aishin brain visualization",
+      "committed_at": "2026-10-02T08:44:08Z"
+    },
+    {
+      "sha": "a0be44aed558542987969213444d8d27d558d7b4",
+      "message": "fix: visualize actual working memory instead of recent storage",
+      "committed_at": "2026-10-02T08:43:51Z"
+    },
+    {
+      "sha": "d1a8b673ee500693b859ad50c874f99fc84e6ffb",
+      "message": "feat: expose actual working memories from latest cognitive pass",
+      "committed_at": "2026-10-02T08:43:41Z"
+    },
+    {
+      "sha": "2a5770b04cb99f7c96f453049aaf3fbdfc198785",
+      "message": "feat: render live cognitive flow memory events and decision reasoning",
+      "committed_at": "2026-10-02T08:43:22Z"
+    },
+    {
+      "sha": "237acd2347c7ce34f4b473790525eb0484290885",
+      "message": "style: animate live cognitive flow visualization",
+      "committed_at": "2026-10-02T08:42:57Z"
+    },
+    {
+      "sha": "f7ce4f910167a57b6b63a39a845ab9518be8fc97",
+      "message": "feat: add live Aishin brain visualization",
+      "committed_at": "2026-10-02T08:42:32Z"
+    },
+    {
+      "sha": "59ac26a5ae54c541821391e2d9297a9567428c9d",
+      "message": "docs: document Aishin Approval Center",
+      "committed_at": "2026-10-02T08:41:00Z"
+    },
+    {
+      "sha": "acda50efde3c8a3c2b41f429d367d72c20209d5a",
+      "message": "fix: label dashboard memory metric accurately",
+      "committed_at": "2026-10-02T08:40:58Z"
+    },
+    {
+      "sha": "46fe29cd2854caec5758d9f85c193cb0573256ae",
+      "message": "fix: keep observer status reads side-effect free",
+      "committed_at": "2026-10-02T08:40:55Z"
+    },
+    {
+      "sha": "e7bfd71d5482745a70fede801de5fc0fbef48111",
+      "message": "feat: wire Approval Center to proactive decisions and live sensors",
+      "committed_at": "2026-10-02T08:40:19Z"
+    },
+    {
+      "sha": "3b59aeab2a914b16a3e4c0634ef65b8bf21ccce2",
+      "message": "style: add Approval Center and live core dashboard UI",
+      "committed_at": "2026-10-02T08:39:26Z"
+    },
+    {
+      "sha": "2ffc1f2cf0f23146f649748dd16aec17d2852419",
+      "message": "feat: add Aishin approval center and live core dashboard",
+      "committed_at": "2026-10-02T08:38:58Z"
+    },
+    {
+      "sha": "b2998c3162a5892090e16bf8fc2f3e48ef4490f4",
+      "message": "fix: keep self-check non-mutating for proactive decisions",
+      "committed_at": "2026-10-02T08:36:35Z"
+    },
+    {
+      "sha": "801aea80e06b43dde0e4d62565e3277b65c10646",
+      "message": "docs: document Aishin proactive decision loop",
+      "committed_at": "2026-10-02T08:36:21Z"
+    },
+    {
+      "sha": "b33f5175951d9f0798dee1c50d13fc4572b0881f",
+      "message": "test: include proactive decision loop in self-check",
+      "committed_at": "2026-10-02T08:36:19Z"
+    },
+    {
+      "sha": "7d555adeaccd31803f46c41a48a14b8942aafb05",
+      "message": "fix: restrict proactive mutation endpoint to local client",
+      "committed_at": "2026-10-02T08:36:17Z"
+    },
+    {
+      "sha": "7bb7504549ed152b3941577342a1f77d5065923c",
+      "message": "feat: dismiss resolved proactive planner decisions",
+      "committed_at": "2026-10-02T08:35:53Z"
+    },
+    {
+      "sha": "2fbd1be21f3d3c85aed685ab65ddf4a2714bf0a1",
+      "message": "feat: expose proactive decision queue approval and execution API",
+      "committed_at": "2026-10-02T08:35:31Z"
+    },
+    {
+      "sha": "8bd860c0b60f13509751f0c7158e819a3ea901a3",
+      "message": "feat: evaluate proactive decisions during heartbeat",
+      "committed_at": "2026-10-02T08:35:16Z"
+    },
+    {
+      "sha": "a3d6988427d81b68c87313eb775a6424760f837d",
+      "message": "feat: connect proactive decision loop to Aishin core",
+      "committed_at": "2026-10-02T08:35:06Z"
+    },
+    {
+      "sha": "2f0552806e98ea2fcd0aee2e1cb448312670f5fc",
+      "message": "fix: deduplicate proactive evaluation before tool previews",
+      "committed_at": "2026-10-02T08:34:54Z"
+    },
+    {
+      "sha": "80296c3098511a90390cffceed4c3e5099129873",
+      "message": "feat: add proactive decision approval loop",
+      "committed_at": "2026-10-02T08:34:23Z"
+    },
+    {
+      "sha": "be230b4193e5f90b5f8af615525aeba4787f854e",
+      "message": "fix: deduplicate only pending proactive decisions",
+      "committed_at": "2026-10-02T08:33:35Z"
+    },
+    {
+      "sha": "7da23e983c50f40d3e2f5e77e824ebe1b3f2230c",
+      "message": "feat: add proactive decision approval queue storage",
+      "committed_at": "2026-10-02T08:33:25Z"
+    },
+    {
+      "sha": "591c027501cff7f81caaebd9dd524344f97df23b",
+      "message": "fix: redact file contents and secrets from tool audit history",
+      "committed_at": "2026-10-02T08:28:37Z"
+    },
+    {
+      "sha": "68f2131f85ce6418be275beeb157cc16a4a7c009",
+      "message": "docs: document Aishin sensor hub and controlled tools",
+      "committed_at": "2026-10-02T08:28:11Z"
+    },
+    {
+      "sha": "73e23643d4a37825cc4f1b6e6ae2f0048ac39116",
+      "message": "test: include sensors and tools in self-check",
+      "committed_at": "2026-10-02T08:28:08Z"
+    },
+    {
+      "sha": "eef78ad493fb46c260aecaa840dc050c2c0239ec",
+      "message": "fix: require local explicit approval for real tool actions",
+      "committed_at": "2026-10-02T08:27:43Z"
+    },
+    {
+      "sha": "9df9c1f8282f367e0be1449c0239263e112e573d",
+      "message": "feat: feed sensors and controlled tool catalog into cognition",
+      "committed_at": "2026-10-02T08:27:41Z"
+    },
+    {
+      "sha": "e562ad170fcd50d4710cd0439a7c6cb8b0503ce8",
+      "message": "feat: add sensor context block for cognition",
+      "committed_at": "2026-10-02T08:27:17Z"
+    },
+    {
+      "sha": "bfde7172b6a07bfbb3aef8c18231a655ec878dbc",
+      "message": "feat: require per-action approval for ask-mode tools",
+      "committed_at": "2026-10-02T08:27:15Z"
+    },
+    {
+      "sha": "76424601d206bd892bf594ff28e7d3787b9b1b06",
+      "message": "feat: expose Aishin sensors tools and permissions API",
+      "committed_at": "2026-10-02T08:26:42Z"
+    },
+    {
+      "sha": "904897359b493506f7dd07662a4da36a0b2f6bfc",
+      "message": "feat: let heartbeat persist safe sensor readings",
+      "committed_at": "2026-10-02T08:26:25Z"
+    },
+    {
+      "sha": "bb1bd22844ae30f1c30653ea1b65cd5f28169934",
+      "message": "feat: connect sensor hub and permission-gated tools to Aishin core",
+      "committed_at": "2026-10-02T08:26:11Z"
+    },
+    {
+      "sha": "19152b0b9de589448dfe6d21c97553cb8f8b0663",
+      "message": "feat: add permission-gated Aishin tool registry",
+      "committed_at": "2026-10-02T08:25:48Z"
+    },
+    {
+      "sha": "6609f1df4b49bd1530a23a4b1ac5532ae036c223",
+      "message": "feat: add safe local sensor hub",
+      "committed_at": "2026-10-02T08:25:46Z"
+    },
+    {
+      "sha": "ab5d1de88959971d4466cb7fe9fdc49673cfa882",
+      "message": "feat: add sensor snapshots and tool action audit storage",
+      "committed_at": "2026-10-02T08:24:58Z"
+    },
+    {
+      "sha": "d19c2cfbf516c21c0782ae3af4d10b01ab45ae2c",
+      "message": "docs: document Aishin internal planner",
+      "committed_at": "2026-10-02T08:22:10Z"
+    },
+    {
+      "sha": "7959395a737e733ef81028feb65d541bf303f51d",
+      "message": "test: include planner in Aishin self-check",
+      "committed_at": "2026-10-02T08:22:08Z"
+    },
+    {
+      "sha": "15824303f7c2352d8cea8608d4e5c0f093dfae9f",
+      "message": "fix: expose planner brain state and validate planner API",
+      "committed_at": "2026-10-02T08:22:06Z"
+    },
+    {
+      "sha": "df306e79dd608602db2f01ad0058e88f4b808e3d",
+      "message": "docs: document Aishin internal planner and autonomy boundaries",
+      "committed_at": "2026-10-02T08:21:24Z"
+    },
+    {
+      "sha": "0dcb117cf2263e190f2ce9c2fa41423fba1093f5",
+      "message": "test: include planner in Aishin self-check",
+      "committed_at": "2026-10-02T08:21:07Z"
+    },
+    {
+      "sha": "9b6e581220f1a03b0dffdf87b97e4a5a8354abfa",
+      "message": "feat: define planner autonomy permission boundaries",
+      "committed_at": "2026-10-02T08:20:59Z"
+    },
+    {
+      "sha": "adb63635d5336e13879e255e11ff66f3c306d5b2",
+      "message": "feat: connect planner attention scan to heartbeat",
+      "committed_at": "2026-10-02T08:20:57Z"
+    },
+    {
+      "sha": "e1ebe32fabff69e019103cab954cc084a62fc958",
+      "message": "feat: let heartbeat observe planner attention items",
+      "committed_at": "2026-10-02T08:20:42Z"
+    },
+    {
+      "sha": "0948b12270c1162e7a5467d05a9c5420d566f461",
+      "message": "fix: isolate planner scopes and reject dependency cycles",
+      "committed_at": "2026-10-02T08:20:30Z"
+    },
+    {
+      "sha": "c2a09f7dfdc60bc5bd0d11358ded5d2b89381679",
+      "message": "fix: enforce planner scope isolation and foreign keys",
+      "committed_at": "2026-10-02T08:20:14Z"
+    },
+    {
+      "sha": "ed73bf80111536464a9791e0c1bbf83661c9dc56",
+      "message": "feat: expose Aishin planner goals tasks dependencies and notices API",
+      "committed_at": "2026-10-02T08:19:42Z"
+    },
+    {
+      "sha": "d568b49bd29ae5b5a1dc923ecfdd71ece74ba006",
+      "message": "feat: connect goals tasks and planner observations to Aishin",
+      "committed_at": "2026-10-02T08:19:14Z"
+    },
+    {
+      "sha": "940e79e98415e0411ef8c3a6512f699485e55b5d",
+      "message": "feat: inject active goals and tasks into Aishin cognition",
+      "committed_at": "2026-10-02T08:18:54Z"
+    },
+    {
+      "sha": "277dd09fd508d984c25ba03772855e0543c81011",
+      "message": "feat: add planner context for Aishin cognition",
+      "committed_at": "2026-10-02T08:18:43Z"
+    },
+    {
+      "sha": "ca52229a2a832a1e75e701743d39259d611ca42a",
+      "message": "feat: add grounded conversation planner",
+      "committed_at": "2026-10-02T08:18:32Z"
+    },
+    {
+      "sha": "2039acee86e4f4f74ca09ff7db8acd75e7d83244",
+      "message": "feat: add persistent goal and task planner",
+      "committed_at": "2026-10-02T08:17:57Z"
+    },
+    {
+      "sha": "b3d606e7fcfab92fc90f82a9e3ccfacfc092351e",
+      "message": "feat: add goals tasks dependencies and planner audit storage",
+      "committed_at": "2026-10-02T08:17:34Z"
+    },
+    {
+      "sha": "d0c91dabba4e79864a500ea12ba954370a697fbd",
+      "message": "docs: document Aishin world-model knowledge graph",
+      "committed_at": "2026-10-02T08:15:52Z"
+    },
+    {
+      "sha": "5aa4ac6d9e23351b9dbc63a48335f97aff0c4100",
+      "message": "test: include knowledge graph in self-check",
+      "committed_at": "2026-10-02T08:15:40Z"
+    },
+    {
+      "sha": "e35072e15d5918b097327a64ef3a1575603d6d4c",
+      "message": "feat: expose Aishin knowledge graph API",
+      "committed_at": "2026-10-02T08:15:32Z"
+    },
+    {
+      "sha": "b5f6da7e56e703b62b75b09e87e877390235c676",
+      "message": "feat: connect automatic world-model graph building to Aishin",
+      "committed_at": "2026-10-02T08:15:16Z"
+    },
+    {
+      "sha": "b79f3479dbf944e1add1a7b12eae6aa663b75fd4",
+      "message": "feat: add grounded knowledge graph builder",
+      "committed_at": "2026-10-02T08:15:02Z"
+    },
+    {
+      "sha": "b49b67c2aa1d86784c68770bc692bfa643a2e21a",
+      "message": "feat: expand Aishin knowledge graph world model",
+      "committed_at": "2026-10-02T08:14:18Z"
+    },
+    {
+      "sha": "0bcfc662ef1c98c1bb08a2e681e76d491b7e1c73",
+      "message": "feat: add auditable knowledge graph queries and history",
+      "committed_at": "2026-10-02T08:13:58Z"
+    },
+    {
+      "sha": "a06dfbb3fe771df7e16d80d317a4ae6cfa191a95",
+      "message": "docs: document Cloud.ru semantic memory",
+      "committed_at": "2026-10-02T08:11:17Z"
+    },
+    {
+      "sha": "f51515534bd6f73ed8c1054e94eea2f699e4304b",
+      "message": "test: include semantic memory in self-check",
+      "committed_at": "2026-10-02T08:11:02Z"
+    },
+    {
+      "sha": "d67c7610a2766566d01447b3f0809725e25472e9",
+      "message": "feat: expose semantic memory health search and indexing API",
+      "committed_at": "2026-10-02T08:10:50Z"
+    },
+    {
+      "sha": "f961da0c8e19ec35940e8d2f8b92326be72fb6f4",
+      "message": "feat: connect semantic memory to Aishin cognition",
+      "committed_at": "2026-10-02T08:10:34Z"
+    },
+    {
+      "sha": "48f60c0a2830f5d14d6697936f476b9cff42d56e",
+      "message": "feat: add hybrid lexical and semantic memory recall",
+      "committed_at": "2026-10-02T08:10:25Z"
+    },
+    {
+      "sha": "1f47956680638aad30c10d32b26fc2c31a926943",
+      "message": "feat: add persistent semantic memory search",
+      "committed_at": "2026-10-02T08:10:04Z"
+    },
+    {
+      "sha": "84b975f0e07aa8178722ffb315328c91e489a701",
+      "message": "fix: avoid repeated indexing of legacy memories",
+      "committed_at": "2026-10-02T08:09:46Z"
+    },
+    {
+      "sha": "3ebcb4f09247ef5107483fc78bde68265a7cd3ab",
+      "message": "feat: add vector storage for semantic memory",
+      "committed_at": "2026-10-02T08:09:31Z"
+    },
+    {
+      "sha": "9c6b6c6bccfbc0f86181956d29121598d5eb3440",
+      "message": "config: add Cloud.ru embedding model settings",
+      "committed_at": "2026-10-02T08:09:12Z"
+    },
+    {
+      "sha": "22ccc4716acc07a128434e2f7c0b34fee9c44065",
+      "message": "feat: expose Cloud.ru embedding manager",
+      "committed_at": "2026-10-02T08:09:05Z"
+    },
+    {
+      "sha": "b5d88dafb63aae69d1dc0ae45950eba183f1ca36",
+      "message": "feat: add Cloud.ru embedding support",
+      "committed_at": "2026-10-02T08:08:54Z"
+    },
+    {
+      "sha": "84c5cd34b8797b238ae1b8834909daae17f06b4e",
+      "message": "feat: add embedding provider contract",
+      "committed_at": "2026-10-02T08:08:42Z"
+    },
+    {
+      "sha": "f850291b7533d1df7ea9bcad431a6552246943e8",
+      "message": "fix: repair active memory SQL quoting",
+      "committed_at": "2026-10-02T08:08:32Z"
+    },
+    {
+      "sha": "31a079e42bcb05baeeeb59b8649e369551f28eda",
+      "message": "fix: guarantee explicit remember requests have deterministic fallback",
+      "committed_at": "2026-10-02T08:06:12Z"
+    },
+    {
+      "sha": "b252c575c5bdec182e4d2b086f9445b93b9d3e08",
+      "message": "docs: describe Aishin memory consolidation rules",
+      "committed_at": "2026-10-02T08:05:21Z"
+    },
+    {
+      "sha": "69bacd7884937116481f84a9fc5268bc9275ebc9",
+      "message": "test: verify memory consolidation subsystem",
+      "committed_at": "2026-10-02T08:05:04Z"
+    },
+    {
+      "sha": "bb99c4d4c2cc7980c3eadf74cc661d0b1fb6726b",
+      "message": "feat: expose auditable memory change history",
+      "committed_at": "2026-10-02T08:04:54Z"
+    },
+    {
+      "sha": "e8d525f01e58fc877ee5e2e859cf662eb6bbb1fb",
+      "message": "fix: preserve conflicting master profile facts instead of overwriting them",
+      "committed_at": "2026-10-02T08:04:41Z"
+    },
+    {
+      "sha": "eec8bef1bde0d4f62fd3d9c46ee360636bbe984b",
+      "message": "feat: integrate memory consolidation into Aishin response cycle",
+      "committed_at": "2026-10-02T08:04:10Z"
+    }
+  ],
+  "integrity_notes": [
+    "Этот файл не содержит API-ключей, паролей или иных секретов.",
+    "Recent commits взяты непосредственно из GitHub API на момент handoff.",
+    "Repository tree взят непосредственно из main на момент handoff.",
+    "Файл фиксирует рабочее состояние и решения, но не заменяет проверку актуального HEAD перед новыми изменениями."
+  ]
+}

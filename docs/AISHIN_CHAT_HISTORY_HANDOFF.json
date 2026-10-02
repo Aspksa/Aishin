@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T19:43:00+10:00",
+  "generated_at": "2026-10-02T19:49:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 6,
+      "latest_schema_version": 7,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -146,8 +146,8 @@
         "scripts/self_check.py",
         "scripts/runtime_smoke.py"
       ],
-      "latest_confirmed_run_id": 36991246148,
-      "latest_confirmed_head_sha": "28789f82ac239a3dc1291417dd3bc65db5fa4ffd"
+      "latest_confirmed_run_id": 36991833619,
+      "latest_confirmed_head_sha": "350894656d0c07ac1364ef13c2550f116bdc0b21"
     }
   },
   "implemented_architecture": [
@@ -380,6 +380,17 @@
         "app/migrations.py"
       ],
       "details": "Scores quality of decision basis using logic confidence, evidence, verification, uncertainty, contradictions, alternative coverage and reversibility. Score does not claim objective correctness."
+    },
+    {
+      "layer": "Action Selection / Expected Utility",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/action_selection.py",
+        "app/core/engine.py",
+        "app/migrations.py",
+        "app/main.py"
+      ],
+      "details": "Ranks candidate actions after Counterfactual + Decision Quality using expected benefit, risk, reversibility, permission friction and unresolved uncertainty. Selection is proposal-only and never executes Tool Registry automatically."
     }
   ],
   "current_cognitive_flow": [
@@ -398,11 +409,13 @@
     "Hypothesis Manager in VERIFY/DIAGNOSE",
     "Counterfactual Reasoning in DEEP/PLAN/VERIFY/DIAGNOSE",
     "Decision Quality Scoring",
+    "Action Selection / Expected Utility ranks candidate actions",
     "Context Orchestrator rebuilds final prompt according to Logic Mode budget",
     "Learned strategy hints for current mode",
     "Proactive Context + Tool safety rules",
     "Cloud.ru Chat",
     "Response",
+    "Any real action remains separate behind Tool Registry + Permission Gate",
     "Event + State update"
   ],
   "metacognition": {
@@ -493,7 +506,8 @@
     "logic_strategies",
     "logic_learning_events",
     "counterfactual_assessments",
-    "decision_quality_scores"
+    "decision_quality_scores",
+    "action_selections"
   ],
   "important_api": [
     "GET /health",
@@ -540,7 +554,8 @@
     "GET /api/assistant/hypotheses",
     "GET /api/assistant/logic-learning",
     "GET /api/assistant/counterfactual",
-    "GET /api/assistant/decision-quality"
+    "GET /api/assistant/decision-quality",
+    "GET /api/assistant/action-selection"
   ],
   "key_fixed_bugs_and_safety_changes": [
     "Исправлена SQL-ошибка кавычек в запросе active memories.",
@@ -572,7 +587,11 @@
     "Counterfactual scenarios are explicitly conditional and cannot be presented as guaranteed predictions.",
     "Decision Quality score measures evidence/risk/reversibility quality, not objective correctness.",
     "Low reversibility, unresolved contradictions and weak evidence automatically reduce decision quality.",
-    "Counterfactual + Decision Quality validated on Windows and Ubuntu in GitHub Actions run 36991246148."
+    "Counterfactual + Decision Quality validated on Windows and Ubuntu in GitHub Actions run 36991246148.",
+    "Action Selection is structurally separated from execution: choosing a candidate never invokes Tool Registry.",
+    "Permission deny applies a blocking state; ask marks approval_required; Tool Registry still rechecks permission at real invocation.",
+    "Expected utility penalizes risk, low reversibility, permission friction and unresolved uncertainty.",
+    "Action Selection validated on Windows and Ubuntu in GitHub Actions run 36991833619."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -613,9 +632,9 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Counterfactual Reasoning + Decision Quality Scoring completed and cross-platform runtime validated.",
-    "last_implemented_feature": "Conditional what-if analysis plus technical scoring of decision evidence, risk control, uncertainty and reversibility.",
-    "next_recommended_step": "Action Selection / Expected Utility Controller: compare safe candidate actions using decision quality, cost, reversibility and required permissions, but never execute without Tool Registry and Permission Gate.",
+    "milestone": "Action Selection / Expected Utility completed, history saved, cross-platform runtime validated.",
+    "last_implemented_feature": "Proposal-only action ranking based on counterfactual confidence, decision quality, risk, reversibility, uncertainty and Permission Gate state.",
+    "next_recommended_step": "Harden the execution lifecycle: Approval/Execution Coordinator with one-shot approvals, stale-proposal invalidation, pre-execution revalidation and rollback/backup metadata where applicable.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
@@ -623,8 +642,9 @@
       "Не смешивать память Aishin с TooruDragon.",
       "Не сохранять и не экспонировать private chain-of-thought.",
       "Не выдавать counterfactual scenario за гарантированный прогноз.",
-      "Не трактовать Decision Quality score как гарантию правильности.",
-      "Не обходить Permission Gate и Tool Registry при выполнении действий.",
+      "Не трактовать Decision Quality или utility как гарантию правильности.",
+      "Не считать Action Selection выполнением.",
+      "Не обходить Permission Gate и Tool Registry.",
       "Не коммитить Cloud.ru API key или другие секреты."
     ]
   },
@@ -696,6 +716,10 @@
     {
       "user_prompt": "Делай",
       "result": "Добавлены Counterfactual Reasoning и Decision Quality Scoring. Schema migration 6, counterfactual_assessments, decision_quality_scores, APIs, Live Brain nodes, self-check/runtime smoke. GitHub Actions run 36991246148 успешно прошёл Windows + Ubuntu."
+    },
+    {
+      "user_prompt": "Делай и сохрани историю",
+      "result": "Добавлен Action Selection / Expected Utility Controller. Schema migration 7, action_selections, API, Live Brain node, permission-aware utility ranking, strict no-auto-execution boundary, self-check/runtime smoke. GitHub Actions run 36991833619 успешно прошёл Windows + Ubuntu. История сохранена в этом handoff."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -712,8 +736,9 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать Logic Engine, Context Orchestrator, Causal Reasoning, Hypothesis Manager, Logic Learning, Counterfactual Reasoning и Decision Quality Scoring уже реализованными.",
-      "Следующий рекомендуемый логический этап: Action Selection / Expected Utility Controller с обязательным Permission Gate."
+      "Считать Logic Engine, Context Orchestrator, Causal Reasoning, Hypothesis Manager, Logic Learning, Counterfactual Reasoning, Decision Quality и Action Selection уже реализованными.",
+      "Соблюдать границу: Action Selection не равно execution; реальное действие только через Tool Registry + Permission Gate.",
+      "Следующий рекомендуемый этап: Approval/Execution Coordinator с pre-execution revalidation и защитой от stale approvals."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -1463,5 +1488,31 @@
     "table": "decision_quality_scores",
     "api": "GET /api/assistant/decision-quality",
     "safety_rule": "Overall score measures decision-basis quality, not truth, correctness or certainty of outcome."
+  },
+  "action_selection": {
+    "repository_path": "app/core/action_selection.py",
+    "formula_components": [
+      "benefit = counterfactual scenario confidence × decision quality",
+      "risk penalty",
+      "reversibility penalty",
+      "permission penalty",
+      "uncertainty penalty"
+    ],
+    "execution_states": [
+      "proposal_only",
+      "eligible_for_tool_registry",
+      "approval_required",
+      "blocked_by_permission"
+    ],
+    "tool_matching": [
+      "project.read_text",
+      "project.write_text",
+      "planner.create_task",
+      "planner.set_task_status"
+    ],
+    "table": "action_selections",
+    "api": "GET /api/assistant/action-selection",
+    "live_brain_node": "Action Selection",
+    "safety_rule": "Selection never executes a tool. Tool Registry and Permission Gate remain authoritative; ask requires explicit approval and deny blocks execution."
   }
 }

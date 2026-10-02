@@ -321,6 +321,8 @@ function renderLivingBrain(state, sensors, pending, approved) {
   const logic = state.working_memory?.logic || null;
   const contextTrace = state.working_memory?.context_orchestrator || null;
   const causal = state.working_memory?.causal || null;
+  const hypotheses = state.working_memory?.hypotheses || null;
+  const learning = state.working_memory?.logic_learning || null;
   const verification = state.working_memory?.verification || null;
 
   setBrainNode(
@@ -374,6 +376,24 @@ function renderLivingBrain(state, sensors, pending, approved) {
     causal
       ? `${causal.claims?.length || 0} claims · ${causal.unresolved?.length || 0} unresolved`
       : "причинных claims нет"
+  );
+
+  setBrainNode(
+    "hypotheses",
+    Boolean(hypotheses),
+    Boolean(hypotheses?.selected_test && Object.keys(hypotheses.selected_test).length),
+    hypotheses
+      ? `${hypotheses.hypotheses?.length || 0} hypotheses · ${hypotheses.stop_reason || "testing"}`
+      : "гипотезы ещё не строились"
+  );
+
+  setBrainNode(
+    "learning",
+    Boolean(learning),
+    false,
+    learning?.feedback?.applied
+      ? `${learning.feedback.outcome} · reliability ${Math.round(Number(learning.feedback.reliability || 0) * 100)}%`
+      : `${learning?.strategies?.length || 0} learned strategies`
   );
 
   const metaStatus = meta?.status || "нет оценки";

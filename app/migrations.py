@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 13
+LATEST_SCHEMA_VERSION = 14
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -493,6 +493,109 @@ def _migration_013_learning_quality_and_strategy_evolution(
     )
 
 
+def _migration_014_reflection_planning_experiments_context_budget(
+    conn: sqlite3.Connection,
+) -> None:
+    """Self-reflection, learning planner, safe experiments and context budget."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS self_reflection_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id TEXT NOT NULL UNIQUE,
+            scope TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            quality_score REAL NOT NULL DEFAULT 0.0,
+            confidence_score REAL NOT NULL DEFAULT 0.0,
+            error_count INTEGER NOT NULL DEFAULT 0,
+            correction_signal INTEGER NOT NULL DEFAULT 0,
+            weak_spots_json TEXT NOT NULL DEFAULT '[]',
+            metrics_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_plans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            topic TEXT NOT NULL,
+            rationale TEXT NOT NULL DEFAULT '',
+            priority REAL NOT NULL DEFAULT 0.5,
+            status TEXT NOT NULL DEFAULT 'open',
+            target_metric TEXT NOT NULL DEFAULT '',
+            evidence_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_plan_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            plan_id INTEGER NOT NULL,
+            event TEXT NOT NULL,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(plan_id) REFERENCES learning_plans(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS safe_experiments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            name TEXT NOT NULL,
+            hypothesis TEXT NOT NULL DEFAULT '',
+            baseline_strategy TEXT NOT NULL DEFAULT '',
+            candidate_strategy TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'shadow',
+            risk_level TEXT NOT NULL DEFAULT 'low',
+            required_samples INTEGER NOT NULL DEFAULT 5,
+            observed_samples INTEGER NOT NULL DEFAULT 0,
+            baseline_score REAL NOT NULL DEFAULT 0.0,
+            candidate_score REAL NOT NULL DEFAULT 0.0,
+            decision TEXT NOT NULL DEFAULT 'insufficient_evidence',
+            evidence_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS experiment_observations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            experiment_id INTEGER NOT NULL,
+            scope TEXT NOT NULL,
+            request_id TEXT NOT NULL,
+            baseline_score REAL NOT NULL DEFAULT 0.0,
+            candidate_score REAL NOT NULL DEFAULT 0.0,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(experiment_id, request_id),
+            FOREIGN KEY(experiment_id) REFERENCES safe_experiments(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS context_budget_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id TEXT NOT NULL UNIQUE,
+            scope TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            token_budget INTEGER NOT NULL,
+            estimated_tokens_before INTEGER NOT NULL DEFAULT 0,
+            estimated_tokens_after INTEGER NOT NULL DEFAULT 0,
+            trimmed_chars INTEGER NOT NULL DEFAULT 0,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_reflection_scope_created
+        ON self_reflection_runs(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_learning_plans_scope_status
+        ON learning_plans(scope, status, priority DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_safe_experiments_scope_status
+        ON safe_experiments(scope, status, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_context_budget_scope_created
+        ON context_budget_reports(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -507,6 +610,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (11, "proactive_lifecycle", _migration_011_proactive_lifecycle),
     (12, "continuous_learning", _migration_012_continuous_learning),
     (13, "learning_quality_and_strategy_evolution", _migration_013_learning_quality_and_strategy_evolution),
+    (14, "reflection_planner_experiments_context_budget", _migration_014_reflection_planning_experiments_context_budget),
 )
 
 

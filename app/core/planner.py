@@ -7,6 +7,8 @@ from ..db import (
     add_task_dependency,
     create_goal,
     create_task,
+    get_goal,
+    get_task,
     list_goals,
     list_tasks,
     log_planner_change,
@@ -76,6 +78,8 @@ class Planner:
         due_at: str | None = None,
     ) -> int:
         priority = max(0.0, min(1.0, float(priority)))
+        if goal_id is not None and not get_goal(goal_id, scope):
+            raise ValueError("goal not found in scope")
         task_id = create_task(
             scope,
             title.strip(),
@@ -96,6 +100,14 @@ class Planner:
         return task_id
 
     def add_dependency(self, *, scope: str, task_id: int, depends_on_task_id: int) -> int:
+        if not get_task(task_id, scope) or not get_task(depends_on_task_id, scope):
+            raise ValueError("both tasks must exist in the same scope")
+        if self._would_create_cycle(
+            scope=scope,
+            task_id=task_id,
+            depends_on_task_id=depends_on_task_id,
+        ):
+            raise ValueError("dependency would create a cycle")
         dependency_id = add_task_dependency(scope, task_id, depends_on_task_id)
         log_planner_change(
             scope,
@@ -112,7 +124,7 @@ class Planner:
         return list_tasks(scope, status=status, limit=limit)
 
     def set_goal_status(self, goal_id: int, status: str, *, scope: str) -> None:
-        update_goal_status(goal_id, status)
+        update_goal_status(goal_id, status, scope)
         log_planner_change(scope, "goal_status_changed", goal_id=goal_id, details={"status": status})
 
     def set_task_status(
@@ -123,7 +135,7 @@ class Planner:
         scope: str,
         blocked_reason: str = "",
     ) -> None:
-        update_task_status(task_id, status, blocked_reason)
+        update_task_status(task_id, status, scope, blocked_reason)
         log_planner_change(
             scope,
             "task_status_changed",
@@ -133,6 +145,28 @@ class Planner:
 
     def dependencies(self, task_id: int, *, scope: str) -> list[dict]:
         return task_dependencies(task_id, scope)
+
+    def _would_create_cycle(
+        self,
+        *,
+        scope: str,
+        task_id: int,
+        depends_on_task_id: int,
+    ) -> bool:
+        target = int(task_id)
+        stack = [int(depends_on_task_id)]
+        visited: set[int] = set()
+
+        while stack:
+            current = stack.pop()
+            if current == target:
+                return True
+            if current in visited:
+                continue
+            visited.add(current)
+            for dep in task_dependencies(current, scope):
+                stack.append(int(dep["depends_on_task_id"]))
+        return False
 
     def open_items(self, *, scope: str) -> dict:
         return planner_open_items(scope)

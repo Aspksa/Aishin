@@ -136,9 +136,36 @@ class LogicLearning:
     ) -> list[dict]:
         with connect() as conn:
             rows = conn.execute(
-                """SELECT * FROM logic_strategies
-                   WHERE scope=? AND mode=?
-                   ORDER BY reliability DESC, successes DESC, id DESC
+                """SELECT
+                       s.*,
+                       COALESCE(q.lifecycle, 'candidate') AS lifecycle,
+                       COALESCE(
+                         q.effective_reliability,
+                         s.reliability
+                       ) AS effective_reliability,
+                       COALESCE(q.drift_score, 0.0) AS drift_score,
+                       q.rank_in_mode,
+                       COALESCE(
+                         q.reason,
+                         'quality_gate_not_refreshed'
+                       ) AS quality_reason
+                   FROM logic_strategies s
+                   LEFT JOIN strategy_quality_state q
+                     ON q.strategy_id=s.id
+                   WHERE s.scope=? AND s.mode=?
+                     AND COALESCE(q.lifecycle, 'candidate')<>'deprecated'
+                   ORDER BY
+                     CASE COALESCE(q.lifecycle, 'candidate')
+                       WHEN 'trusted' THEN 0
+                       WHEN 'observed' THEN 1
+                       ELSE 2
+                     END,
+                     COALESCE(
+                       q.effective_reliability,
+                       s.reliability
+                     ) DESC,
+                     s.successes DESC,
+                     s.id DESC
                    LIMIT ?""",
                 (scope, mode, limit),
             ).fetchall()
@@ -171,7 +198,9 @@ class LogicLearning:
         ]
         for item in strategies:
             lines.append(
-                f"- reliability={float(item.get('reliability', 0.0)):.2f}, "
+                f"- lifecycle={item.get('lifecycle', 'candidate')}, "
+                f"effective={float(item.get('effective_reliability', item.get('reliability', 0.0))):.2f}, "
+                f"drift={float(item.get('drift_score', 0.0)):.2f}, "
                 f"successes={item.get('successes', 0)}, "
                 f"failures={item.get('failures', 0)}: "
                 f"{item.get('strategy')}"

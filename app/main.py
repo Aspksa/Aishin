@@ -185,6 +185,20 @@ def assistant_state() -> dict:
     return engine.snapshot()
 
 
+@app.get('/api/assistant/development')
+def assistant_development(
+    scope: str = 'personal',
+    days: int = 30,
+) -> dict:
+    days = max(1, min(3650, int(days)))
+    current = engine.development.current(scope=scope, persist=True)
+    return {
+        'current': current,
+        'history': engine.development.history(scope=scope, days=days),
+        'days': days,
+    }
+
+
 @app.get('/api/assistant/brain')
 def assistant_brain() -> dict:
     return {

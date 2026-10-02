@@ -61,7 +61,7 @@
         '<div class="live-brain-title">',
           '<div id="live-brain-orb" class="live-brain-orb" aria-hidden="true"></div>',
           '<div>',
-            '<p class="overline">AISHIN 00.00.04 · LIVE BRAIN</p>',
+            '<p class="overline">AISHIN 00.00.06 · LIVE BRAIN</p>',
             '<h3>Нейронная обсерватория Айшин</h3>',
             '<p>Живые события, память, связи, проверки, качество и безопасная техническая трасса.</p>',
           '</div>',
@@ -78,6 +78,7 @@
         '<article class="live-brain-metric"><span>Память</span><strong id="lb-memory-count">0</strong><small>активных записей</small></article>',
         '<article class="live-brain-metric"><span>Граф знаний</span><strong id="lb-entity-count">0</strong><small id="lb-relation-count">0 связей</small></article>',
         '<article class="live-brain-metric"><span>Развитие</span><strong id="lb-development-score">—</strong><small id="lb-development-delta">история накапливается</small></article>',
+        '<article class="live-brain-metric"><span>Интеллект</span><strong id="lb-intelligence-score">—</strong><small id="lb-intelligence-route">router ещё не работал</small></article>',
       '</div>',
       '<div class="live-brain-columns">',
         '<article class="live-brain-panel">',
@@ -250,7 +251,11 @@
       ["Узкое место", trace.bottleneck || "—"],
       ["Метакогниция", trace.metacognition_status || "—"],
       ["Противоречия", String(n(trace.contradictions))],
-      ["Нерешённое", String(n(trace.unresolved))]
+      ["Нерешённое", String(n(trace.unresolved))],
+      ["Тип задачи", trace.task_family || "—"],
+      ["Adaptive mode", trace.adapted_mode ? ((trace.base_mode || "—") + " → " + trace.adapted_mode) : "—"],
+      ["Route confidence", trace.route_confidence == null ? "—" : pct(trace.route_confidence)],
+      ["Перенос опыта", trace.transfer_used ? "да" : "нет"]
     ];
     host.innerHTML = cards.map(function (item) {
       return '<article><span>' + esc(item[0]) + '</span><strong>' + esc(item[1]) + '</strong></article>';
@@ -349,6 +354,9 @@
     var stats = graph.stats || {};
     var development = data.development || {};
     var counters = development.counters || {};
+    var intelligence = data.cognitive_intelligence || {};
+    var intelligenceCurrent = intelligence.current || {};
+    var intelligenceRoute = intelligence.latest_route || {};
 
     setText("#live-brain-runtime", data.runtime_version || "runtime");
     setText("#live-brain-status", integrity.status || "—");
@@ -361,6 +369,8 @@
     setText("#lb-relation-count", compact(stats.relations) + " связей");
     setText("#lb-development-score", development.overall_score == null ? "—" : Number(development.overall_score).toFixed(1) + "%");
     setText("#lb-development-delta", development.monthly_delta == null ? "история накапливается" : ((n(development.monthly_delta) >= 0 ? "+" : "") + n(development.monthly_delta).toFixed(1) + " п.п. / 30 дней"));
+    setText("#lb-intelligence-score", intelligenceCurrent.overall_score == null ? "—" : n(intelligenceCurrent.overall_score).toFixed(1) + "%");
+    setText("#lb-intelligence-route", intelligenceRoute.id ? ((intelligenceRoute.task_family || "general") + " · " + (intelligenceRoute.adapted_mode || intelligenceRoute.base_mode || "—")) : "router ещё не работал");
     setText("#lb-current-phase", "фаза: " + (pulse.phase || "idle"));
     setText("#lb-event-total", compact(pulse.events_total) + " всего");
 

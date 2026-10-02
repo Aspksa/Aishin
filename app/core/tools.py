@@ -70,6 +70,7 @@ class ToolRegistry:
         scope: str,
         arguments: dict,
         dry_run: bool = True,
+        approved: bool = False,
     ) -> dict:
         spec = self.SPECS.get(name)
         if spec is None:
@@ -98,7 +99,7 @@ class ToolRegistry:
                 {"error": "Действие запрещено permission gate"},
             )
 
-        if mode == "ask" and not dry_run:
+        if mode == "ask" and not dry_run and not approved:
             return self._audit(
                 name,
                 scope,
@@ -106,7 +107,7 @@ class ToolRegistry:
                 mode,
                 "approval_required",
                 dry_run,
-                arguments,
+                {**arguments, "_approved": False},
                 {"error": "Требуется явное разрешение Господина"},
             )
 
@@ -129,7 +130,7 @@ class ToolRegistry:
             mode,
             status,
             dry_run,
-            arguments,
+            {**arguments, "_approved": approved},
             output,
         )
 

@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 15
+LATEST_SCHEMA_VERSION = 16
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -623,6 +623,29 @@ def _migration_015_weighted_learning_evidence(
     )
 
 
+def _migration_016_development_metrics(
+    conn: sqlite3.Connection,
+) -> None:
+    """Persistent transparent Aishin development history."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS development_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            formula_version TEXT NOT NULL,
+            overall_score REAL NOT NULL DEFAULT 0.0,
+            components_json TEXT NOT NULL DEFAULT '{}',
+            counters_json TEXT NOT NULL DEFAULT '{}',
+            reasons_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_development_scope_created
+        ON development_snapshots(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -639,6 +662,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (13, "learning_quality_and_strategy_evolution", _migration_013_learning_quality_and_strategy_evolution),
     (14, "reflection_planner_experiments_context_budget", _migration_014_reflection_planning_experiments_context_budget),
     (15, "weighted_learning_evidence", _migration_015_weighted_learning_evidence),
+    (16, "development_metrics", _migration_016_development_metrics),
 )
 
 

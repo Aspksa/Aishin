@@ -39,3 +39,8 @@ jobs:
 
       - name: FastAPI runtime smoke
         run: python scripts/runtime_smoke.py
+
+      - name: Launcher check-only
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: Aishin.bat --check-only

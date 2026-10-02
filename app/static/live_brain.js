@@ -61,7 +61,7 @@
         '<div class="live-brain-title">',
           '<div id="live-brain-orb" class="live-brain-orb" aria-hidden="true"></div>',
           '<div>',
-            '<p class="overline">AISHIN 00.00.06 · LIVE BRAIN</p>',
+            '<p class="overline">AISHIN 00.00.07 · LIVE BRAIN</p>',
             '<h3>Нейронная обсерватория Айшин</h3>',
             '<p>Живые события, память, связи, проверки, качество и безопасная техническая трасса.</p>',
           '</div>',
@@ -79,6 +79,7 @@
         '<article class="live-brain-metric"><span>Граф знаний</span><strong id="lb-entity-count">0</strong><small id="lb-relation-count">0 связей</small></article>',
         '<article class="live-brain-metric"><span>Развитие</span><strong id="lb-development-score">—</strong><small id="lb-development-delta">история накапливается</small></article>',
         '<article class="live-brain-metric"><span>Интеллект</span><strong id="lb-intelligence-score">—</strong><small id="lb-intelligence-route">router ещё не работал</small></article>',
+        '<article class="live-brain-metric"><span>Осведомлённость</span><strong id="lb-awareness-score">—</strong><small id="lb-awareness-incidents">0 ситуаций</small></article>',
       '</div>',
       '<div class="live-brain-columns">',
         '<article class="live-brain-panel">',
@@ -357,6 +358,8 @@
     var intelligence = data.cognitive_intelligence || {};
     var intelligenceCurrent = intelligence.current || {};
     var intelligenceRoute = intelligence.latest_route || {};
+    var proactive = data.proactive_intelligence || {};
+    var proactiveSummary = proactive.summary || {};
 
     setText("#live-brain-runtime", data.runtime_version || "runtime");
     setText("#live-brain-status", integrity.status || "—");
@@ -371,6 +374,8 @@
     setText("#lb-development-delta", development.monthly_delta == null ? "история накапливается" : ((n(development.monthly_delta) >= 0 ? "+" : "") + n(development.monthly_delta).toFixed(1) + " п.п. / 30 дней"));
     setText("#lb-intelligence-score", intelligenceCurrent.overall_score == null ? "—" : n(intelligenceCurrent.overall_score).toFixed(1) + "%");
     setText("#lb-intelligence-route", intelligenceRoute.id ? ((intelligenceRoute.task_family || "general") + " · " + (intelligenceRoute.adapted_mode || intelligenceRoute.base_mode || "—")) : "router ещё не работал");
+    setText("#lb-awareness-score", proactiveSummary.awareness_score == null ? "—" : n(proactiveSummary.awareness_score).toFixed(1) + "%");
+    setText("#lb-awareness-incidents", n(proactiveSummary.active_incidents) + " ситуаций · " + n(proactiveSummary.requires_attention) + " внимание");
     setText("#lb-current-phase", "фаза: " + (pulse.phase || "idle"));
     setText("#lb-event-total", compact(pulse.events_total) + " всего");
 

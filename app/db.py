@@ -12,6 +12,7 @@ DB_PATH = DATA_DIR / 'aishin.db'
 
 MODULES = [
     ('assistant', 'Aishin Kitsune', 'Личная помощница'),
+    ('communication', 'Общение Айшин', 'Диалог, стиль, понимание и адаптация речи'),
     ('attention', 'Айши заметила', 'Ситуации, аномалии и внимание'),
     ('evolution', 'Эволюция', 'Самообучение, развитие и adaptive evolution'),
     ('research', 'Исследования Айши', 'Пробелы знаний, evidence и подтверждённые выводы'),
@@ -376,12 +377,13 @@ def list_modules() -> list[dict]:
                FROM modules
                ORDER BY CASE code
                  WHEN 'assistant' THEN 0
-                 WHEN 'attention' THEN 1
-                 WHEN 'evolution' THEN 2
-                 WHEN 'research' THEN 3
-                 WHEN 'account' THEN 4
-                 WHEN 'mobile' THEN 5
-                 WHEN 'workspace' THEN 6
+                 WHEN 'communication' THEN 1
+                 WHEN 'attention' THEN 2
+                 WHEN 'evolution' THEN 3
+                 WHEN 'research' THEN 4
+                 WHEN 'account' THEN 5
+                 WHEN 'mobile' THEN 6
+                 WHEN 'workspace' THEN 7
                  ELSE 99
                END, id"""
         ).fetchall()

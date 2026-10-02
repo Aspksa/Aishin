@@ -466,7 +466,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
     Boolean(learningStatus),
     learningStatus?.worker_status === "error",
     learningStatus
-      ? `${learningStatus.mode || "IDLE"} · queue ${learningStatus.queue?.pending || 0} · patterns ${continuousLearning?.patterns?.length || 0}`
+      ? `${learningStatus.mode || "IDLE"} · queue ${learningStatus.queue?.pending || 0} · trusted ${(continuousLearning?.patterns || []).filter((item) => item.lifecycle === "trusted").length}`
       : "worker ещё не запускался"
   );
 

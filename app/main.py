@@ -144,6 +144,7 @@ def health() -> dict:
         'version': '0.0.3',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
+        'ai_resilience': engine.ai.diagnostics(),
         'semantic_memory': engine.semantic.health(),
     }
 
@@ -575,6 +576,22 @@ def assistant_proactive_execute(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get('/api/assistant/cognitive-traces')
+def assistant_cognitive_traces(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.cognitive_traces.recent(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
+@app.get('/api/assistant/ai-diagnostics')
+def assistant_ai_diagnostics() -> dict:
+    return engine.ai.diagnostics()
 
 
 @app.get('/api/assistant/execution/approvals')

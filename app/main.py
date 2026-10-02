@@ -515,6 +515,17 @@ def assistant_proactive_pending(
     )
 
 
+@app.get('/api/assistant/proactive/conditions')
+def assistant_proactive_conditions(
+    scope: str = 'personal',
+    limit: int = 100,
+) -> list[dict]:
+    return engine.proactive.conditions(
+        scope=scope,
+        limit=max(1, min(limit, 300)),
+    )
+
+
 @app.get('/api/assistant/proactive/history')
 def assistant_proactive_history(
     scope: str = 'personal',
@@ -554,6 +565,23 @@ def assistant_proactive_reject(
     _local_only(request)
     try:
         return engine.proactive.reject(
+            decision_id,
+            scope=payload.scope.strip() or 'personal',
+            reason=payload.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post('/api/assistant/proactive/{decision_id}/acknowledge')
+def assistant_proactive_acknowledge(
+    decision_id: int,
+    payload: DecisionAction,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.proactive.acknowledge(
             decision_id,
             scope=payload.scope.strip() or 'personal',
             reason=payload.reason,

@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/static/intelligence.css">
   <link rel="stylesheet" href="/static/proactive_intelligence.css">
   <link rel="stylesheet" href="/static/evolution.css">
+  <link rel="stylesheet" href="/static/research.css">
 </head>
 <body>
   <div class="app-shell">
@@ -43,7 +44,7 @@
           <span class="nav-copy"><strong>Обновление</strong></span>
         </button>
         <div id="update-status" class="status-line">Система готова</div>
-        <div class="version-line">Aishin Core · 0.0.8</div>
+        <div class="version-line">Aishin Core · 0.0.9</div>
       </div>
     </aside>
 
@@ -613,6 +614,90 @@
         </div>
       </section>
 
+      <section id="research-module" class="module-page">
+        <div class="research-page">
+          <div class="research-head">
+            <div>
+              <p class="overline">AISHIN 00.00.09 · AUTONOMOUS RESEARCH INTELLIGENCE</p>
+              <h2>Исследования Айши</h2>
+              <p>Пробелы знаний → план исследования → Evidence Ledger → claims → противоречия → Evidence Gate → подтверждённое знание с provenance.</p>
+            </div>
+            <button id="research-cycle" class="research-action" type="button">Исследовать пробелы</button>
+          </div>
+
+          <section class="research-hero">
+            <div id="research-score-ring" class="research-ring">
+              <strong id="research-score">0.0%</strong>
+              <small>research intelligence</small>
+            </div>
+            <div class="research-hero-copy">
+              <p class="overline">EVIDENCE-LED KNOWLEDGE</p>
+              <h3>Айши отделяет сведения от подтверждённого знания</h3>
+              <p>Модель может синтезировать формулировку, но не считается источником evidence. Trusted knowledge появляется только после независимых подтверждений без активного counter-evidence.</p>
+              <div class="research-stats">
+                <article class="research-stat"><span>Пробелы</span><strong id="research-open-gaps">0</strong><small>открытых</small></article>
+                <article class="research-stat"><span>Trusted</span><strong id="research-trusted-claims">0</strong><small>claims</small></article>
+                <article class="research-stat"><span>Conflicted</span><strong id="research-conflicted-claims">0</strong><small>claims</small></article>
+                <article class="research-stat"><span>Противоречия</span><strong id="research-open-contradictions">0</strong><small>открытых</small></article>
+                <article class="research-stat"><span>Источники</span><strong id="research-enabled-sources">0</strong><small>разрешённых</small></article>
+                <article class="research-stat"><span>Evidence</span><strong id="research-evidence-quality">0.0%</strong><small>среднее качество</small></article>
+              </div>
+              <div class="research-query-box">
+                <input id="research-query" type="text" placeholder="Что Айши должна исследовать по уже доступным источникам?">
+                <button id="research-query-btn" type="button">Исследовать</button>
+              </div>
+            </div>
+          </section>
+
+          <div class="research-layout">
+            <section class="research-panel">
+              <div class="research-panel-head"><div><p class="overline">KNOWLEDGE GAPS</p><h3>Что Айши ещё не знает достаточно надёжно</h3></div><span>приоритет · uncertainty</span></div>
+              <div id="research-gaps" class="research-list"></div>
+            </section>
+
+            <section class="research-panel">
+              <div class="research-panel-head"><div><p class="overline">EVIDENCE GATE</p><h3>Порог подтверждения знания</h3></div><span>anti self-confirmation</span></div>
+              <div id="research-gate" class="research-gate"></div>
+            </section>
+
+            <section class="research-panel wide">
+              <div class="research-panel-head"><div><p class="overline">EVIDENCE LEDGER</p><h3>Откуда именно Айши это знает</h3></div><span>E# · source group · score</span></div>
+              <div id="research-evidence" class="research-evidence-ledger"></div>
+            </section>
+
+            <section class="research-panel">
+              <div class="research-panel-head"><div><p class="overline">CLAIM LEDGER</p><h3>Проверяемые утверждения</h3></div><span>candidate → supported → trusted</span></div>
+              <div id="research-claims" class="research-list"></div>
+            </section>
+
+            <section class="research-panel">
+              <div class="research-panel-head"><div><p class="overline">CONTRADICTION MATRIX</p><h3>Конфликты evidence</h3></div><span>не скрываются</span></div>
+              <div id="research-contradictions" class="research-list"></div>
+            </section>
+
+            <section class="research-panel">
+              <div class="research-panel-head"><div><p class="overline">SOURCE REGISTRY</p><h3>Разрешённые источники</h3></div><span>network по умолчанию выключен</span></div>
+              <div id="research-sources" class="research-source-health"></div>
+            </section>
+
+            <section class="research-panel">
+              <div class="research-panel-head"><div><p class="overline">RESEARCH SESSIONS</p><h3>История исследований</h3></div><span>evidence · groups · claims</span></div>
+              <div id="research-sessions" class="research-list"></div>
+            </section>
+
+            <section class="research-panel wide">
+              <div class="research-panel-head"><div><p class="overline">RESEARCH HISTORY</p><h3>Развитие доказательного контура</h3></div><span>Research Score</span></div>
+              <svg id="research-history" class="research-history" viewBox="0 0 900 170" role="img" aria-label="История Research Intelligence Айши"></svg>
+            </section>
+
+            <section class="research-panel wide">
+              <div class="research-panel-head"><div><p class="overline">ПРИНЦИПЫ</p><h3>Почему Айши не должна сама себя убеждать</h3></div></div>
+              <div id="research-principles" class="research-principles"></div>
+            </section>
+          </div>
+        </div>
+      </section>
+
       <section id="settings-module" class="module-page">
         <div class="settings-page">
           <div class="settings-header">
@@ -691,5 +776,6 @@
   <script src="/static/intelligence.js"></script>
   <script src="/static/proactive_intelligence.js"></script>
   <script src="/static/evolution.js"></script>
+  <script src="/static/research.js"></script>
 </body>
 </html>

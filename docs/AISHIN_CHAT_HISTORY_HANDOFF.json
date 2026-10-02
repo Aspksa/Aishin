@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T22:09:00+10:00",
+  "generated_at": "2026-10-02T22:24:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -147,10 +147,11 @@
         "scripts/runtime_smoke.py",
         "node --check app/static/app.js",
         "Aishin.bat --check-only on Windows",
-        "chat-first UI structure smoke"
+        "Cloud settings secret not exposed",
+        "updater mode git/zip"
       ],
-      "latest_confirmed_run_id": 37004855074,
-      "latest_confirmed_head_sha": "2e2bcb1bc9c97dcde954d159bafa840ff01ed6af"
+      "latest_confirmed_run_id": 37006308613,
+      "latest_confirmed_head_sha": "b97b442c461eac8265f76612852493f33711246c"
     }
   },
   "implemented_architecture": [
@@ -787,7 +788,13 @@
     "User-facing status language no longer exposes unnecessary English/internal telemetry terms.",
     "Browser JavaScript syntax is now checked in CI with node --check.",
     "Runtime smoke verifies the presence of the new chat-first layout.",
-    "Redesign validated on Windows and Ubuntu in GitHub Actions run 37004855074."
+    "Redesign validated on Windows and Ubuntu in GitHub Actions run 37004855074.",
+    "Cloud.ru API key can now be configured locally from Settings without exposing the saved secret back to the browser.",
+    "AI provider settings reload in the running engine after Cloud.ru key save.",
+    "Technical Brain now has animated live neural connections based on runtime node activity while remaining collapsible.",
+    "Dashboard polling accelerates while Technical Brain is open and slows while closed.",
+    "System updater no longer assumes a .git checkout; ZIP-downloaded Aishin-main can update safely while preserving local data.",
+    "Cloud settings / live brain / ZIP updater validated on Windows and Ubuntu in GitHub Actions run 37006308613."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -828,13 +835,15 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Chat-first Aishin UI redesign completed and cross-platform validated.",
-    "last_implemented_feature": "New conversation-first home, compact state panel, simple thinking flow, secondary approval center, collapsed technical brain, Russian user-facing statuses.",
-    "next_recommended_step": "Fix ZIP-install GitHub updater 500 and then add Self-Reflection Metrics + Learning Planner + Safe Experiment Manager.",
+    "milestone": "Cloud.ru UI settings, live Technical Brain neural visualization and ZIP-safe updater completed and validated.",
+    "last_implemented_feature": "Local secret-safe Cloud.ru setup/test UI, animated runtime neural links, and automatic git-or-ZIP update mode.",
+    "next_recommended_step": "Self-Reflection Metrics + Learning Planner + Safe Experiment Manager, now that AI setup, launcher, updater and observable UI are operational.",
     "do_not_do": [
-      "Не возвращать старый перегруженный dashboard как основной экран.",
-      "Не показывать 19 technical nodes раскрытыми по умолчанию.",
-      "Не дублировать блок 'Мозг Айшин'.",
+      "Не возвращать Cloud.ru secret через API или UI.",
+      "Не коммитить .env.",
+      "Не изображать live brain как скрытый chain-of-thought.",
+      "Не требовать .git для обновления ZIP-установки.",
+      "Не удалять data/.env/logs/.venv при ZIP-update.",
       "Не повышать версию автоматически."
     ]
   },
@@ -950,6 +959,10 @@
     {
       "user_prompt": "ужасный дизайн ... все не удобно ... МОЗГ АЙШИН вообще непонятно",
       "result": "Полностью заменён интерфейс главной страницы на chat-first. Chat стал главным блоком; справа компактное состояние и понятный 4-step thinking flow; Approval Center вторичен; весь подробный cognitive pipeline перенесён в collapsed Technical Brain. Технические английские статусы в UI заменены русскими. Добавлены node --check и UI smoke. GitHub Actions run 37004855074 прошёл Windows + Ubuntu."
+    },
+    {
+      "user_prompt": "сделай настройки Cloud.ru, живую визуализацию Технический мозг Айшин и исправь git fetch exit status 128",
+      "result": "Добавлен Settings→Cloud.ru с password field, local .env storage, health-test и runtime AI reload; secret не возвращается в API. Technical Brain остаётся collapsible, добавлены SVG neural links, pulse/flow animation и 3-second live polling while open. ProjectUpdater автоматически использует Git mode при .git или safe GitHub ZIP mode для Aishin-main, сохраняя .env/data/.venv/logs/backups. Добавлен update/status API. GitHub Actions run 37006308613 прошёл Windows + Ubuntu."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -2147,5 +2160,46 @@
       "javascript_syntax": "success",
       "ui_smoke": "success"
     }
+  },
+  "cloud_settings_ui": {
+    "paths": [
+      "app/system_settings.py",
+      "app/main.py",
+      "app/templates/index.html",
+      "app/static/app.js",
+      "app/static/style.css"
+    ],
+    "storage": ".env only; never returned to frontend and never committed",
+    "endpoints": [
+      "GET /api/settings/cloudru",
+      "POST /api/settings/cloudru",
+      "POST /api/settings/cloudru/test"
+    ],
+    "runtime_reload": "AishinEngine.reload_ai refreshes AIManager and dependent components after saving settings."
+  },
+  "live_technical_brain": {
+    "collapsible": true,
+    "live_poll_open_seconds": 3,
+    "live_poll_closed_seconds": 20,
+    "implementation": "SVG connections calculated from live DOM node positions; active and attention paths animate from actual runtime state.",
+    "privacy_rule": "Visualization exposes technical state/telemetry, not private chain-of-thought."
+  },
+  "zip_safe_updater": {
+    "path": "app/updater.py",
+    "modes": [
+      "git",
+      "zip"
+    ],
+    "zip_source": "GitHub Aspksa/Aishin main archive",
+    "preserves": [
+      ".env",
+      ".git",
+      ".venv",
+      ".aishin_backups",
+      "data",
+      "logs"
+    ],
+    "fixed_error": "git fetch origin main exit status 128 when project was downloaded as ZIP without .git",
+    "restart_required": true
   }
 }

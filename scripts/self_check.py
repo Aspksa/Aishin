@@ -56,6 +56,9 @@ def main() -> int:
                 "Айшин запущена не из канонического профиля личности"
             )
 
+        engine = AishinEngine()
+        engine.startup()
+
         ai_diag = engine.ai.diagnostics()
         if ai_diag.get("provider") == "cloud.ru":
             if not (0 <= int(ai_diag.get("max_retries", -1)) <= 4):
@@ -90,8 +93,6 @@ def main() -> int:
             "rules": len(personality.profile.get("internal_rules", [])),
         }
 
-        engine = AishinEngine()
-        engine.startup()
         snapshot = engine.snapshot()
         checks["runtime"] = {
             "status": "ok",

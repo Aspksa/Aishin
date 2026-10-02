@@ -478,6 +478,61 @@ class DevelopmentMetricsEngine:
                    WHERE scope=? AND outcome='clarification_needed'""",
                 (scope,),
             ))
+            document_ingestion_score = scalar(
+                """SELECT ingestion_score FROM document_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            document_extraction_quality = scalar(
+                """SELECT extraction_quality FROM document_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            document_provenance_coverage = scalar(
+                """SELECT provenance_coverage FROM document_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            document_semantic_coverage = scalar(
+                """SELECT semantic_coverage FROM document_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            document_studied = int(scalar(
+                """SELECT COUNT(*) FROM documents
+                   WHERE scope=? AND status='studied'""",
+                (scope,),
+            ))
+            document_ocr_required = int(scalar(
+                """SELECT COUNT(*) FROM documents
+                   WHERE scope=? AND status='needs_ocr'""",
+                (scope,),
+            ))
+            document_duplicates = int(scalar(
+                """SELECT COUNT(*) FROM documents
+                   WHERE scope=? AND duplicate_of_id IS NOT NULL""",
+                (scope,),
+            ))
+            document_facts = int(scalar(
+                """SELECT COUNT(*) FROM document_facts
+                   WHERE scope=?""",
+                (scope,),
+            ))
+            document_contradictions = int(scalar(
+                """SELECT COUNT(*) FROM document_contradictions
+                   WHERE scope=? AND status='open'""",
+                (scope,),
+            ))
+            document_chunks = int(scalar(
+                """SELECT COUNT(*) FROM document_chunks
+                   WHERE scope=?""",
+                (scope,),
+            ))
+            document_vectors = int(scalar(
+                """SELECT COUNT(*) FROM document_chunk_vectors
+                   WHERE scope=?""",
+                (scope,),
+            ))
 
         knowledge_items = memories + entities
         return {
@@ -562,6 +617,23 @@ class DevelopmentMetricsEngine:
             "communication_skills": communication_skills,
             "communication_preferences": communication_preferences,
             "communication_clarifications": communication_clarifications,
+            "document_ingestion_score": round(document_ingestion_score, 1),
+            "document_extraction_quality": round(
+                document_extraction_quality, 1
+            ),
+            "document_provenance_coverage": round(
+                document_provenance_coverage, 1
+            ),
+            "document_semantic_coverage": round(
+                document_semantic_coverage, 1
+            ),
+            "document_studied": document_studied,
+            "document_ocr_required": document_ocr_required,
+            "document_duplicates": document_duplicates,
+            "document_facts": document_facts,
+            "document_contradictions": document_contradictions,
+            "document_chunks": document_chunks,
+            "document_vectors": document_vectors,
         }
 
     def _components(self, c: dict) -> dict:

@@ -2160,7 +2160,13 @@ class ProactiveIntelligenceEngine:
             if row["feedback"] in {"noisy", "false_positive"}
         )
         total = max(1, useful + noisy)
-        modifier = 0.08 * (useful / total) - 0.16 * (noisy / total)
+        useful_ratio = useful / total
+        noisy_ratio = noisy / total
+        volume = self._saturation(total, 8.0)
+        modifier = volume * (
+            0.06 * useful_ratio
+            - 0.10 * noisy_ratio
+        )
         return round(self._clamp(base + modifier), 5)
 
     def _recalibrate_profile(self, *, scope: str) -> dict:
@@ -2186,10 +2192,13 @@ class ProactiveIntelligenceEngine:
             if total:
                 noise_ratio = (noisy + false_positive) / total
                 useful_ratio = (useful + handled) / total
+                volume = self._saturation(total, 12.0)
                 threshold = self._clamp(
                     0.48
-                    + 0.18 * noise_ratio
-                    - 0.06 * useful_ratio,
+                    + volume * (
+                        0.14 * noise_ratio
+                        - 0.05 * useful_ratio
+                    ),
                     0.36,
                     0.70,
                 )

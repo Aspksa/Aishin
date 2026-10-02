@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/static/evolution.css">
   <link rel="stylesheet" href="/static/research.css">
   <link rel="stylesheet" href="/static/communication.css">
+  <link rel="stylesheet" href="/static/documents.css">
 </head>
 <body>
   <div class="app-shell">
@@ -45,7 +46,7 @@
           <span class="nav-copy"><strong>Обновление</strong></span>
         </button>
         <div id="update-status" class="status-line">Система готова</div>
-        <div class="version-line">Aishin Core · 0.0.10</div>
+        <div class="version-line">Aishin Core · 0.0.11</div>
       </div>
     </aside>
 
@@ -764,6 +765,108 @@
         </div>
       </section>
 
+      <section id="documents-module" class="module-page">
+        <div class="documents-page">
+          <div class="documents-head">
+            <div>
+              <p class="overline">AISHIN 00.00.11 · KNOWLEDGE INGESTION & DOCUMENT INTELLIGENCE</p>
+              <h2>Библиотека знаний Айшин</h2>
+              <p>Оригинал → SHA-256 → структура → chunks → facts/entities/relations → provenance → Quality Gate → Research Evidence → semantic/lexical retrieval.</p>
+            </div>
+            <span class="settings-badge">schema 23 · provenance-first</span>
+          </div>
+
+          <section class="documents-hero">
+            <div id="documents-score-ring" class="documents-ring">
+              <strong id="documents-score">0.0%</strong>
+              <small>document intelligence</small>
+            </div>
+            <div class="documents-copy">
+              <p class="overline">KNOWLEDGE INGESTION</p>
+              <h3>Айши изучает документ, а не просто режет его на embeddings</h3>
+              <p>Текст, страницы, разделы, факты и связи хранятся отдельно от долговременной памяти. Только evidence-grounded знания могут перейти дальше в Research Intelligence.</p>
+              <div class="documents-stats">
+                <article class="documents-stat"><span>Изучено</span><strong id="documents-studied">0</strong><small>documents</small></article>
+                <article class="documents-stat"><span>OCR</span><strong id="documents-ocr">0</strong><small>требуют распознавания</small></article>
+                <article class="documents-stat"><span>Дубликаты</span><strong id="documents-duplicates">0</strong><small>не независимые sources</small></article>
+                <article class="documents-stat"><span>Факты</span><strong id="documents-facts-count">0</strong><small>извлечено</small></article>
+                <article class="documents-stat"><span>Конфликты</span><strong id="documents-conflicts-count">0</strong><small>открыто</small></article>
+                <article class="documents-stat"><span>Качество</span><strong id="documents-quality-score">0.0%</strong><small>извлечение</small></article>
+                <article class="documents-stat"><span>Semantic</span><strong id="documents-semantic-score">0.0%</strong><small>индексация</small></article>
+              </div>
+
+              <div class="documents-upload">
+                <label class="documents-drop">
+                  <i>+</i>
+                  <span><strong>Выберите документ</strong><small id="documents-selected-file">PDF, DOCX, XLSX, CSV, TXT, MD, HTML или изображение</small></span>
+                  <input id="documents-file" type="file" accept=".pdf,.docx,.xlsx,.csv,.txt,.md,.html,.htm,.png,.jpg,.jpeg,.webp,.tif,.tiff,.bmp">
+                </label>
+                <button id="documents-upload-btn" type="button">Загрузить и изучить</button>
+              </div>
+              <div class="documents-tags">
+                <label class="documents-tag"><input id="documents-ai-enrich" type="checkbox"> AI extraction · вручную</label>
+                <label class="documents-tag"><input id="documents-semantic-index" type="checkbox" checked> semantic index</label>
+                <span class="documents-tag needs_ocr">Сканы без OCR не становятся grounded knowledge</span>
+              </div>
+            </div>
+          </section>
+
+          <div class="documents-grid">
+            <section class="documents-panel">
+              <div class="documents-panel-head"><div><p class="overline">DOCUMENT REGISTRY</p><h3>Оригиналы и версии</h3></div><span>SHA-256 · parser · quality</span></div>
+              <div id="documents-list" class="documents-list"></div>
+            </section>
+
+            <section class="documents-panel">
+              <div class="documents-panel-head"><div><p class="overline">QUALITY GATE</p><h3>Что допускается в знания</h3></div><span>не равно истинности документа</span></div>
+              <div id="documents-quality" class="documents-quality"></div>
+              <div class="documents-search">
+                <input id="documents-search-input" type="text" placeholder="Поиск по изученным документам…">
+                <button id="documents-search-btn" type="button">Найти</button>
+              </div>
+              <div id="documents-results" class="documents-results"></div>
+            </section>
+
+            <section class="documents-panel">
+              <div class="documents-panel-head"><div><p class="overline">FACT LEDGER</p><h3>Извлечённые факты</h3></div><span>с provenance</span></div>
+              <div id="documents-facts" class="documents-facts"></div>
+            </section>
+
+            <section class="documents-panel">
+              <div class="documents-panel-head"><div><p class="overline">VERSION INTELLIGENCE</p><h3>Противоречия документов</h3></div><span>старое ≠ новое</span></div>
+              <div id="documents-conflicts" class="documents-conflicts"></div>
+            </section>
+
+            <section class="documents-panel wide">
+              <div class="documents-panel-head"><div><p class="overline">INGESTION RUNS</p><h3>История изучения</h3></div><span>pages · chunks · facts · vectors</span></div>
+              <div id="documents-runs" class="documents-runs"></div>
+            </section>
+
+            <section class="documents-panel wide">
+              <div class="documents-panel-head"><div><p class="overline">ПРИНЦИПЫ</p><h3>Почему библиотека не засоряет память</h3></div></div>
+              <div id="documents-principles" class="documents-principles"></div>
+            </section>
+          </div>
+        </div>
+
+        <div id="documents-modal" class="documents-modal" aria-hidden="true">
+          <div class="documents-modal-card">
+            <div class="documents-modal-head">
+              <div><p class="overline">DOCUMENT PROVENANCE</p><h3 id="documents-modal-title">Документ</h3></div>
+              <div>
+                <button id="documents-reprocess" type="button">Переизучить</button>
+                <button id="documents-modal-close" type="button">Закрыть</button>
+              </div>
+            </div>
+            <div id="documents-detail-meta" class="documents-detail-grid"></div>
+            <div class="documents-panel-head"><div><p class="overline">CHUNKS</p><h3>Текст с provenance</h3></div></div>
+            <div id="documents-detail-chunks" class="documents-chunks"></div>
+            <div class="documents-panel-head"><div><p class="overline">FACTS</p><h3>Факты документа</h3></div></div>
+            <div id="documents-detail-facts" class="documents-facts"></div>
+          </div>
+        </div>
+      </section>
+
       <section id="settings-module" class="module-page">
         <div class="settings-page">
           <div class="settings-header">
@@ -844,5 +947,6 @@
   <script src="/static/evolution.js"></script>
   <script src="/static/research.js"></script>
   <script src="/static/communication.js"></script>
+  <script src="/static/documents.js"></script>
 </body>
 </html>

@@ -71,6 +71,13 @@ def main() -> int:
             "engine": engine.proactive.__class__.__name__,
             "pending": engine.proactive.pending(scope="personal", limit=20),
         }
+        checks["metacognition"] = {
+            "status": "ok",
+            "engine": engine.metacognition.__class__.__name__,
+            "history_entries": len(
+                engine.metacognition.recent(scope="personal", limit=10)
+            ),
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

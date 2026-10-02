@@ -43,7 +43,7 @@ async def lifespan(_: FastAPI):
             await heartbeat_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.2', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.3', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -64,9 +64,9 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.2',
+        'version': '0.0.3',
         'runtime': state.to_dict(),
-        'llm_connected': False,
+        'ai': engine.ai.health(),
     }
 
 
@@ -83,6 +83,16 @@ def assistant_profile() -> dict:
 @app.get('/api/assistant/state')
 def assistant_state() -> dict:
     return engine.snapshot()
+
+
+@app.get('/api/assistant/brain')
+def assistant_brain() -> dict:
+    return {
+        'ai': engine.ai.health(),
+        'state': engine.state.load().to_dict(),
+        'permissions': {k: engine.permissions.mode(k) for k in engine.permissions.SAFE_DEFAULTS},
+        'observations': [o.__dict__ for o in engine.observer.inspect()],
+    }
 
 
 @app.get('/api/assistant/memory')

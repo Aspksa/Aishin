@@ -1268,6 +1268,22 @@ class AishinEngine:
                         "communication_score"
                     ),
                 },
+                "documents": {
+                    "retrieved_chunks": len(document_context),
+                    "document_ids": sorted({
+                        int(item["document_id"])
+                        for item in document_context
+                    }),
+                    "ingestion_score": document_state.get(
+                        "ingestion_score"
+                    ),
+                    "studied_documents": document_state.get(
+                        "studied_documents"
+                    ),
+                    "open_contradictions": document_state.get(
+                        "contradiction_count"
+                    ),
+                },
             },
             importance=0.3,
         )
@@ -1334,6 +1350,10 @@ class AishinEngine:
                 "plan": communication_plan.to_dict(),
                 "turn": communication_turn,
                 "state": communication_state,
+            },
+            "documents": {
+                "context": document_context,
+                "state": document_state,
             },
             "proactive_intelligence": proactive_intelligence_report.to_dict(),
             "planner_notices": [

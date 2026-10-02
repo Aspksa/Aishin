@@ -319,10 +319,17 @@ class ContinuousLearningEngine:
                        q.decay_factor,
                        q.contradiction_rate,
                        q.age_days,
-                       q.reason AS quality_reason
+                       q.reason AS quality_reason,
+                       COALESCE(m.weighted_observations, p.observations) AS weighted_observations,
+                       COALESCE(m.weighted_successes, p.successes) AS weighted_successes,
+                       COALESCE(m.weighted_failures, p.failures) AS weighted_failures,
+                       COALESCE(m.evidence_confidence, 0.75) AS evidence_confidence,
+                       COALESCE(m.source_types_json, '[]') AS source_types_json
                    FROM learning_patterns p
                    LEFT JOIN learning_pattern_quality q
                      ON q.pattern_id=p.id
+                   LEFT JOIN learning_evidence_metrics m
+                     ON m.pattern_id=p.id
                    WHERE p.scope=?
                    ORDER BY
                      CASE COALESCE(q.lifecycle, 'candidate')
@@ -348,6 +355,9 @@ class ContinuousLearningEngine:
                 else item.get("score", 0.5)
             )
             item["evidence"] = json.loads(item.pop("evidence_json") or "[]")
+            item["source_types"] = json.loads(
+                item.pop("source_types_json", "[]") or "[]"
+            )
             result.append(item)
         return result
 

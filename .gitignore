@@ -8,3 +8,4 @@ data/*.sqlite*
 .vscode/
 .DS_Store
 .aishin_backups/
+logs/

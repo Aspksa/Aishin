@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 9
+LATEST_SCHEMA_VERSION = 10
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -303,6 +303,31 @@ def _migration_009_cloud_resilience_and_request_traces(
     )
 
 
+def _migration_010_performance_observability(
+    conn: sqlite3.Connection,
+) -> None:
+    """Per-request stage timings and latency budget audit."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS performance_traces (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id TEXT NOT NULL UNIQUE,
+            scope TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            stages_json TEXT NOT NULL DEFAULT '{}',
+            budgets_json TEXT NOT NULL DEFAULT '{}',
+            total_ms INTEGER NOT NULL DEFAULT 0,
+            bottleneck TEXT NOT NULL DEFAULT '',
+            budget_status TEXT NOT NULL DEFAULT 'within_budget',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_performance_scope_created
+        ON performance_traces(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -313,6 +338,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (7, "action_selection", _migration_007_action_selection),
     (8, "execution_coordinator", _migration_008_execution_coordinator),
     (9, "cloud_resilience_and_request_traces", _migration_009_cloud_resilience_and_request_traces),
+    (10, "performance_observability", _migration_010_performance_observability),
 )
 
 

@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/static/growth.css">
   <link rel="stylesheet" href="/static/intelligence.css">
   <link rel="stylesheet" href="/static/proactive_intelligence.css">
+  <link rel="stylesheet" href="/static/evolution.css">
 </head>
 <body>
   <div class="app-shell">
@@ -42,7 +43,7 @@
           <span class="nav-copy"><strong>Обновление</strong></span>
         </button>
         <div id="update-status" class="status-line">Система готова</div>
-        <div class="version-line">Aishin Core · 0.0.7</div>
+        <div class="version-line">Aishin Core · 0.0.8</div>
       </div>
     </aside>
 
@@ -409,7 +410,7 @@
         <div class="proactive-page">
           <div class="proactive-head">
             <div>
-              <p class="overline">AISHIN 00.00.07 · PROACTIVE INTELLIGENCE</p>
+              <p class="overline">AISHIN 00.00.08 · PROACTIVE INTELLIGENCE</p>
               <h2>Айши заметила</h2>
               <p>Ситуационная модель, временные ожидания, изменения, аномалии, риск и приоритет внимания. Только наблюдаемые данные и evidence — без автоматического выполнения опасных действий.</p>
             </div>
@@ -522,6 +523,96 @@
         </div>
       </section>
 
+      <section id="evolution-module" class="module-page">
+        <div class="evolution-page">
+          <div class="evolution-head">
+            <div>
+              <p class="overline">AISHIN 00.00.08 · EVOLUTION ENGINE</p>
+              <h2>Эволюция Айшин</h2>
+              <p>Мета-обучение поверх реального опыта: измеренные способности, curriculum слабых мест, champion/challenger-политики, перенос навыков и автоматический rollback деградации. Исходный код и веса внешней модели не переписываются.</p>
+            </div>
+            <button id="evolution-cycle-btn" class="evolution-cycle-btn" type="button">Запустить цикл эволюции</button>
+          </div>
+
+          <section class="evolution-hero">
+            <div id="evolution-orbit" class="evolution-orbit">
+              <div class="core"><strong id="evolution-score">0.0%</strong><small>evolution health</small></div>
+              <div class="evolution-generation"><strong id="evolution-generation">G1</strong><span>поколение</span></div>
+            </div>
+            <div class="evolution-copy">
+              <p class="overline">BOUNDED META-LEARNING</p>
+              <h3>Учиться не только на опыте, но и на том, как Айши учится</h3>
+              <p>Каждая адаптация получает измеряемый outcome. Challenger не становится champion без достаточного evidence, а champion откатывается при подтверждённой регрессии.</p>
+              <div class="evolution-hero-stats">
+                <article class="evolution-stat"><span>Стабильность</span><strong id="evolution-stability">0%</strong><small>защита от деградации</small></article>
+                <article class="evolution-stat"><span>Пластичность</span><strong id="evolution-plasticity">0%</strong><small>способность адаптироваться</small></article>
+                <article class="evolution-stat"><span>Скорость обучения</span><strong id="evolution-velocity">0%</strong><small>по подтверждённому trend</small></article>
+                <article class="evolution-stat"><span>Champions</span><strong id="evolution-champions">0</strong><small>действующих политик</small></article>
+                <article class="evolution-stat"><span>Challengers</span><strong id="evolution-challengers">0</strong><small>проходят проверку</small></article>
+                <article class="evolution-stat"><span>Rollback</span><strong id="evolution-rollbacks">0</strong><small>за всё время</small></article>
+              </div>
+            </div>
+          </section>
+
+          <div class="evolution-grid">
+            <section class="evolution-panel wide">
+              <div class="evolution-panel-head">
+                <div><p class="overline">CAPABILITY FITNESS</p><h3>Карта реальных способностей</h3></div>
+                <span>fitness · gap · trend · unresolved</span>
+              </div>
+              <div id="evolution-capabilities" class="capability-list"></div>
+            </section>
+
+            <section class="evolution-panel">
+              <div class="evolution-panel-head">
+                <div><p class="overline">CHAMPION / CHALLENGER</p><h3>Эволюция стратегий</h3></div>
+                <span>bounded policies</span>
+              </div>
+              <div id="evolution-variants" class="variant-list"></div>
+            </section>
+
+            <section class="evolution-panel">
+              <div class="evolution-panel-head">
+                <div><p class="overline">SELF CURRICULUM</p><h3>Чему Айши нужно научиться дальше</h3></div>
+                <span><strong id="evolution-curriculum-count">0</strong> открыто</span>
+              </div>
+              <div id="evolution-curriculum" class="curriculum-list"></div>
+            </section>
+
+            <section class="evolution-panel">
+              <div class="evolution-panel-head">
+                <div><p class="overline">TRANSFER LEARNING</p><h3>Перенос навыков между областями</h3></div>
+                <span><strong id="evolution-transfers-count">0</strong> trusted</span>
+              </div>
+              <div id="evolution-transfers" class="transfer-list"></div>
+            </section>
+
+            <section class="evolution-panel">
+              <div class="evolution-panel-head">
+                <div><p class="overline">EVOLUTION EVENTS</p><h3>Promotion и rollback</h3></div>
+                <span>аудит изменений</span>
+              </div>
+              <div id="evolution-events" class="evolution-event-list"></div>
+            </section>
+
+            <section class="evolution-panel wide">
+              <div class="evolution-panel-head">
+                <div><p class="overline">EVOLUTION HISTORY</p><h3>Развитие адаптивного контура</h3></div>
+                <span>evolution score · stability</span>
+              </div>
+              <svg id="evolution-history" class="evolution-history" viewBox="0 0 900 175" role="img" aria-label="История эволюции Айшин"></svg>
+            </section>
+
+            <section class="evolution-panel wide">
+              <div class="evolution-panel-head">
+                <div><p class="overline">SAFETY INVARIANTS</p><h3>Правила безопасной эволюции</h3></div>
+              </div>
+              <div id="evolution-principles" class="evolution-principles"></div>
+            </section>
+          </div>
+        </div>
+      </section>
+
       <section id="settings-module" class="module-page">
         <div class="settings-page">
           <div class="settings-header">
@@ -599,5 +690,6 @@
   <script src="/static/growth.js"></script>
   <script src="/static/intelligence.js"></script>
   <script src="/static/proactive_intelligence.js"></script>
+  <script src="/static/evolution.js"></script>
 </body>
 </html>

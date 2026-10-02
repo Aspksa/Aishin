@@ -8,7 +8,11 @@ from ..personality import personality
 from .cognition import Cognition
 from .cognitive_trace import CognitiveTraceStore
 from .context_orchestrator import ContextOrchestrator
+from .context_budgeter import ContextBudgeter
 from .continuous_learning import ContinuousLearningEngine
+from .self_reflection import SelfReflectionMetrics
+from .learning_planner import LearningPlanner
+from .experiment_manager import SafeExperimentManager
 from .causal import CausalReasoning
 from .counterfactual import CounterfactualReasoning
 from .action_selection import ActionSelector
@@ -66,6 +70,10 @@ class AishinEngine:
             graph=self.graph,
             planner=self.planner,
         )
+        self.context_budgeter = ContextBudgeter()
+        self.self_reflection = SelfReflectionMetrics()
+        self.learning_planner = LearningPlanner(self.self_reflection)
+        self.experiment_manager = SafeExperimentManager()
         self.graph_builder = GraphBuilder(ai=self.ai, graph=self.graph, events=self.events)
         self.planner_builder = PlannerBuilder(
             ai=self.ai,
@@ -298,6 +306,34 @@ class AishinEngine:
                     limit=20,
                 ),
             },
+            "self_reflection": {
+                "summary": self.self_reflection.summary(
+                    scope=state.current_scope,
+                    limit=50,
+                ),
+                "recent": self.self_reflection.recent(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
+            "learning_planner": {
+                "open": self.learning_planner.open_plans(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+                "recent": self.learning_planner.recent(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
+            "safe_experiments": self.experiment_manager.recent(
+                scope=state.current_scope,
+                limit=20,
+            ),
+            "context_budget": self.context_budgeter.recent(
+                scope=state.current_scope,
+                limit=20,
+            ),
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(
                 limit=10,
@@ -596,9 +632,22 @@ class AishinEngine:
         model_messages.append({"role": "user", "content": cleaned})
         perf.checkpoint("context_orchestrator")
 
-        ai_reply = self.ai.chat(
-            system=context.system_prompt,
+        (
+            budgeted_system_prompt,
+            budgeted_messages,
+            context_budget_report,
+        ) = self.context_budgeter.fit(
+            request_id=request_id,
+            scope=scope,
+            mode=logic_trace.mode,
+            system_prompt=context.system_prompt,
             messages=model_messages,
+        )
+        perf.checkpoint("context_budget")
+
+        ai_reply = self.ai.chat(
+            system=budgeted_system_prompt,
+            messages=budgeted_messages,
         )
         perf.checkpoint("cloud")
 
@@ -625,7 +674,30 @@ class AishinEngine:
 
         perf.checkpoint("postprocess")
         performance = perf.finish(mode=logic_trace.mode)
+        reflection = self.self_reflection.assess(
+            request_id=request_id,
+            scope=scope,
+            mode=logic_trace.mode,
+            user_message=cleaned,
+            provider_runtime=provider_runtime,
+            metacognition=meta.to_dict(),
+            verification=verification_data,
+            decision_quality=decision_quality.to_dict(),
+            performance=performance,
+        )
+        learning_plans = self.learning_planner.refresh(scope=scope)
+        experiment_updates = self.experiment_manager.observe(
+            scope=scope,
+            request_id=request_id,
+            reflection=reflection.to_dict(),
+            open_plans=learning_plans,
+        )
+
         request_trace["performance"] = performance
+        request_trace["context_budget"] = context_budget_report.to_dict()
+        request_trace["self_reflection"] = reflection.to_dict()
+        request_trace["learning_planner"] = learning_plans
+        request_trace["safe_experiments"] = experiment_updates
 
         trace_id = self.cognitive_traces.record(
             request_id=request_id,
@@ -671,6 +743,10 @@ class AishinEngine:
                 "decision_quality": decision_quality.to_dict(),
                 "action_selection": action_selection.to_dict(),
                 "performance": performance,
+                "context_budget": context_budget_report.to_dict(),
+                "self_reflection": reflection.to_dict(),
+                "learning_planner": learning_plans,
+                "safe_experiments": experiment_updates,
             },
             importance=0.3,
         )
@@ -709,6 +785,10 @@ class AishinEngine:
             "decision_quality": decision_quality.to_dict(),
             "action_selection": action_selection.to_dict(),
             "performance": performance,
+            "context_budget": context_budget_report.to_dict(),
+            "self_reflection": reflection.to_dict(),
+            "learning_planner": learning_plans,
+            "safe_experiments": experiment_updates,
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

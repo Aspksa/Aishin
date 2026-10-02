@@ -302,3 +302,14 @@ def get_permission(capability: str) -> str:
     with connect() as conn:
         row = conn.execute("SELECT mode FROM permissions WHERE capability=?", (capability,)).fetchone()
     return row["mode"] if row else "ask"
+
+
+def ensure_permission(capability: str, mode: str) -> None:
+    if mode not in {"allow", "ask", "deny"}:
+        raise ValueError("permission mode must be allow, ask or deny")
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO permissions(capability, mode) VALUES (?, ?)",
+            (capability, mode),
+        )
+        conn.commit()

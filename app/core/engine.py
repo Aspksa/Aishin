@@ -466,6 +466,9 @@ class AishinEngine:
             ),
             causal=causal_assessment.to_dict(),
         )
+        learning_quality = self.continuous_learning.quality_gate.refresh(
+            scope=scope,
+        )
         learned_strategies = self.logic_learning.recommend(
             scope=scope,
             mode=logic_trace.mode,
@@ -541,6 +544,7 @@ class AishinEngine:
                 "feedback": learning_update.to_dict(),
                 "strategies": learned_strategies,
             },
+            "learning_quality": learning_quality,
             "counterfactual": counterfactual_assessment.to_dict(),
             "decision_quality": decision_quality.to_dict(),
             "action_selection": action_selection.to_dict(),

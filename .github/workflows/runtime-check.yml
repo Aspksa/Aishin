@@ -2,7 +2,7 @@ name: Aishin Runtime Check
 
 on:
   push:
-    branches: [main]
+    branches: [main, release/00.00.09-autonomous-research]
   workflow_dispatch:
 
 permissions:

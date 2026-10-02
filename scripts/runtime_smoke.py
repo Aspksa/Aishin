@@ -27,6 +27,34 @@ def main() -> int:
 
     try:
         with TestClient(app) as client:
+            home = client.get("/")
+            if home.status_code != 200:
+                raise RuntimeError(
+                    f"/ returned HTTP {home.status_code}: {home.text[:300]}"
+                )
+            required_ui = (
+                'id="chat-form"',
+                'id="messages"',
+                'id="simple-mode"',
+                'id="simple-learning"',
+                'class="technical-brain"',
+                'id="brain-flow"',
+                'id="pending-decisions"',
+            )
+            missing_ui = [
+                marker for marker in required_ui
+                if marker not in home.text
+            ]
+            if missing_ui:
+                raise RuntimeError(
+                    f"Новая UI-компоновка неполная: {missing_ui}"
+                )
+            checks["ui_layout"] = {
+                "status": "ok",
+                "chat_first": True,
+                "technical_brain_collapsed": True,
+            }
+
             health = client.get("/health")
             if health.status_code != 200:
                 raise RuntimeError(

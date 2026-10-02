@@ -170,6 +170,58 @@ def init_db() -> None:
                 FOREIGN KEY(memory_id) REFERENCES memories(id)
             );
 
+            CREATE TABLE IF NOT EXISTS goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'active',
+                priority REAL NOT NULL DEFAULT 0.5,
+                source TEXT NOT NULL DEFAULT 'explicit_user',
+                evidence TEXT NOT NULL DEFAULT '',
+                due_at TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL,
+                goal_id INTEGER,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'open',
+                priority REAL NOT NULL DEFAULT 0.5,
+                source TEXT NOT NULL DEFAULT 'explicit_user',
+                evidence TEXT NOT NULL DEFAULT '',
+                due_at TEXT,
+                blocked_reason TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(goal_id) REFERENCES goals(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS task_dependencies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL,
+                task_id INTEGER NOT NULL,
+                depends_on_task_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(scope, task_id, depends_on_task_id),
+                FOREIGN KEY(task_id) REFERENCES tasks(id),
+                FOREIGN KEY(depends_on_task_id) REFERENCES tasks(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS planner_changes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL,
+                action TEXT NOT NULL,
+                goal_id INTEGER,
+                task_id INTEGER,
+                details_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -792,6 +844,187 @@ def recent_graph_changes(scope: str, limit: int = 30) -> list[dict]:
     with connect() as conn:
         rows = conn.execute(
             """SELECT * FROM graph_changes
+               WHERE scope=? ORDER BY id DESC LIMIT ?""",
+            (scope, limit),
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["details"] = json.loads(item.pop("details_json") or "{}")
+        result.append(item)
+    return result
+
+
+def create_goal(
+    scope: str,
+    title: str,
+    description: str = "",
+    priority: float = 0.5,
+    source: str = "explicit_user",
+    evidence: str = "",
+    due_at: str | None = None,
+) -> int:
+    with connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO goals(scope, title, description, priority, source, evidence, due_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (scope, title, description, priority, source, evidence, due_at),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def create_task(
+    scope: str,
+    title: str,
+    description: str = "",
+    goal_id: int | None = None,
+    priority: float = 0.5,
+    source: str = "explicit_user",
+    evidence: str = "",
+    due_at: str | None = None,
+) -> int:
+    with connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO tasks(scope, goal_id, title, description, priority, source, evidence, due_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (scope, goal_id, title, description, priority, source, evidence, due_at),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def add_task_dependency(scope: str, task_id: int, depends_on_task_id: int) -> int:
+    if task_id == depends_on_task_id:
+        raise ValueError("task cannot depend on itself")
+    with connect() as conn:
+        conn.execute(
+            """INSERT OR IGNORE INTO task_dependencies(scope, task_id, depends_on_task_id)
+               VALUES (?, ?, ?)""",
+            (scope, task_id, depends_on_task_id),
+        )
+        row = conn.execute(
+            """SELECT id FROM task_dependencies
+               WHERE scope=? AND task_id=? AND depends_on_task_id=?""",
+            (scope, task_id, depends_on_task_id),
+        ).fetchone()
+        conn.commit()
+        return int(row["id"])
+
+
+def list_goals(scope: str, status: str | None = None, limit: int = 100) -> list[dict]:
+    with connect() as conn:
+        if status:
+            rows = conn.execute(
+                """SELECT * FROM goals WHERE scope=? AND status=?
+                   ORDER BY priority DESC, id DESC LIMIT ?""",
+                (scope, status, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM goals WHERE scope=?
+                   ORDER BY priority DESC, id DESC LIMIT ?""",
+                (scope, limit),
+            ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def list_tasks(scope: str, status: str | None = None, limit: int = 200) -> list[dict]:
+    with connect() as conn:
+        if status:
+            rows = conn.execute(
+                """SELECT t.*, g.title AS goal_title
+                   FROM tasks t LEFT JOIN goals g ON g.id=t.goal_id
+                   WHERE t.scope=? AND t.status=?
+                   ORDER BY t.priority DESC, t.id DESC LIMIT ?""",
+                (scope, status, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT t.*, g.title AS goal_title
+                   FROM tasks t LEFT JOIN goals g ON g.id=t.goal_id
+                   WHERE t.scope=?
+                   ORDER BY t.priority DESC, t.id DESC LIMIT ?""",
+                (scope, limit),
+            ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def update_goal_status(goal_id: int, status: str) -> None:
+    if status not in {"active", "paused", "completed", "cancelled"}:
+        raise ValueError("invalid goal status")
+    with connect() as conn:
+        conn.execute(
+            "UPDATE goals SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (status, goal_id),
+        )
+        conn.commit()
+
+
+def update_task_status(task_id: int, status: str, blocked_reason: str = "") -> None:
+    if status not in {"open", "in_progress", "blocked", "completed", "cancelled"}:
+        raise ValueError("invalid task status")
+    with connect() as conn:
+        conn.execute(
+            """UPDATE tasks
+               SET status=?, blocked_reason=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=?""",
+            (status, blocked_reason, task_id),
+        )
+        conn.commit()
+
+
+def task_dependencies(task_id: int, scope: str) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT d.id, d.task_id, d.depends_on_task_id,
+                      t.title AS depends_on_title,
+                      t.status AS depends_on_status
+               FROM task_dependencies d
+               JOIN tasks t ON t.id=d.depends_on_task_id
+               WHERE d.scope=? AND d.task_id=?""",
+            (scope, task_id),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def planner_open_items(scope: str) -> dict:
+    return {
+        "goals": list_goals(scope, status="active", limit=100),
+        "tasks": list_tasks(scope, status="open", limit=200)
+        + list_tasks(scope, status="in_progress", limit=200)
+        + list_tasks(scope, status="blocked", limit=200),
+    }
+
+
+def log_planner_change(
+    scope: str,
+    action: str,
+    *,
+    goal_id: int | None = None,
+    task_id: int | None = None,
+    details: dict | None = None,
+) -> int:
+    with connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO planner_changes(scope, action, goal_id, task_id, details_json)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                scope,
+                action,
+                goal_id,
+                task_id,
+                json.dumps(details or {}, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def recent_planner_changes(scope: str, limit: int = 30) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT * FROM planner_changes
                WHERE scope=? ORDER BY id DESC LIMIT ?""",
             (scope, limit),
         ).fetchall()

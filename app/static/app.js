@@ -20,6 +20,10 @@ const pages = {
   workspace: {
     title: "Рабочее пространство",
     description: "Здесь будут проекты, документы, инструменты и рабочие контексты."
+  },
+  settings: {
+    title: "Настройки",
+    description: "Подключение Cloud.ru и параметры системы."
   }
 };
 
@@ -34,6 +38,10 @@ document.querySelectorAll(".nav-item[data-module]").forEach((button) => {
     document.querySelectorAll(".module-page").forEach((page) => page.classList.remove("active"));
     if (code === "assistant") {
       document.getElementById("assistant-module").classList.add("active");
+    } else if (code === "settings") {
+      document.getElementById("settings-module").classList.add("active");
+      refreshCloudSettings();
+      refreshUpdateMode();
     } else {
       document.getElementById("placeholder-title").textContent = pages[code].title;
       document.getElementById("placeholder-description").textContent = pages[code].description;
@@ -94,14 +102,118 @@ form.addEventListener("submit", async (event) => {
 
 document.getElementById("update-btn").addEventListener("click", async () => {
   const status = document.getElementById("update-status");
-  status.textContent = "Проверяю GitHub...";
+  status.textContent = "Проверяю обновление...";
   try {
     const response = await fetch("/api/system/update", {method: "POST"});
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || "Ошибка обновления");
-    status.textContent = "Обновление завершено";
+    const mode = data.mode === "zip" ? "ZIP" : "Git";
+    status.textContent = `Обновлено через ${mode}. Перезапустите Aishin.bat`;
   } catch (error) {
     status.textContent = "Ошибка: " + error.message;
+  }
+});
+
+
+const cloudApiKey = document.getElementById("cloud-api-key");
+const cloudSaveBtn = document.getElementById("cloud-save-btn");
+const cloudTestBtn = document.getElementById("cloud-test-btn");
+const cloudStatusBadge = document.getElementById("cloud-status-badge");
+const cloudSettingsMessage = document.getElementById("cloud-settings-message");
+
+function renderCloudStatus(data) {
+  if (!cloudStatusBadge) return;
+  const configured = Boolean(data.configured);
+  const available = Boolean(data.available);
+  cloudStatusBadge.className = "settings-badge " + (available ? "ok" : configured ? "error" : "");
+  cloudStatusBadge.textContent = available
+    ? "подключено"
+    : configured
+      ? "ключ сохранён · нет связи"
+      : "ключ не настроен";
+  const model = document.getElementById("cloud-model");
+  const embedding = document.getElementById("cloud-embedding-model");
+  if (model) model.textContent = data.model || "—";
+  if (embedding) embedding.textContent = data.embedding_model || "—";
+}
+
+async function refreshCloudSettings() {
+  if (!cloudStatusBadge) return;
+  try {
+    const data = await fetchJson("/api/settings/cloudru");
+    renderCloudStatus(data);
+    if (cloudSettingsMessage) {
+      cloudSettingsMessage.textContent = data.error || (data.available ? "Cloud.ru готов." : "");
+    }
+  } catch (error) {
+    cloudStatusBadge.className = "settings-badge error";
+    cloudStatusBadge.textContent = "ошибка";
+    if (cloudSettingsMessage) cloudSettingsMessage.textContent = error.message;
+  }
+}
+
+async function refreshUpdateMode() {
+  const badge = document.getElementById("update-mode-badge");
+  if (!badge) return;
+  try {
+    const data = await fetchJson("/api/system/update/status");
+    badge.textContent = data.mode === "zip" ? "ZIP-режим" : "Git-режим";
+    badge.className = "settings-badge ok";
+  } catch (error) {
+    badge.textContent = "не определено";
+    badge.className = "settings-badge error";
+  }
+}
+
+cloudSaveBtn?.addEventListener("click", async () => {
+  const key = cloudApiKey?.value.trim() || "";
+  if (!key) {
+    cloudSettingsMessage.textContent = "Вставьте API-ключ Cloud.ru.";
+    return;
+  }
+  cloudSaveBtn.disabled = true;
+  cloudSettingsMessage.textContent = "Сохраняю и проверяю...";
+  try {
+    const data = await fetchJson("/api/settings/cloudru", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({api_key: key})
+    });
+    if (cloudApiKey) cloudApiKey.value = "";
+    renderCloudStatus({
+      ...data.settings,
+      available: Boolean(data.health?.available),
+      error: data.health?.error
+    });
+    cloudSettingsMessage.textContent = data.health?.available
+      ? "Ключ сохранён. Cloud.ru подключён."
+      : `Ключ сохранён, но проверка не прошла: ${data.health?.error || "нет связи"}`;
+  } catch (error) {
+    cloudSettingsMessage.textContent = "Ошибка: " + error.message;
+  } finally {
+    cloudSaveBtn.disabled = false;
+  }
+});
+
+cloudTestBtn?.addEventListener("click", async () => {
+  cloudTestBtn.disabled = true;
+  cloudSettingsMessage.textContent = "Проверяю Cloud.ru...";
+  try {
+    const data = await fetchJson("/api/settings/cloudru/test", {method: "POST"});
+    const health = data.health || {};
+    renderCloudStatus({
+      configured: Boolean(health.configured),
+      available: Boolean(health.available),
+      model: health.model,
+      embedding_model: document.getElementById("cloud-embedding-model")?.textContent
+    });
+    cloudSettingsMessage.textContent = health.available
+      ? `Подключение работает · ${health.latency_ms || 0} мс`
+      : `Подключение не работает: ${health.error || "неизвестная ошибка"}`;
+  } catch (error) {
+    cloudSettingsMessage.textContent = "Ошибка: " + error.message;
+  } finally {
+    cloudTestBtn.disabled = false;
   }
 });
 
@@ -360,6 +472,48 @@ function setBrainNode(name, active, attention, detail) {
   if (detailEl) detailEl.textContent = detail || "спокойно";
 }
 
+
+function renderNeuralLinks() {
+  const flow = document.getElementById("brain-flow");
+  const svg = document.getElementById("brain-links");
+  if (!flow || !svg || !flow.closest("details")?.open) return;
+
+  const nodes = [...flow.querySelectorAll(".brain-node")];
+  const flowRect = flow.getBoundingClientRect();
+  svg.setAttribute("viewBox", `0 0 ${Math.max(1, flowRect.width)} ${Math.max(1, flowRect.height)}`);
+  svg.replaceChildren();
+
+  const pairs = [];
+  for (let i = 0; i < nodes.length - 1; i += 1) pairs.push([i, i + 1]);
+  [[0,4],[1,5],[2,8],[4,9],[5,10],[8,14],[9,15],[10,16],[14,17],[15,17],[16,17],[17,18]]
+    .forEach(([a,b]) => {
+      if (nodes[a] && nodes[b]) pairs.push([a,b]);
+    });
+
+  pairs.forEach(([a,b]) => {
+    const from = nodes[a];
+    const to = nodes[b];
+    const aRect = from.getBoundingClientRect();
+    const bRect = to.getBoundingClientRect();
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    const x1 = aRect.left + aRect.width / 2 - flowRect.left;
+    const y1 = aRect.top + aRect.height / 2 - flowRect.top;
+    const x2 = bRect.left + bRect.width / 2 - flowRect.left;
+    const y2 = bRect.top + bRect.height / 2 - flowRect.top;
+    const bend = Math.max(18, Math.abs(x2 - x1) * 0.28);
+    const d = `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
+    line.setAttribute("d", d);
+    line.setAttribute("class", "brain-link-line");
+    if (from.classList.contains("active") && to.classList.contains("active")) {
+      line.classList.add("active");
+    }
+    if (from.classList.contains("attention") || to.classList.contains("attention")) {
+      line.classList.add("attention");
+    }
+    svg.appendChild(line);
+  });
+}
+
 function renderLivingBrain(state, sensors, pending, approved) {
   const runtime = state.state || {};
   const memories = state.working_memory?.memories || [];
@@ -597,6 +751,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
     "active",
     sensors.length > 0 || memories.length > 0 || tasks.length > 0
   );
+  requestAnimationFrame(renderNeuralLinks);
 
   const memoryStream = document.getElementById("brain-memory-stream");
   memoryStream.replaceChildren();
@@ -772,5 +927,21 @@ async function refreshDashboard(evaluate = false) {
 
 refreshApproval.addEventListener("click", () => refreshDashboard(true));
 
-refreshDashboard(false);
-setInterval(() => refreshDashboard(false), 30000);
+const technicalBrain = document.querySelector(".technical-brain");
+technicalBrain?.addEventListener("toggle", () => {
+  if (technicalBrain.open) {
+    refreshDashboard(false);
+    requestAnimationFrame(renderNeuralLinks);
+  }
+});
+window.addEventListener("resize", () => requestAnimationFrame(renderNeuralLinks));
+
+async function liveRefreshLoop() {
+  await refreshDashboard(false);
+  const delay = technicalBrain?.open ? 3000 : 20000;
+  window.setTimeout(liveRefreshLoop, delay);
+}
+
+refreshCloudSettings();
+refreshUpdateMode();
+liveRefreshLoop();

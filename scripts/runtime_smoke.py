@@ -56,6 +56,32 @@ def main() -> int:
                 raise RuntimeError(
                     f"/api/assistant/tools returned HTTP {tools.status_code}"
                 )
+            tools_catalog = client.get("/api/assistant/tools")
+            if tools_catalog.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/tools returned HTTP {tools_catalog.status_code}"
+                )
+            tool_names = {
+                item.get("name")
+                for item in tools_catalog.json()
+            }
+            if "project.rollback_write" not in tool_names:
+                raise RuntimeError("Rollback tool отсутствует в Tool Registry")
+
+            rollback_missing = client.post(
+                "/api/assistant/execution/attempts/999999999/rollback",
+                json={"scope": "personal", "approved": False},
+            )
+            if rollback_missing.status_code != 400:
+                raise RuntimeError(
+                    "Rollback API должен отклонять неизвестный execution attempt"
+                )
+            checks["atomic_write_rollback"] = {
+                "status": "ok",
+                "rollback_tool_present": True,
+                "rollback_api_present": True,
+            }
+
             checks["tools"] = {
                 "status": "ok",
                 "count": len(tools.json()),

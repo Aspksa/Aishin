@@ -45,6 +45,14 @@ class AIManager:
             error="Embedding-провайдер не настроен",
         )
 
+    def diagnostics(self) -> dict:
+        if self.mode in {"cloudru", "cloud.ru"}:
+            return self.cloudru.diagnostics()
+        return {
+            "provider": self.mode,
+            "error": "Неизвестный AI-провайдер",
+        }
+
     def embedding_health(self) -> dict:
         if self.mode in {"cloudru", "cloud.ru"}:
             base = self.cloudru.health()

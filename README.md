@@ -426,7 +426,7 @@ Live Brain содержит отдельный узел `Verification`, кото
 SQLite:
 - добавлен `app/migrations.py`;
 - таблица `schema_migrations` хранит применённые миграции;
-- текущая версия схемы: `9`;
+- текущая версия схемы: `10`;
 - `init_db()` автоматически применяет недостающие миграции;
 - self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
 
@@ -790,3 +790,64 @@ Schema migration: `9`.
 - compileall, self-check и FastAPI runtime smoke: success.
 
 Первый итоговый run обнаружил порядок self-check: resilience-проверка обращалась к `engine` до его создания. Ошибка исправлена, повторный run прошёл полностью.
+
+
+## Performance Observability / Latency Budget
+Каждый `respond()` теперь измеряет время основных стадий и связывает замеры с тем же `request_id`, что и cognitive trace.
+
+Измеряемые стадии:
+- `input_setup`
+- `memory_consolidation`
+- `graph_builder`
+- `planner_builder`
+- `cognition`
+- `sensors_metacognition`
+- `verification`
+- `logic_pipeline`
+- `context_orchestrator`
+- `cloud`
+- `postprocess`
+
+Soft budgets по умолчанию:
+- memory consolidation: 500 ms
+- graph builder: 500 ms
+- planner builder: 500 ms
+- cognition: 700 ms
+- sensors + metacognition: 500 ms
+- verification: 2500 ms
+- logic pipeline: 1000 ms
+- context orchestrator: 500 ms
+- cloud: 5000 ms
+- postprocess: 500 ms
+- total: 8000 ms
+
+Budget не прерывает ответ автоматически. Он только помечает `within_budget` / `over_budget`, сохраняет bottleneck и список превышенных стадий. Это позволяет оптимизировать систему по фактическим измерениям.
+
+Хранилище:
+- `performance_traces`
+
+API:
+- `GET /api/assistant/performance`
+
+Live Brain содержит узел `Latency`, который показывает total ms и bottleneck последнего request.
+
+## Verification trigger policy
+Исправлена избыточная эскалация:
+- обычный `conversation` без релевантной персональной памяти получает `cautious`, а не автоматически `insufficient_data`;
+- отсутствие памяти в обычном разговоре само по себе не считается ошибкой данных;
+- explicit `verification` всегда запускает Verification Engine;
+- `needs_verification` всегда запускает Verification Engine;
+- `action + insufficient_data` запускает Verification Engine;
+- обычный `conversation + insufficient_data` сам по себе Verification не запускает.
+
+Это уменьшает лишние повторные memory/graph/sensor/Cloud проверки на простых разговорах.
+
+Schema migration: `10`.
+Версия приложения остаётся `0.0.3`.
+
+### Подтверждение Performance + Verification policy runtime
+Функциональный код подтверждён GitHub Actions:
+- run id: `36994986756`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.

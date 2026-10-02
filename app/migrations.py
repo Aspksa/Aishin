@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 21
+LATEST_SCHEMA_VERSION = 22
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -1342,6 +1342,137 @@ def _migration_021_autonomous_research(
     )
 
 
+def _migration_022_communication_intelligence(
+    conn: sqlite3.Connection,
+) -> None:
+    """Adaptive dialogue state, communication skills and feedback learning."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS communication_state (
+            scope TEXT PRIMARY KEY,
+            communication_score REAL NOT NULL DEFAULT 0.0,
+            understanding_score REAL NOT NULL DEFAULT 0.0,
+            adaptation_score REAL NOT NULL DEFAULT 0.0,
+            persona_stability REAL NOT NULL DEFAULT 1.0,
+            diversity_score REAL NOT NULL DEFAULT 0.0,
+            explanation_success REAL NOT NULL DEFAULT 0.0,
+            evaluated_turns INTEGER NOT NULL DEFAULT 0,
+            clarification_requests INTEGER NOT NULL DEFAULT 0,
+            positive_feedback INTEGER NOT NULL DEFAULT 0,
+            negative_feedback INTEGER NOT NULL DEFAULT 0,
+            last_turn_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS communication_turns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            user_message TEXT NOT NULL,
+            base_intent TEXT NOT NULL DEFAULT '',
+            communication_intent TEXT NOT NULL DEFAULT 'general',
+            user_need TEXT NOT NULL DEFAULT 'answer',
+            strategy TEXT NOT NULL DEFAULT 'direct',
+            depth TEXT NOT NULL DEFAULT 'standard',
+            tone TEXT NOT NULL DEFAULT 'calm_warm_professional',
+            explanation_style TEXT NOT NULL DEFAULT 'layered',
+            address_policy TEXT NOT NULL DEFAULT 'rare',
+            user_signals_json TEXT NOT NULL DEFAULT '{}',
+            persona_runtime_json TEXT NOT NULL DEFAULT '{}',
+            recent_openers_json TEXT NOT NULL DEFAULT '[]',
+            assistant_message TEXT NOT NULL DEFAULT '',
+            assistant_chars INTEGER NOT NULL DEFAULT 0,
+            address_count INTEGER NOT NULL DEFAULT 0,
+            opener_hash TEXT NOT NULL DEFAULT '',
+            repetition_score REAL NOT NULL DEFAULT 0.0,
+            persona_score REAL NOT NULL DEFAULT 0.0,
+            outcome TEXT NOT NULL DEFAULT 'pending',
+            outcome_score REAL,
+            outcome_reason TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT,
+            evaluated_at TEXT,
+            UNIQUE(scope, request_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS communication_preferences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            preference_key TEXT NOT NULL,
+            value_json TEXT NOT NULL,
+            confidence REAL NOT NULL DEFAULT 0.5,
+            evidence_count INTEGER NOT NULL DEFAULT 1,
+            source TEXT NOT NULL DEFAULT 'conversation',
+            last_evidence TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, preference_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS communication_skills (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            skill_key TEXT NOT NULL,
+            label TEXT NOT NULL,
+            sample_count INTEGER NOT NULL DEFAULT 0,
+            success_count INTEGER NOT NULL DEFAULT 0,
+            failure_count INTEGER NOT NULL DEFAULT 0,
+            average_score REAL NOT NULL DEFAULT 0.0,
+            recent_score REAL NOT NULL DEFAULT 0.0,
+            baseline_score REAL NOT NULL DEFAULT 0.0,
+            trend REAL NOT NULL DEFAULT 0.0,
+            mastery REAL NOT NULL DEFAULT 0.0,
+            stability REAL NOT NULL DEFAULT 0.0,
+            freshness REAL NOT NULL DEFAULT 1.0,
+            last_evidence_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, skill_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS communication_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            turn_id INTEGER NOT NULL,
+            feedback TEXT NOT NULL,
+            score REAL NOT NULL DEFAULT 0.5,
+            reason TEXT NOT NULL DEFAULT '',
+            explicit INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(turn_id) REFERENCES communication_turns(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS communication_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            turn_id INTEGER,
+            score REAL,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(turn_id) REFERENCES communication_turns(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_communication_turns_scope_created
+        ON communication_turns(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_communication_turns_scope_outcome
+        ON communication_turns(scope, outcome, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_communication_preferences_scope
+        ON communication_preferences(scope, preference_key);
+
+        CREATE INDEX IF NOT EXISTS idx_communication_skills_scope_mastery
+        ON communication_skills(scope, mastery DESC, sample_count DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_communication_feedback_scope_created
+        ON communication_feedback(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_communication_events_scope_created
+        ON communication_events(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -1364,6 +1495,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (19, "proactive_intelligence", _migration_019_proactive_intelligence),
     (20, "evolution_engine", _migration_020_evolution_engine),
     (21, "autonomous_research", _migration_021_autonomous_research),
+    (22, "communication_intelligence", _migration_022_communication_intelligence),
 )
 
 

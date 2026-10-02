@@ -96,6 +96,40 @@ def main() -> int:
             ),
         }
 
+        realtime_mode = engine.continuous_learning.select_mode(
+            scope="personal",
+            queue_depth=0,
+            high_priority=0,
+            last_activity_at=__import__("datetime").datetime.now(
+                __import__("datetime").timezone.utc
+            ).isoformat(),
+        )
+        if realtime_mode.mode != "REALTIME":
+            raise RuntimeError("Активный пользователь должен включать REALTIME")
+
+        background_mode = engine.continuous_learning.select_mode(
+            scope="personal",
+            queue_depth=10,
+            high_priority=1,
+            last_activity_at="2000-01-01T00:00:00+00:00",
+        )
+        if background_mode.mode not in {"BACKGROUND", "MAINTENANCE"}:
+            raise RuntimeError(
+                "Фоновая очередь должна включать BACKGROUND или MAINTENANCE"
+            )
+
+        checks["continuous_learning"] = {
+            "status": "ok",
+            "engine": engine.continuous_learning.__class__.__name__,
+            "modes": ["REALTIME", "BACKGROUND", "IDLE", "MAINTENANCE"],
+            "automatic_mode_selection": True,
+            "realtime_test": realtime_mode.to_dict(),
+            "background_test": background_mode.to_dict(),
+            "runtime_status": engine.continuous_learning.status(
+                scope="personal"
+            ),
+        }
+
         checks["performance_observability"] = {
             "status": "ok",
             "history_entries": len(

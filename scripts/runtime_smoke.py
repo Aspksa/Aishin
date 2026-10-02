@@ -367,6 +367,63 @@ def main() -> int:
                 "cloud_independent": True,
             }
 
+            live_brain = client.get(
+                "/api/assistant/live-brain",
+                params={
+                    "scope": "personal",
+                    "event_limit": 20,
+                    "graph_limit": 12,
+                },
+            )
+            if live_brain.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/live-brain returned HTTP "
+                    f"{live_brain.status_code}: {live_brain.text[:300]}"
+                )
+            live_brain_data = live_brain.json()
+            channels = live_brain_data.get("channels") or []
+            if len(channels) != 24:
+                raise RuntimeError(
+                    "Live Brain должен возвращать ровно 24 когнитивных контура"
+                )
+            if "скрытой цепочки" not in str(
+                live_brain_data.get("trace_policy") or ""
+            ):
+                raise RuntimeError(
+                    "Live Brain должен явно ограничивать безопасную трассу"
+                )
+            if not isinstance(
+                live_brain_data.get("knowledge_graph", {}).get("entities"),
+                list,
+            ):
+                raise RuntimeError(
+                    "Live Brain knowledge_graph.entities должен быть списком"
+                )
+
+            live_brain_export = client.get(
+                "/api/assistant/live-brain/export",
+                params={"scope": "personal"},
+            )
+            if live_brain_export.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/live-brain/export returned HTTP "
+                    f"{live_brain_export.status_code}"
+                )
+            export_data = live_brain_export.json()
+            if export_data.get("format") != "AISHIN_LIVE_BRAIN_EXPORT":
+                raise RuntimeError("Live Brain export format несовместим")
+
+            checks["live_brain_runtime"] = {
+                "status": "ok",
+                "runtime_version": live_brain_data.get("runtime_version"),
+                "channels": len(channels),
+                "events": len(live_brain_data.get("event_stream") or []),
+                "safe_trace": bool(
+                    live_brain_data.get("safe_trace", {}).get("policy")
+                ),
+                "export_version": export_data.get("format_version"),
+            }
+
             performance = client.get(
                 "/api/assistant/performance",
                 params={"scope": "personal", "limit": 1},

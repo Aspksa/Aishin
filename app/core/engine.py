@@ -12,6 +12,7 @@ from .context_budgeter import ContextBudgeter
 from .continuous_learning import ContinuousLearningEngine
 from .development_metrics import DevelopmentMetricsEngine
 from .live_brain import LiveBrainRuntime
+from .long_term_growth import LongTermGrowthEngine
 from .self_reflection import SelfReflectionMetrics
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
@@ -128,6 +129,7 @@ class AishinEngine:
             events=self.events,
         )
         self.development = DevelopmentMetricsEngine()
+        self.long_term_growth = LongTermGrowthEngine(events=self.events)
         self.live_brain = LiveBrainRuntime(self)
 
     def reload_ai(self) -> dict:
@@ -153,10 +155,22 @@ class AishinEngine:
         state.activity = "startup"
         state.focus = "system"
         self.state.save(state)
+        growth = self.long_term_growth.refresh(
+            scope=state.current_scope,
+            persist_snapshot=True,
+        )
         self.events.emit(
             "aishin.started",
             scope=state.current_scope,
-            payload={"status": state.status, "ai": self.ai.health()},
+            payload={
+                "status": state.status,
+                "ai": self.ai.health(),
+                "long_term_growth": {
+                    "overall_score": growth.get("overall_score"),
+                    "durable_skills": growth.get("skills", {}).get("durable"),
+                    "mastered_skills": growth.get("skills", {}).get("mastered"),
+                },
+            },
             importance=0.6,
         )
 
@@ -341,6 +355,9 @@ class AishinEngine:
             "development": self.development.current(
                 scope=state.current_scope,
                 persist=True,
+            ),
+            "long_term_growth": self.long_term_growth.summary(
+                scope=state.current_scope,
             ),
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(
@@ -773,6 +790,10 @@ class AishinEngine:
             reflection=reflection.to_dict(),
             open_plans=learning_plans,
         )
+        long_term_growth = self.long_term_growth.refresh(
+            scope=scope,
+            persist_snapshot=True,
+        )
         self.events.emit(
             "cognition.phase",
             scope=scope,
@@ -801,6 +822,7 @@ class AishinEngine:
         request_trace["self_reflection"] = reflection.to_dict()
         request_trace["learning_planner"] = learning_plans
         request_trace["safe_experiments"] = experiment_updates
+        request_trace["long_term_growth"] = long_term_growth
 
         trace_id = self.cognitive_traces.record(
             request_id=request_id,
@@ -861,6 +883,12 @@ class AishinEngine:
                 "self_reflection": reflection.to_dict(),
                 "learning_planner": learning_plans,
                 "safe_experiments": experiment_updates,
+                "long_term_growth": {
+                    "overall_score": long_term_growth.get("overall_score"),
+                    "skills": long_term_growth.get("skills"),
+                    "knowledge": long_term_growth.get("knowledge"),
+                    "specializations": long_term_growth.get("specializations"),
+                },
             },
             importance=0.3,
         )
@@ -903,6 +931,7 @@ class AishinEngine:
             "self_reflection": reflection.to_dict(),
             "learning_planner": learning_plans,
             "safe_experiments": experiment_updates,
+            "long_term_growth": long_term_growth,
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

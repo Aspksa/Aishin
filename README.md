@@ -1414,3 +1414,59 @@ GitHub Actions run `37008371575`:
 - Windows launcher check-only: success.
 
 Версия приложения остаётся `0.0.3`. Schema остаётся `14`.
+
+
+## Weighted Evidence Self-Learning
+
+Continuous Learning усилен системой веса доказательств.
+
+Новые источники обучения:
+- Self-Reflection Metrics;
+- Context Budget reports;
+- Safe Experiment observations;
+- прежние sources: explicit Logic Learning feedback, execution results, performance, memory/graph changes and events.
+
+Каждый сигнал теперь имеет evidence weight:
+- explicit user success/failure feedback: 1.00;
+- real tool execution outcome: 0.95;
+- Self-Reflection: 0.85;
+- performance: 0.70;
+- Context Budget pressure: 0.60;
+- memory/graph changes: 0.55/0.50;
+- ordinary events: 0.35;
+- shadow experiment observation: 0.35.
+
+Добавлена таблица `learning_evidence_metrics`:
+- weighted_observations;
+- weighted_successes;
+- weighted_failures;
+- evidence_confidence;
+- source_types_json;
+- last_signal_weight.
+
+Learning Quality Gate теперь учитывает не только число повторов, но и доказательную массу. Паттерн не может стать `trusted` только потому, что слабая телеметрия повторилась много раз.
+
+Для `trusted` pattern теперь требуются:
+- минимум 5 обычных observations;
+- weighted evidence strength >= 3.5;
+- evidence confidence >= 0.62;
+- effective score >= 0.62;
+- отсутствие чрезмерных противоречий и staleness.
+
+Shadow experiments не дают success/failure reinforcement и не могут подтверждать сами себя.
+
+Self-check содержит отдельный regression test:
+- 6 слабых event-signals остаются ниже `trusted`;
+- 6 сильных explicit-feedback signals достигают `trusted`.
+
+Schema migration: `15`.
+Версия приложения остаётся `0.0.3`.
+
+Подтверждено GitHub Actions run `37010233186`:
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall: success;
+- JavaScript syntax: success;
+- self-check: success;
+- FastAPI runtime smoke: success;
+- Windows launcher check-only: success.

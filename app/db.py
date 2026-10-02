@@ -1262,28 +1262,39 @@ def create_proactive_decision(
         if existing:
             return int(existing["id"])
 
-        cur = conn.execute(
-            """INSERT INTO proactive_decisions(
-                   scope, fingerprint, source, title, rationale,
-                   priority, confidence, tool_name, capability,
-                   arguments_json, preview_json
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                scope,
-                fingerprint,
-                source,
-                title,
-                rationale,
-                priority,
-                confidence,
-                tool_name,
-                capability,
-                json.dumps(arguments or {}, ensure_ascii=False),
-                json.dumps(preview or {}, ensure_ascii=False),
-            ),
-        )
-        conn.commit()
-        return int(cur.lastrowid)
+        try:
+            cur = conn.execute(
+                """INSERT INTO proactive_decisions(
+                       scope, fingerprint, source, title, rationale,
+                       priority, confidence, tool_name, capability,
+                       arguments_json, preview_json
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    scope,
+                    fingerprint,
+                    source,
+                    title,
+                    rationale,
+                    priority,
+                    confidence,
+                    tool_name,
+                    capability,
+                    json.dumps(arguments or {}, ensure_ascii=False),
+                    json.dumps(preview or {}, ensure_ascii=False),
+                ),
+            )
+            conn.commit()
+            return int(cur.lastrowid)
+        except sqlite3.IntegrityError:
+            existing = conn.execute(
+                """SELECT id FROM proactive_decisions
+                   WHERE scope=? AND fingerprint=? AND status='pending'
+                   ORDER BY id DESC LIMIT 1""",
+                (scope, fingerprint),
+            ).fetchone()
+            if existing:
+                return int(existing["id"])
+            raise
 
 
 def get_proactive_decision(decision_id: int, scope: str | None = None) -> dict | None:

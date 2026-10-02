@@ -55,6 +55,27 @@ class ChatMessage(BaseModel):
     scope: str = 'personal'
 
 
+class MasterProfileUpdate(BaseModel):
+    key: str
+    value: object
+    confidence: float = 1.0
+
+
+class RelationshipMemoryCreate(BaseModel):
+    content: str
+    kind: str = 'shared_history'
+    importance: float = 0.8
+    confidence: float = 1.0
+
+
+class TimelineEventCreate(BaseModel):
+    event_type: str
+    title: str
+    details: str = ''
+    scope: str = 'personal'
+    importance: float = 0.5
+
+
 @app.get('/', response_class=HTMLResponse)
 def home() -> str:
     template = templates.get_template('index.html')
@@ -96,6 +117,72 @@ def assistant_brain() -> dict:
         'permissions': {k: engine.permissions.mode(k) for k in engine.permissions.SAFE_DEFAULTS},
         'observations': [o.__dict__ for o in engine.observer.inspect()],
     }
+
+
+@app.get('/api/assistant/personal')
+def assistant_personal() -> dict:
+    state = engine.state.load()
+    context = engine.personal.context(scope=state.current_scope)
+    return {
+        'master_profile': context.master_profile,
+        'relationship_memory': context.relationship_memory,
+        'timeline': context.timeline,
+    }
+
+
+@app.post('/api/assistant/master-profile')
+def update_master_profile(payload: MasterProfileUpdate) -> dict:
+    key = payload.key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail='Ключ профиля пустой')
+    confidence = max(0.0, min(1.0, payload.confidence))
+    engine.personal.set_profile_value(
+        key,
+        payload.value,
+        source='explicit_user',
+        confidence=confidence,
+    )
+    engine.events.emit(
+        'master_profile.updated',
+        scope='personal',
+        payload={'key': key, 'confidence': confidence},
+        importance=0.7,
+    )
+    return {'status': 'saved', 'key': key}
+
+
+@app.post('/api/assistant/relationship-memory')
+def create_relationship_memory(payload: RelationshipMemoryCreate) -> dict:
+    content = payload.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail='Память пустая')
+    memory_id = engine.personal.remember_relationship(
+        content,
+        kind=payload.kind.strip() or 'shared_history',
+        importance=max(0.0, min(1.0, payload.importance)),
+        confidence=max(0.0, min(1.0, payload.confidence)),
+        source='explicit_user',
+    )
+    engine.personal.add_timeline(
+        event_type='relationship_memory',
+        title='Важная совместная память',
+        details=content,
+        scope='relationship',
+        importance=max(0.0, min(1.0, payload.importance)),
+    )
+    return {'status': 'saved', 'id': memory_id}
+
+
+@app.post('/api/assistant/timeline')
+def create_timeline_event(payload: TimelineEventCreate) -> dict:
+    event_id = engine.personal.add_timeline(
+        event_type=payload.event_type.strip() or 'event',
+        title=payload.title.strip(),
+        details=payload.details.strip(),
+        scope=payload.scope.strip() or 'personal',
+        importance=max(0.0, min(1.0, payload.importance)),
+    )
+    return {'status': 'saved', 'id': event_id}
 
 
 @app.get('/api/assistant/memory')

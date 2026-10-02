@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/live_brain.css">
   <link rel="stylesheet" href="/static/growth.css">
   <link rel="stylesheet" href="/static/intelligence.css">
+  <link rel="stylesheet" href="/static/proactive_intelligence.css">
 </head>
 <body>
   <div class="app-shell">
@@ -41,7 +42,7 @@
           <span class="nav-copy"><strong>Обновление</strong></span>
         </button>
         <div id="update-status" class="status-line">Система готова</div>
-        <div class="version-line">Aishin Core · 0.0.6</div>
+        <div class="version-line">Aishin Core · 0.0.7</div>
       </div>
     </aside>
 
@@ -404,6 +405,123 @@
         </div>
       </section>
 
+      <section id="attention-module" class="module-page">
+        <div class="proactive-page">
+          <div class="proactive-head">
+            <div>
+              <p class="overline">AISHIN 00.00.07 · PROACTIVE INTELLIGENCE</p>
+              <h2>Айши заметила</h2>
+              <p>Ситуационная модель, временные ожидания, изменения, аномалии, риск и приоритет внимания. Только наблюдаемые данные и evidence — без автоматического выполнения опасных действий.</p>
+            </div>
+            <button id="proactive-scan-btn" class="proactive-scan" type="button">Проверить ситуацию сейчас</button>
+          </div>
+
+          <section class="proactive-hero">
+            <div id="proactive-awareness-ring" class="proactive-awareness">
+              <strong id="proactive-awareness-score">0.0%</strong>
+              <small>осведомлённость</small>
+            </div>
+            <div class="proactive-hero-copy">
+              <p class="overline">SITUATION MODEL</p>
+              <h3>Что сейчас происходит вокруг Айши</h3>
+              <p id="proactive-hero-note">Я сравниваю текущее состояние с предыдущими снимками, отслеживаю сроки, ошибки, деградацию навыков и нерешённые проверки.</p>
+              <div class="proactive-hero-stats">
+                <article class="proactive-stat"><span>Объекты</span><strong id="proactive-stat-objects">0</strong><small>под наблюдением</small></article>
+                <article class="proactive-stat"><span>Ситуации</span><strong id="proactive-stat-incidents">0</strong><small>активных</small></article>
+                <article class="proactive-stat"><span>Внимание</span><strong id="proactive-stat-attention">0</strong><small>выше порога</small></article>
+                <article class="proactive-stat"><span>Ожидания</span><strong id="proactive-stat-expectations">0</strong><small id="proactive-stat-overdue">0 просрочено</small></article>
+                <article class="proactive-stat"><span>Порог</span><strong id="proactive-stat-threshold">48%</strong><small>калибруется по feedback</small></article>
+              </div>
+            </div>
+          </section>
+
+          <div class="proactive-layout">
+            <section class="proactive-panel wide">
+              <div class="proactive-panel-head">
+                <div>
+                  <p class="overline">ТРЕБУЕТ ВНИМАНИЯ</p>
+                  <h3>Активные ситуации</h3>
+                </div>
+                <div class="proactive-filter">
+                  <button class="active" type="button" data-proactive-filter="all">Все</button>
+                  <button type="button" data-proactive-filter="critical">Критично</button>
+                  <button type="button" data-proactive-filter="high">Важно</button>
+                  <button type="button" data-proactive-filter="medium">Наблюдение</button>
+                </div>
+              </div>
+              <div id="proactive-incidents" class="proactive-incidents"></div>
+            </section>
+
+            <section class="proactive-panel">
+              <div class="proactive-panel-head">
+                <div>
+                  <p class="overline">СОСТОЯНИЕ</p>
+                  <h3>Ситуационная модель</h3>
+                </div>
+                <span id="proactive-snapshot-time">—</span>
+              </div>
+              <div id="proactive-situation-grid" class="situation-grid"></div>
+              <div id="proactive-source-health" class="source-health"></div>
+            </section>
+
+            <section class="proactive-panel">
+              <div class="proactive-panel-head">
+                <div>
+                  <p class="overline">TEMPORAL INTELLIGENCE</p>
+                  <h3>Ожидания и сроки</h3>
+                </div>
+                <span id="proactive-expectation-count">0</span>
+              </div>
+              <div id="proactive-expectations" class="expectation-list"></div>
+            </section>
+
+            <section class="proactive-panel">
+              <div class="proactive-panel-head">
+                <div>
+                  <p class="overline">ATTENTION MANAGER</p>
+                  <h3>Калибровка внимания</h3>
+                </div>
+                <span>учится на feedback</span>
+              </div>
+              <div id="proactive-calibration" class="attention-calibration"></div>
+            </section>
+
+            <section class="proactive-panel">
+              <div class="proactive-panel-head">
+                <div>
+                  <p class="overline">SIGNAL STREAM</p>
+                  <h3>Наблюдаемые сигналы</h3>
+                </div>
+                <span id="proactive-signal-count">0</span>
+              </div>
+              <div id="proactive-signals" class="signal-list"></div>
+            </section>
+
+            <section class="proactive-panel wide">
+              <div class="proactive-panel-head">
+                <div>
+                  <p class="overline">ИСТОРИЯ НАБЛЮДЕНИЯ</p>
+                  <h3>Ситуационная осведомлённость</h3>
+                </div>
+                <span>heartbeat · сообщения · ручная проверка</span>
+              </div>
+              <svg id="proactive-history-chart" class="proactive-history-chart" viewBox="0 0 900 170" role="img" aria-label="История ситуационной осведомлённости Айши"></svg>
+              <div id="proactive-runs" class="proactive-run-list"></div>
+            </section>
+
+            <section class="proactive-panel wide">
+              <div class="proactive-panel-head">
+                <div>
+                  <p class="overline">ПРАВИЛА</p>
+                  <h3>Безопасная проактивность</h3>
+                </div>
+              </div>
+              <div id="proactive-principles" class="proactive-principles"></div>
+            </section>
+          </div>
+        </div>
+      </section>
+
       <section id="settings-module" class="module-page">
         <div class="settings-page">
           <div class="settings-header">
@@ -480,5 +598,6 @@
   <script src="/static/live_brain.js"></script>
   <script src="/static/growth.js"></script>
   <script src="/static/intelligence.js"></script>
+  <script src="/static/proactive_intelligence.js"></script>
 </body>
 </html>

@@ -89,7 +89,7 @@ AISHIN_CLOUDRU_URL=https://foundation-models.api.cloud.ru/v1
 Будущие действия проходят через централизованный permission gate. Чтение локального контекста и собственная память разрешены по умолчанию, а отправка сообщений, изменение файлов, установка программ и системные команды требуют разрешения. Удаление данных по умолчанию запрещено.
 
 ## Следующий слой
-Расширение набора безопасных инструментов, умная приоритизация решений и интерфейс очереди approval; затем подключение модулей рабочего пространства к сенсорам.
+Context Budgeter для контроля размера системного контекста, затем усиление Cloud.ru resilience: health-cache, retries/backoff для 429/5xx и безопасная политика ошибок.
 
 
 ## Личная Айшин
@@ -412,3 +412,37 @@ API:
 Live Brain содержит отдельный узел `Verification`, который показывает, выполнялась ли перепроверка и сколько пунктов осталось нерешёнными.
 
 Это развитие текущей версии `0.0.3`; номер версии не меняется.
+
+
+## Надёжность ядра и миграции
+Текущая версия проекта остаётся `0.0.3`.
+
+Канонический профиль личности:
+- основной источник: `app/data/AISHIN_PERSONALITY_PROFILE.json`;
+- `app/personality.py` использует canonical-first загрузку;
+- `app/data/aishin_personality.json` оставлен только как compatibility fallback;
+- self-check аварийно завершает запуск, если активен не канонический профиль.
+
+SQLite:
+- добавлен `app/migrations.py`;
+- таблица `schema_migrations` хранит применённые миграции;
+- текущая версия схемы: `2`;
+- `init_db()` автоматически применяет недостающие миграции;
+- self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
+
+Runtime:
+- `scripts/runtime_smoke.py` реально поднимает FastAPI через TestClient и проверяет ключевые endpoints;
+- `Aishin.bat` требует Python 3.11+, исправлена нумерация этапов и перед запуском выполняются self-check + runtime smoke;
+- добавлен GitHub Actions workflow `.github/workflows/runtime-check.yml`;
+- workflow запускает compileall, core self-check и FastAPI runtime smoke на Windows и Ubuntu.
+
+Во время первого реального CI были найдены и исправлены:
+- буквальные `\\n` вместо переводов строк в `app/core/__init__.py` и `app/core/events.py`;
+- Windows `UnicodeEncodeError` при печати русского JSON через cp1252.
+
+Подтверждённый успешный CI:
+- workflow run id: `36987889755`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success.
+
+Это первый этап проекта, где runtime-проверка выполнена фактически в CI, а не только структурно по содержимому репозитория.

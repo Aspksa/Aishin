@@ -186,6 +186,14 @@ def main() -> int:
             ),
             "meaning": "quality_of_evidence_not_truth",
         }
+        checks["action_selection"] = {
+            "status": "ok",
+            "engine": engine.action_selector.__class__.__name__,
+            "history_entries": len(
+                engine.action_selector.recent(scope="personal", limit=10)
+            ),
+            "execution_policy": "selection_never_executes_tools",
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

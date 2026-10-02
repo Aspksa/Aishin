@@ -61,6 +61,20 @@ def main() -> int:
                 "count": len(tools.json()),
             }
 
+            proactive_conditions = client.get(
+                "/api/assistant/proactive/conditions",
+                params={"scope": "personal", "limit": 1},
+            )
+            if proactive_conditions.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/proactive/conditions returned HTTP "
+                    f"{proactive_conditions.status_code}"
+                )
+            checks["proactive_conditions"] = {
+                "status": "ok",
+                "history_entries": len(proactive_conditions.json()),
+            }
+
             performance = client.get(
                 "/api/assistant/performance",
                 params={"scope": "personal", "limit": 1},

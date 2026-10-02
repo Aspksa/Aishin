@@ -13,6 +13,7 @@ from .events import EventBus
 from .execution_coordinator import ExecutionCoordinator
 from .permissions import PermissionGate
 from .planner import Planner, PlannerNotice
+from .proactive_lifecycle import ProactiveLifecycle
 from .sensors import SensorHub
 from .tools import ToolRegistry
 
@@ -55,6 +56,7 @@ class ProactiveDecisionLoop:
         self.permissions = permissions
         self.events = events
         self.coordinator = coordinator
+        self.lifecycle = ProactiveLifecycle()
 
     def evaluate(self, *, scope: str) -> DecisionEvaluation:
         readings = self.sensors.scan(scope=scope, persist=False)
@@ -65,16 +67,21 @@ class ProactiveDecisionLoop:
             limit=500,
         )
         before = {item["id"] for item in pending_before}
-        pending_fingerprints = {
-            item["fingerprint"] for item in pending_before
-        }
 
-        active_notice_fingerprints: set[str] = set()
+        active_fingerprints: set[str] = set()
+        sensor_attention = 0
+
         for notice in notices:
             fingerprint = self._notice_fingerprint(notice, scope=scope)
-            active_notice_fingerprints.add(fingerprint)
-            if fingerprint in pending_fingerprints:
+            active_fingerprints.add(fingerprint)
+            lifecycle = self.lifecycle.observe(
+                scope=scope,
+                fingerprint=fingerprint,
+                source=f"planner:{notice.code}",
+            )
+            if lifecycle["suppressed"]:
                 continue
+
             proposal = self._proposal_for_notice(
                 notice,
                 scope=scope,
@@ -82,46 +89,43 @@ class ProactiveDecisionLoop:
             )
             if proposal is None:
                 continue
-            self._store_proposal(scope=scope, **proposal)
-            pending_fingerprints.add(fingerprint)
 
-        # Dismiss planner proposals whose underlying condition is already resolved.
-        for item in pending_before:
-            if not str(item.get("source") or "").startswith("planner:"):
-                continue
-            if item["fingerprint"] in active_notice_fingerprints:
-                continue
-            update_proactive_decision(
-                int(item["id"]),
+            decision_id = self._store_proposal(scope=scope, **proposal)
+            self.lifecycle.bind_decision(
                 scope=scope,
-                status="dismissed",
-                execution={"reason": "underlying_condition_resolved"},
+                fingerprint=fingerprint,
+                decision_id=decision_id,
             )
-            pending_fingerprints.discard(item["fingerprint"])
 
-        # Sensor-level attention that is not already represented by planner notices.
         for reading in readings:
             if reading["status"] == "ok" or reading["sensor"] == "planner":
                 continue
-            title = f"Проверить сигнал сенсора: {reading['sensor']}"
-            rationale = (
-                f"Сенсор {reading['sensor']} сообщил состояние "
-                f"{reading['status']}."
-            )
+
+            sensor_attention += 1
             fingerprint = self._fingerprint(
                 "sensor",
                 reading["sensor"],
                 reading["status"],
                 scope,
             )
-            if fingerprint in pending_fingerprints:
-                continue
-            create_proactive_decision(
+            active_fingerprints.add(fingerprint)
+            lifecycle = self.lifecycle.observe(
                 scope=scope,
                 fingerprint=fingerprint,
                 source=f"sensor:{reading['sensor']}",
-                title=title,
-                rationale=rationale,
+            )
+            if lifecycle["suppressed"]:
+                continue
+
+            decision_id = create_proactive_decision(
+                scope=scope,
+                fingerprint=fingerprint,
+                source=f"sensor:{reading['sensor']}",
+                title=f"Проверить сигнал сенсора: {reading['sensor']}",
+                rationale=(
+                    f"Сенсор {reading['sensor']} сообщил состояние "
+                    f"{reading['status']}."
+                ),
                 priority=float(reading.get("importance", 0.5)),
                 confidence=0.9,
                 tool_name=None,
@@ -129,6 +133,16 @@ class ProactiveDecisionLoop:
                 arguments={},
                 preview={},
             )
+            self.lifecycle.bind_decision(
+                scope=scope,
+                fingerprint=fingerprint,
+                decision_id=decision_id,
+            )
+
+        dismissed = self.lifecycle.resolve_absent(
+            scope=scope,
+            active_fingerprints=active_fingerprints,
+        )
 
         pending = list_proactive_decisions(scope, status="pending", limit=500)
         after = {item["id"] for item in pending}
@@ -145,10 +159,21 @@ class ProactiveDecisionLoop:
                 importance=0.65,
             )
 
+        if dismissed:
+            self.events.emit(
+                "proactive.conditions.resolved",
+                scope=scope,
+                payload={
+                    "dismissed_decision_ids": dismissed,
+                    "count": len(dismissed),
+                },
+                importance=0.45,
+            )
+
         return DecisionEvaluation(
             created=created,
             pending=len(pending),
-            attention=len(notices),
+            attention=len(notices) + sensor_attention,
             scope=scope,
         )
 
@@ -167,6 +192,14 @@ class ProactiveDecisionLoop:
         limit: int = 100,
     ) -> list[dict]:
         return list_proactive_decisions(scope, status=status, limit=limit)
+
+    def conditions(
+        self,
+        *,
+        scope: str,
+        limit: int = 100,
+    ) -> list[dict]:
+        return self.lifecycle.recent(scope=scope, limit=limit)
 
     def approve(
         self,

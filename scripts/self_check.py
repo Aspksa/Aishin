@@ -344,6 +344,116 @@ def main() -> int:
                 engine.context_orchestrator.recent(scope="personal", limit=10)
             ),
         }
+        test_scope = "__selfcheck_reflective_learning__"
+        try:
+            fitted_system, fitted_messages, budget_report = (
+                engine.context_budgeter.fit(
+                    request_id="selfcheck-context-budget",
+                    scope=test_scope,
+                    mode="FAST",
+                    system_prompt="system " * 9000,
+                    messages=[
+                        {"role": "user", "content": "history " * 1200}
+                        for _ in range(8)
+                    ],
+                )
+            )
+            if (
+                budget_report.estimated_tokens_after
+                > budget_report.token_budget
+            ):
+                raise RuntimeError("Context Budgeter не удержал лимит")
+            if budget_report.estimated_tokens_after >= (
+                budget_report.estimated_tokens_before
+            ):
+                raise RuntimeError("Context Budgeter не сократил перегрузку")
+
+            reflections = []
+            for index in range(3):
+                reflections.append(
+                    engine.self_reflection.assess(
+                        request_id=f"selfcheck-reflection-{index}",
+                        scope=test_scope,
+                        mode="FAST",
+                        user_message=(
+                            "Опять ошибка, исправь"
+                            if index == 0 else "Проверка качества"
+                        ),
+                        provider_runtime={
+                            "available": index != 1,
+                            "error": "test" if index == 1 else None,
+                        },
+                        metacognition={"confidence": 0.42},
+                        verification={
+                            "unresolved": ["test"],
+                            "consistency": {"conflicts": []},
+                        },
+                        decision_quality={"overall": 0.50},
+                        performance={
+                            "total_ms": 100,
+                            "budget_status": "within_budget",
+                        },
+                    )
+                )
+
+            summary = engine.self_reflection.summary(
+                scope=test_scope,
+                limit=10,
+            )
+            if summary["samples"] != 3:
+                raise RuntimeError("Self-Reflection не сохранил тестовые метрики")
+            plans = engine.learning_planner.refresh(scope=test_scope)
+            if not plans:
+                raise RuntimeError("Learning Planner не создал цель из слабых мест")
+            experiments = engine.experiment_manager.observe(
+                scope=test_scope,
+                request_id="selfcheck-experiment-observation",
+                reflection=reflections[-1].to_dict(),
+                open_plans=plans,
+            )
+            if not experiments:
+                raise RuntimeError("Safe Experiment Manager не создал shadow experiment")
+            if any(item.get("promotion_allowed") for item in experiments):
+                raise RuntimeError("Safe Experiment не должен автоматически продвигать стратегию")
+
+            checks["reflective_learning"] = {
+                "status": "ok",
+                "reflection_samples": summary["samples"],
+                "learning_plans": len(plans),
+                "experiments": len(experiments),
+                "context_before": budget_report.estimated_tokens_before,
+                "context_after": budget_report.estimated_tokens_after,
+                "auto_promotion": False,
+            }
+        finally:
+            with connect() as conn:
+                conn.execute(
+                    """DELETE FROM experiment_observations
+                       WHERE scope=?""",
+                    (test_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM safe_experiments WHERE scope=?",
+                    (test_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM learning_plan_events WHERE scope=?",
+                    (test_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM learning_plans WHERE scope=?",
+                    (test_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM self_reflection_runs WHERE scope=?",
+                    (test_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM context_budget_reports WHERE scope=?",
+                    (test_scope,),
+                )
+                conn.commit()
+
         checks["causal_reasoning"] = {
             "status": "ok",
             "engine": engine.causal.__class__.__name__,

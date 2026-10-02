@@ -9,6 +9,7 @@ from .memory import MemoryCandidate, MemorySystem
 from .graph import KnowledgeGraph
 from .observer import Observer
 from .permissions import PermissionGate
+from .personal import PersonalAishin
 from .state import StateManager
 
 
@@ -24,6 +25,7 @@ class AishinEngine:
         self.graph = KnowledgeGraph()
         self.permissions = PermissionGate()
         self.observer = Observer(self.state, self.events)
+        self.personal = PersonalAishin()
 
     def startup(self) -> None:
         self.permissions.bootstrap()
@@ -50,6 +52,9 @@ class AishinEngine:
             "recent_events": self.events.recent(limit=10),
             "recent_memories": self.memory.recent(scope=state.current_scope, limit=8),
             "recent_messages": recent_messages(limit=10, scope=state.current_scope),
+            "master_profile": self.personal.profile(),
+            "relationship_memory": self.personal.context(scope=state.current_scope).relationship_memory,
+            "personal_timeline": self.personal.context(scope=state.current_scope).timeline,
         }
 
     def respond(self, message: str, *, scope: str = "personal") -> dict:
@@ -88,6 +93,27 @@ class AishinEngine:
                 payload={"kind": "user_instruction"},
                 importance=0.7,
             )
+            if self.personal.looks_relationship_explicit(cleaned):
+                self.personal.remember_relationship(
+                    cleaned,
+                    kind="shared_decision",
+                    importance=0.9,
+                    confidence=1.0,
+                    source="explicit_user_request",
+                )
+                self.personal.add_timeline(
+                    event_type="shared_decision",
+                    title="Совместная договорённость",
+                    details=cleaned,
+                    scope="relationship",
+                    importance=0.9,
+                )
+                self.events.emit(
+                    "relationship_memory.saved",
+                    scope="relationship",
+                    payload={"kind": "shared_decision"},
+                    importance=0.8,
+                )
 
         add_message("user", cleaned, scope=scope)
 

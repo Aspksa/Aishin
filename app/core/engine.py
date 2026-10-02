@@ -133,6 +133,7 @@ class AishinEngine:
             "identity": personality.public_summary(),
             "state": state.to_dict(),
             "ai": self.ai.health(),
+            "ai_resilience": self.ai.diagnostics(),
             "semantic_memory": self.semantic.health(),
             "knowledge_graph": {
                 "personal": self.graph.stats(scope="personal"),

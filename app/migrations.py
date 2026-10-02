@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 14
+LATEST_SCHEMA_VERSION = 15
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -596,6 +596,33 @@ def _migration_014_reflection_planning_experiments_context_budget(
     )
 
 
+def _migration_015_weighted_learning_evidence(
+    conn: sqlite3.Connection,
+) -> None:
+    """Weighted evidence for stronger continuous learning."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS learning_evidence_metrics (
+            pattern_id INTEGER PRIMARY KEY,
+            scope TEXT NOT NULL,
+            weighted_observations REAL NOT NULL DEFAULT 0.0,
+            weighted_successes REAL NOT NULL DEFAULT 0.0,
+            weighted_failures REAL NOT NULL DEFAULT 0.0,
+            evidence_confidence REAL NOT NULL DEFAULT 0.5,
+            source_types_json TEXT NOT NULL DEFAULT '[]',
+            last_signal_weight REAL NOT NULL DEFAULT 0.0,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(pattern_id) REFERENCES learning_patterns(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_evidence_scope
+        ON learning_evidence_metrics(
+            scope, evidence_confidence DESC, weighted_observations DESC
+        );
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -611,6 +638,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (12, "continuous_learning", _migration_012_continuous_learning),
     (13, "learning_quality_and_strategy_evolution", _migration_013_learning_quality_and_strategy_evolution),
     (14, "reflection_planner_experiments_context_budget", _migration_014_reflection_planning_experiments_context_budget),
+    (15, "weighted_learning_evidence", _migration_015_weighted_learning_evidence),
 )
 
 

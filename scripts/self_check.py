@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.core.engine import AishinEngine
-from app.db import init_db
+from app.db import connect, database_schema_status, init_db
 from app.personality import personality
 
 
@@ -16,11 +16,42 @@ def main() -> int:
     checks: dict[str, object] = {}
     try:
         init_db()
-        checks["database"] = "ok"
+        schema = database_schema_status()
+        if not schema["up_to_date"]:
+            raise RuntimeError(
+                f"Схема БД устарела: {schema['current_version']} "
+                f"из {schema['latest_version']}"
+            )
+
+        with connect() as conn:
+            foreign_keys = int(
+                conn.execute("PRAGMA foreign_keys").fetchone()[0]
+            )
+            integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+
+        if foreign_keys != 1:
+            raise RuntimeError("SQLite foreign_keys отключён")
+        if integrity != "ok":
+            raise RuntimeError(f"SQLite integrity_check: {integrity}")
+
+        checks["database"] = {
+            "status": "ok",
+            "schema": schema,
+            "foreign_keys": True,
+            "integrity": integrity,
+        }
+
+        if personality.source != "canonical":
+            raise RuntimeError(
+                "Айшин запущена не из канонического профиля личности"
+            )
 
         checks["personality"] = {
             "status": "ok",
             "name": personality.name,
+            "source": personality.source,
+            "path": str(personality.path),
+            "schema_version": personality.profile["schema"].get("version"),
             "rules": len(personality.profile.get("internal_rules", [])),
         }
 

@@ -40,6 +40,9 @@ def main() -> int:
                 'class="technical-brain"',
                 'id="brain-flow"',
                 'id="pending-decisions"',
+                'id="settings-module"',
+                'id="cloud-api-key"',
+                'id="brain-links"',
             )
             missing_ui = [
                 marker for marker in required_ui
@@ -53,6 +56,32 @@ def main() -> int:
                 "status": "ok",
                 "chat_first": True,
                 "technical_brain_collapsed": True,
+            }
+
+            cloud_settings = client.get("/api/settings/cloudru")
+            if cloud_settings.status_code != 200:
+                raise RuntimeError(
+                    f"/api/settings/cloudru returned HTTP "
+                    f"{cloud_settings.status_code}"
+                )
+            cloud_data = cloud_settings.json()
+            if "api_key" in cloud_data or "AISHIN_CLOUDRU_API_KEY" in cloud_data:
+                raise RuntimeError("Cloud settings API leaked API key field")
+
+            update_status = client.get("/api/system/update/status")
+            if update_status.status_code != 200:
+                raise RuntimeError(
+                    f"/api/system/update/status returned HTTP "
+                    f"{update_status.status_code}"
+                )
+            if update_status.json().get("mode") not in {"git", "zip"}:
+                raise RuntimeError("Updater returned unknown mode")
+
+            checks["cloud_settings_ui"] = {
+                "status": "ok",
+                "configured": cloud_data.get("configured"),
+                "secret_not_exposed": True,
+                "update_mode": update_status.json().get("mode"),
             }
 
             health = client.get("/health")

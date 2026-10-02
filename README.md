@@ -1382,3 +1382,35 @@ GitHub Actions run `37008371575`:
 - FastAPI runtime smoke: success;
 - Windows launcher check-only: success.
 
+
+
+## Reflective Learning Technical Brain UI
+
+«Технический мозг Айшин» расширен живым циклом развития:
+`Самоанализ → План обучения → Эксперимент → Проверка → Закрепление`.
+
+Новые узлы работают от фактического runtime state:
+- **Самоанализ** — показывает quality score и слабые места Self-Reflection;
+- **План обучения** — показывает активные learning objectives и их приоритет;
+- **Эксперимент** — показывает shadow experiments, число наблюдений и baseline/candidate;
+- **Проверка** — выделяет experiments со статусом `ready_for_review`;
+- **Закрепление** — показывает число действительно `trusted` learning patterns.
+
+Добавлена отдельная панель «Цикл развития» с:
+- качеством последнего/среднего ответа;
+- списком слабых мест;
+- текущими целями обучения;
+- состоянием безопасных экспериментов;
+- фактическим Context Budget до/после сокращения.
+
+Нейронные SVG-связи дополнены отдельным контуром развития. Визуализация использует сохранённые runtime-метрики и не отображает скрытый chain-of-thought.
+
+Подтверждено GitHub Actions run `37009020927`:
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- JavaScript syntax: success;
+- self-check: success;
+- FastAPI runtime smoke: success;
+- Windows launcher check-only: success.
+
+Версия приложения остаётся `0.0.3`. Schema остаётся `14`.

@@ -25,6 +25,10 @@ const pages = {
     title: "Исследования Айши",
     description: "Пробелы знаний, Evidence Ledger, claims и противоречия."
   },
+  documents: {
+    title: "Библиотека знаний",
+    description: "Документы, страницы, provenance, версии и извлечение знаний."
+  },
   account: {
     title: "Личный кабинет",
     description: "Здесь будет профиль владельца, персональные настройки, доступы и параметры Айшин."
@@ -73,6 +77,11 @@ document.querySelectorAll(".nav-item[data-module]").forEach((button) => {
       document.getElementById("research-module")?.classList.add("active");
       if (typeof window.AISHIN_RESEARCH_REFRESH === "function") {
         window.AISHIN_RESEARCH_REFRESH();
+      }
+    } else if (code === "documents") {
+      document.getElementById("documents-module")?.classList.add("active");
+      if (typeof window.AISHIN_DOCUMENTS_REFRESH === "function") {
+        window.AISHIN_DOCUMENTS_REFRESH();
       }
     } else if (code === "settings") {
       document.getElementById("settings-module").classList.add("active");

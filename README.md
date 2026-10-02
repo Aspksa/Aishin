@@ -426,7 +426,7 @@ Live Brain содержит отдельный узел `Verification`, кото
 SQLite:
 - добавлен `app/migrations.py`;
 - таблица `schema_migrations` хранит применённые миграции;
-- текущая версия схемы: `12`;
+- текущая версия схемы: `13`;
 - `init_db()` автоматически применяет недостающие миграции;
 - self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
 
@@ -1093,6 +1093,100 @@ Schema migration: `12`.
 ### Подтверждение Continuous Learning runtime
 Функциональный код подтверждён GitHub Actions:
 - run id: `37000341016`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.
+
+
+## Learning Quality Gate / Strategy Evolution / Drift & Decay
+Continuous Learning больше не использует любой накопленный pattern сразу.
+
+Каждый learned pattern проходит lifecycle:
+- `candidate` — слишком мало наблюдений;
+- `observed` — повторяется, но доверия ещё недостаточно;
+- `trusted` — достаточно повторных evidence, эффективный score стабилен, противоречивость приемлема;
+- `deprecated` — паттерн устарел или стабильно показывает низкое качество.
+
+### Pattern Quality Gate
+Для каждого pattern рассчитываются:
+- raw score;
+- effective score после decay;
+- decay factor;
+- contradiction rate;
+- age in days;
+- lifecycle reason.
+
+Default pattern half-life: 30 дней.
+После длительного отсутствия свежих evidence score постепенно тянется к нейтральному 0.5.
+После 120 дней без свежего подтверждения pattern может стать `deprecated`.
+
+`trusted` pattern требует повторных наблюдений и достаточного effective score.
+Высокая противоречивость блокирует promotion в trusted.
+
+В cognition попадают только `trusted` operational patterns из разрешённых категорий.
+`candidate`, `observed` и `deprecated` не выдаются модели как подтверждённый опыт.
+
+### Strategy Evolution
+Logic Learning теперь использует отдельный quality state для каждой strategy.
+
+Рассчитываются:
+- raw reliability;
+- effective reliability;
+- evidence count;
+- decay factor;
+- recent drift score;
+- lifecycle;
+- rank внутри Logic Mode.
+
+Default strategy half-life: 45 дней.
+
+Положительная стратегия может стать `trusted` только после достаточного числа explicit user feedback outcomes.
+Сильный recent negative drift снимает доверие и возвращает strategy в `observed`.
+Стабильно слабая или сильно устаревшая strategy становится `deprecated`.
+
+`LogicLearning.recommend()`:
+- исключает deprecated strategies;
+- сначала предпочитает trusted;
+- затем observed;
+- затем candidate;
+- внутри группы сортирует по effective reliability и подтверждённым outcomes.
+
+Таким образом старая когда-то успешная стратегия не остаётся «лучшей навсегда».
+
+### Drift
+Drift сравнивает последние explicit feedback outcomes strategy с её историческим failure rate.
+
+Если последние результаты заметно хуже долгосрочной истории:
+- drift_score растёт;
+- promotion блокируется;
+- trusted strategy может потерять приоритет.
+
+Assistant-generated ответы по-прежнему не считаются success feedback.
+
+### Хранилище
+- `learning_pattern_quality`
+- `strategy_quality_state`
+- `learning_quality_events`
+
+Quality events записываются при изменении lifecycle, поэтому можно видеть promotion/deprecation history.
+
+API:
+- `GET /api/assistant/continuous-learning/quality`
+- `GET /api/assistant/continuous-learning/strategies`
+- `GET /api/assistant/continuous-learning/quality-events`
+
+Live Brain теперь показывает число именно `trusted` patterns, а не просто всё накопленное обучение.
+
+Quality Gate работает внутри Continuous Learning worker и также освежается непосредственно перед повторным использованием Logic Learning strategies.
+
+No-op quality refresh не пишет строки в SQLite каждые 15 секунд: запись происходит только при существенном изменении score/drift/rank/lifecycle.
+
+Schema migration: `13`.
+Версия приложения остаётся `0.0.3`.
+
+### Подтверждение Learning Quality runtime
+Функциональный код подтверждён GitHub Actions:
+- run id: `37001952014`;
 - Ubuntu / Python 3.11: success;
 - Windows / Python 3.11: success;
 - compileall, self-check и FastAPI runtime smoke: success.

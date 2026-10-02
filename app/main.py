@@ -28,20 +28,26 @@ templates = Environment(
 )
 
 engine = AishinEngine()
-heartbeat = Heartbeat(interval_seconds=60, planner=engine.planner)
+heartbeat: Heartbeat | None = None
 heartbeat_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global heartbeat_task
+    global heartbeat, heartbeat_task
     init_db()
     engine.startup()
+    heartbeat = Heartbeat(
+        interval_seconds=60,
+        planner=engine.planner,
+        sensors=engine.sensors,
+    )
     heartbeat_task = asyncio.create_task(heartbeat.run())
     try:
         yield
     finally:
-        heartbeat.stop()
+        if heartbeat is not None:
+            heartbeat.stop()
         if heartbeat_task:
             await heartbeat_task
 
@@ -103,6 +109,16 @@ class StatusUpdate(BaseModel):
     scope: str = 'personal'
     status: str
     blocked_reason: str = ''
+
+
+class ToolInvoke(BaseModel):
+    scope: str = 'personal'
+    arguments: dict = {}
+    dry_run: bool = True
+
+
+class PermissionUpdate(BaseModel):
+    mode: str
 
 
 @app.get('/', response_class=HTMLResponse)
@@ -392,6 +408,73 @@ def assistant_planner_changes(
         scope=scope,
         limit=max(1, min(limit, 100)),
     )
+
+
+@app.get('/api/assistant/sensors')
+def assistant_sensors(scope: str = 'personal') -> list[dict]:
+    return engine.sensors.scan(scope=scope, persist=False)
+
+
+@app.post('/api/assistant/sensors/scan')
+def assistant_sensor_scan(scope: str = 'personal') -> list[dict]:
+    return engine.sensors.scan(scope=scope, persist=True)
+
+
+@app.get('/api/assistant/sensors/history')
+def assistant_sensor_history(
+    scope: str = 'personal',
+    sensor: str | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    return engine.sensors.history(
+        scope=scope,
+        sensor=sensor,
+        limit=max(1, min(limit, 200)),
+    )
+
+
+@app.get('/api/assistant/tools')
+def assistant_tools() -> list[dict]:
+    return engine.tools.catalog()
+
+
+@app.post('/api/assistant/tools/{tool_name:path}')
+def assistant_tool_invoke(tool_name: str, payload: ToolInvoke) -> dict:
+    return engine.tools.invoke(
+        tool_name,
+        scope=payload.scope.strip() or 'personal',
+        arguments=payload.arguments,
+        dry_run=payload.dry_run,
+    )
+
+
+@app.get('/api/assistant/tools/history')
+def assistant_tool_history(
+    scope: str = 'personal',
+    limit: int = 50,
+) -> list[dict]:
+    return engine.tools.history(
+        scope=scope,
+        limit=max(1, min(limit, 200)),
+    )
+
+
+@app.post('/api/assistant/permissions/{capability}')
+def assistant_permission_update(
+    capability: str,
+    payload: PermissionUpdate,
+) -> dict:
+    if capability not in engine.permissions.SAFE_DEFAULTS:
+        raise HTTPException(status_code=400, detail='Неизвестная capability')
+    try:
+        engine.permissions.set(capability, payload.mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {
+        'status': 'updated',
+        'capability': capability,
+        'mode': engine.permissions.mode(capability),
+    }
 
 
 @app.get('/api/assistant/memory')

@@ -577,6 +577,17 @@ def assistant_proactive_execute(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.get('/api/assistant/logic')
+def assistant_logic(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.logic.recent(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
 @app.get('/api/assistant/verification')
 def assistant_verification(
     scope: str = 'personal',

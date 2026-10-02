@@ -2,6 +2,7 @@ import asyncio
 
 from .events import EventBus
 from .planner import Planner
+from .proactive import ProactiveDecisionLoop
 from .sensors import SensorHub
 from .state import StateManager
 
@@ -13,12 +14,14 @@ class Heartbeat:
         *,
         planner: Planner | None = None,
         sensors: SensorHub | None = None,
+        proactive: ProactiveDecisionLoop | None = None,
     ):
         self.interval_seconds = interval_seconds
         self.state = StateManager()
         self.events = EventBus()
         self.planner = planner
         self.sensors = sensors
+        self.proactive = proactive
         self._stop = asyncio.Event()
 
     async def run(self):
@@ -79,6 +82,18 @@ class Heartbeat:
                                 "items": attention[:10],
                             },
                             importance=0.65,
+                        )
+
+                if self.proactive is not None:
+                    evaluation = self.proactive.evaluate(
+                        scope=state.current_scope,
+                    )
+                    if evaluation.created:
+                        self.events.emit(
+                            "proactive.attention",
+                            scope=state.current_scope,
+                            payload=evaluation.to_dict(),
+                            importance=0.7,
                         )
 
             try:

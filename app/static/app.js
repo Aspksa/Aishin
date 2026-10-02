@@ -13,6 +13,10 @@ const pages = {
     title: "Айши заметила",
     description: "Ситуации, аномалии, сроки и проактивное внимание."
   },
+  evolution: {
+    title: "Эволюция Айшин",
+    description: "Самообучение, champion/challenger, curriculum и перенос опыта."
+  },
   account: {
     title: "Личный кабинет",
     description: "Здесь будет профиль владельца, персональные настройки, доступы и параметры Айшин."
@@ -46,6 +50,11 @@ document.querySelectorAll(".nav-item[data-module]").forEach((button) => {
       document.getElementById("attention-module")?.classList.add("active");
       if (typeof window.AISHIN_PROACTIVE_REFRESH === "function") {
         window.AISHIN_PROACTIVE_REFRESH();
+      }
+    } else if (code === "evolution") {
+      document.getElementById("evolution-module")?.classList.add("active");
+      if (typeof window.AISHIN_EVOLUTION_REFRESH === "function") {
+        window.AISHIN_EVOLUTION_REFRESH();
       }
     } else if (code === "settings") {
       document.getElementById("settings-module").classList.add("active");

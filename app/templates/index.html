@@ -7,345 +7,250 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div class="shell">
+  <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
         <img id="brand-logo" class="brand-logo" alt="Айшин">
-        <div>
-          <strong>Aishin</strong>
-          <span>Kitsune</span>
+        <div class="brand-copy">
+          <strong>Айшин</strong>
+          <span>личная помощница</span>
         </div>
       </div>
 
       <nav class="nav">
         {% for module in modules %}
         <button class="nav-item {% if loop.first %}active{% endif %}" data-module="{{ module.code }}">
-          <span class="nav-dot"></span>
-          <span>
+          <span class="nav-icon"></span>
+          <span class="nav-copy">
             <strong>{{ module.title }}</strong>
-            <small>{{ module.description }}</small>
           </span>
         </button>
         {% endfor %}
       </nav>
 
       <div class="sidebar-bottom">
-        <button id="update-btn" class="nav-item system-item">
-          <span class="nav-dot"></span>
-          <span>
-            <strong>Система обновления</strong>
-            <small>Обновление программы через GitHub</small>
-          </span>
+        <button id="update-btn" class="nav-item update-item">
+          <span class="nav-icon"></span>
+          <span class="nav-copy"><strong>Обновление</strong></span>
         </button>
         <div id="update-status" class="status-line">Система готова</div>
+        <div class="version-line">Aishin Core · 0.0.3</div>
       </div>
     </aside>
 
-    <main class="content">
+    <main class="workspace">
       <header class="topbar">
         <div>
-          <p class="eyebrow">AISHIN CORE · v0.0.3</p>
-          <h1 id="page-title">Aishin Kitsune</h1>
+          <p class="overline">ЛИЧНОЕ ПРОСТРАНСТВО</p>
+          <h1 id="page-title">Айшин</h1>
         </div>
-        <div class="health"><span></span> Ядро активно</div>
+        <div class="online-pill"><span></span> Я рядом</div>
       </header>
 
       <section id="assistant-module" class="module-page active">
-        <div class="hero">
-          <div class="portrait-wrap">
-            <img id="hero-logo" class="portrait" alt="Айшин">
-          </div>
-          <div class="hero-copy">
-            <p class="eyebrow">ЛИЧНАЯ AI-ПОМОЩНИЦА</p>
-            <h2>С возвращением, Господин. Я рядом.</h2>
-            <p>
-              Личность Айшин хранится отдельно от AI-модели. Характер, принципы,
-              память и правила поведения принадлежат ядру проекта, а не одному
-              конкретному провайдеру.
-            </p>
-            <div class="chips">
-              {% for trait in profile.traits[:5] %}
-              <span>{{ trait }}</span>
-              {% endfor %}
+        <section class="assistant-home">
+          <div class="chat-panel">
+            <div class="assistant-intro">
+              <div class="portrait-wrap">
+                <img id="hero-logo" class="portrait" alt="Айшин">
+                <span class="presence-dot"></span>
+              </div>
+              <div class="intro-copy">
+                <p class="overline">АЙШИН</p>
+                <h2>С возвращением, Господин.</h2>
+                <p>Я здесь. Можно просто написать мне — остальное я подниму из памяти и контекста сама.</p>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <div class="grid status-grid">
-          <article class="card metric-card">
-            <p class="card-label">ПАМЯТЬ</p>
-            <strong id="metric-memory">—</strong>
-            <p>воспоминаний в текущем контексте</p>
-          </article>
-          <article class="card metric-card">
-            <p class="card-label">ПЛАНЫ</p>
-            <strong id="metric-tasks">—</strong>
-            <p>открытых задач</p>
-          </article>
-          <article class="card metric-card">
-            <p class="card-label">КАРТА МИРА</p>
-            <strong id="metric-entities">—</strong>
-            <p>сущностей в личном графе</p>
-          </article>
-          <article class="card metric-card">
-            <p class="card-label">ВНИМАНИЕ</p>
-            <strong id="metric-decisions">—</strong>
-            <p>решений ждут Вас</p>
-          </article>
-        </div>
+            <div id="messages" class="messages" aria-live="polite">
+              <div class="message aishin">
+                <div class="message-avatar"><img id="chat-logo" alt=""></div>
+                <div class="bubble">Я здесь, Господин. Чем займёмся?</div>
+              </div>
+            </div>
 
-        <section class="living-brain" aria-labelledby="brain-title">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">МОЗГ АЙШИН</p>
-              <h2 id="brain-title">Живой когнитивный поток</h2>
-              <p>Визуализация показывает фактическое состояние ядра: что Айшин видит, что вспоминает, где находится её внимание и к какому решению пришёл проактивный контур.</p>
-            </div>
-            <div class="brain-focus">
-              <span>Текущий фокус</span>
-              <strong id="brain-focus-value">—</strong>
-            </div>
+            <form id="chat-form" class="composer">
+              <input id="chat-input" autocomplete="off" placeholder="Напишите Айшин...">
+              <button type="submit">Отправить</button>
+            </form>
           </div>
 
-          <div id="brain-flow" class="brain-flow" aria-label="Когнитивный поток Айшин">
-            <div class="brain-node" data-brain-node="sensors">
-              <span class="brain-node-pulse"></span>
-              <small>01 · ВОСПРИЯТИЕ</small>
-              <strong>Сенсоры</strong>
-              <em id="brain-sensors-detail">ожидание</em>
+          <aside class="today-panel">
+            <div class="today-head">
+              <div>
+                <p class="overline">СЕЙЧАС</p>
+                <h3>Состояние Айшин</h3>
+              </div>
+              <span id="simple-mode" class="mode-badge">спокойно</span>
             </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="memory">
-              <span class="brain-node-pulse"></span>
-              <small>02 · ВСПОМИНАНИЕ</small>
-              <strong>Память</strong>
-              <em id="brain-memory-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="graph">
-              <span class="brain-node-pulse"></span>
-              <small>03 · СВЯЗИ</small>
-              <strong>Карта мира</strong>
-              <em id="brain-graph-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="planner">
-              <span class="brain-node-pulse"></span>
-              <small>04 · НАМЕРЕНИЕ</small>
-              <strong>Планировщик</strong>
-              <em id="brain-planner-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="logic">
-              <span class="brain-node-pulse"></span>
-              <small>05 · ЛОГИКА</small>
-              <strong>Logic Engine</strong>
-              <em id="brain-logic-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="context">
-              <span class="brain-node-pulse"></span>
-              <small>06 · КОНТЕКСТ</small>
-              <strong>Context</strong>
-              <em id="brain-context-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="causal">
-              <span class="brain-node-pulse"></span>
-              <small>07 · ПРИЧИННОСТЬ</small>
-              <strong>Causal</strong>
-              <em id="brain-causal-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="hypotheses">
-              <span class="brain-node-pulse"></span>
-              <small>08 · ГИПОТЕЗЫ</small>
-              <strong>Hypotheses</strong>
-              <em id="brain-hypotheses-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="learning">
-              <span class="brain-node-pulse"></span>
-              <small>09 · ОПЫТ</small>
-              <strong>Logic Learning</strong>
-              <em id="brain-learning-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="counterfactual">
-              <span class="brain-node-pulse"></span>
-              <small>10 · ЧТО ЕСЛИ</small>
-              <strong>Counterfactual</strong>
-              <em id="brain-counterfactual-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="quality">
-              <span class="brain-node-pulse"></span>
-              <small>11 · КАЧЕСТВО</small>
-              <strong>Decision Quality</strong>
-              <em id="brain-quality-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="action">
-              <span class="brain-node-pulse"></span>
-              <small>12 · ВЫБОР ДЕЙСТВИЯ</small>
-              <strong>Action Selection</strong>
-              <em id="brain-action-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="execution">
-              <span class="brain-node-pulse"></span>
-              <small>13 · APPROVAL</small>
-              <strong>Execution Guard</strong>
-              <em id="brain-execution-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="performance">
-              <span class="brain-node-pulse"></span>
-              <small>14 · СКОРОСТЬ</small>
-              <strong>Latency</strong>
-              <em id="brain-performance-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="continuous-learning">
-              <span class="brain-node-pulse"></span>
-              <small>15 · САМООБУЧЕНИЕ</small>
-              <strong>Continuous Learning</strong>
-              <em id="brain-continuous-learning-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="metacognition">
-              <span class="brain-node-pulse"></span>
-              <small>16 · САМОПРОВЕРКА</small>
-              <strong>Уверенность</strong>
-              <em id="brain-metacognition-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="verification">
-              <span class="brain-node-pulse"></span>
-              <small>17 · ПЕРЕПРОВЕРКА</small>
-              <strong>Verification</strong>
-              <em id="brain-verification-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node decision-node" data-brain-node="decision">
-              <span class="brain-node-pulse"></span>
-              <small>18 · РЕШЕНИЕ</small>
-              <strong>Decision Loop</strong>
-              <em id="brain-decision-detail">ожидание</em>
-            </div>
-            <div class="brain-link"><span></span></div>
-            <div class="brain-node" data-brain-node="tool">
-              <span class="brain-node-pulse"></span>
-              <small>19 · ДЕЙСТВИЕ</small>
-              <strong>Инструменты</strong>
-              <em id="brain-tool-detail">ожидание</em>
-            </div>
-          </div>
 
-          <div class="brain-detail-grid">
-            <article class="brain-detail-card">
-              <div class="brain-detail-title">
-                <span>ВСПОМИНАЕТ СЕЙЧАС</span>
-                <b id="brain-memory-count">0</b>
-              </div>
-              <div id="brain-memory-stream" class="brain-stream">
-                <p class="brain-empty">Память пока не поднята в текущий контекст.</p>
-              </div>
-            </article>
+            <div class="quick-stats">
+              <article>
+                <span>Память</span>
+                <strong id="metric-memory">0</strong>
+                <small>в текущем разговоре</small>
+              </article>
+              <article>
+                <span>Задачи</span>
+                <strong id="metric-tasks">0</strong>
+                <small>открыто сейчас</small>
+              </article>
+              <article>
+                <span>Знания</span>
+                <strong id="metric-entities">0</strong>
+                <small>связей и сущностей</small>
+              </article>
+              <article class="attention-stat">
+                <span>Нужно решение</span>
+                <strong id="metric-decisions">0</strong>
+                <small>ждут Вашего внимания</small>
+              </article>
+            </div>
 
-            <article class="brain-detail-card reasoning-card">
-              <div class="brain-detail-title">
-                <span>ПОЧЕМУ ЭТО РЕШЕНИЕ</span>
-                <b id="brain-reasoning-id">—</b>
+            <div class="learning-card">
+              <div>
+                <span class="learning-dot"></span>
+                <div>
+                  <strong>Самообучение</strong>
+                  <small id="simple-learning">работает в фоне</small>
+                </div>
               </div>
-              <div id="brain-reasoning" class="brain-reasoning">
-                Выберите карточку в «Айшин заметила», чтобы увидеть её основание здесь.
-              </div>
-            </article>
+              <span id="simple-trusted">0 проверенных</span>
+            </div>
 
-            <article class="brain-detail-card">
-              <div class="brain-detail-title">
-                <span>ПОСЛЕДНИЕ СОБЫТИЯ</span>
-                <b id="brain-event-count">0</b>
+            <div class="simple-thinking">
+              <div class="simple-thinking-head">
+                <strong>Как я сейчас думаю</strong>
+                <span id="simple-focus">ожидаю</span>
               </div>
-              <div id="brain-event-stream" class="brain-stream">
-                <p class="brain-empty">Жду событий ядра.</p>
+              <div class="thinking-steps">
+                <div class="thinking-step" id="simple-step-context"><span>1</span><div><strong>Понимаю</strong><small>контекст</small></div></div>
+                <div class="thinking-line"></div>
+                <div class="thinking-step" id="simple-step-memory"><span>2</span><div><strong>Вспоминаю</strong><small>нужное</small></div></div>
+                <div class="thinking-line"></div>
+                <div class="thinking-step" id="simple-step-reason"><span>3</span><div><strong>Проверяю</strong><small>логику</small></div></div>
+                <div class="thinking-line"></div>
+                <div class="thinking-step" id="simple-step-answer"><span>4</span><div><strong>Отвечаю</strong><small>по делу</small></div></div>
               </div>
-            </article>
-          </div>
+            </div>
+          </aside>
         </section>
 
         <section class="approval-center" aria-labelledby="approval-title">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">ПРОАКТИВНЫЙ КОНТУР</p>
+              <p class="overline">ТРЕБУЕТ ВНИМАНИЯ</p>
               <h2 id="approval-title">Айшин заметила</h2>
-              <p>Здесь появляются только предложения. Ничего не считается выполненным без фактического результата инструмента.</p>
+              <p>Здесь появляются только вещи, для которых действительно нужно Ваше решение.</p>
             </div>
-            <button id="refresh-approval" class="ghost-button" type="button">Обновить</button>
+            <button id="refresh-approval" class="ghost-button" type="button">Проверить</button>
           </div>
 
           <div id="approval-summary" class="approval-summary">
             <span class="summary-pill"><b id="pending-count">0</b> ожидают решения</span>
-            <span class="summary-pill"><b id="approved-count">0</b> одобрены</span>
-            <span id="sensor-state" class="summary-pill">Сенсоры: проверяю…</span>
+            <span class="summary-pill"><b id="approved-count">0</b> готовы к выполнению</span>
+            <span id="sensor-state" class="summary-pill">Система спокойна</span>
           </div>
 
           <div class="decision-columns">
             <div>
               <div class="column-title">
-                <h3>Ожидают решения</h3>
-                <span>Approve / Reject</span>
+                <h3>Нужно решить</h3>
               </div>
               <div id="pending-decisions" class="decision-list">
-                <div class="empty-state">Айшин проверяет состояние…</div>
+                <div class="empty-state">Сейчас ничего не требует Вашего подтверждения.</div>
               </div>
             </div>
-
             <div>
               <div class="column-title">
-                <h3>Одобрены</h3>
-                <span>Готовы к контролируемому выполнению</span>
+                <h3>Одобрено</h3>
               </div>
               <div id="approved-decisions" class="decision-list">
-                <div class="empty-state">Нет одобренных действий.</div>
+                <div class="empty-state">Нет действий, ожидающих выполнения.</div>
               </div>
             </div>
           </div>
         </section>
 
-        <section class="brain-monitor">
-          <div class="section-heading compact">
+        <details class="technical-brain">
+          <summary>
             <div>
-              <p class="eyebrow">ЖИВОЕ ЯДРО</p>
-              <h2>Что сейчас видит Айшин</h2>
+              <span class="tech-icon">⌘</span>
+              <div>
+                <strong>Технический мозг Айшин</strong>
+                <small>Подробная диагностика, события, сенсоры и внутренние контуры</small>
+              </div>
+            </div>
+            <span class="summary-open">Открыть</span>
+          </summary>
+
+          <div class="technical-content">
+            <div class="technical-head">
+              <div>
+                <p class="overline">ДИАГНОСТИКА</p>
+                <h2>Внутренние контуры</h2>
+              </div>
+              <div class="brain-focus">
+                <span>Текущий фокус</span>
+                <strong id="brain-focus-value">—</strong>
+              </div>
+            </div>
+
+            <div id="brain-flow" class="brain-flow">
+              <div class="brain-node" data-brain-node="sensors"><small>01</small><strong>Восприятие</strong><em id="brain-sensors-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="memory"><small>02</small><strong>Память</strong><em id="brain-memory-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="graph"><small>03</small><strong>Связи</strong><em id="brain-graph-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="planner"><small>04</small><strong>Планы</strong><em id="brain-planner-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="logic"><small>05</small><strong>Логика</strong><em id="brain-logic-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="context"><small>06</small><strong>Контекст</strong><em id="brain-context-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="causal"><small>07</small><strong>Причины</strong><em id="brain-causal-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="hypotheses"><small>08</small><strong>Гипотезы</strong><em id="brain-hypotheses-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="learning"><small>09</small><strong>Опыт</strong><em id="brain-learning-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="counterfactual"><small>10</small><strong>Альтернативы</strong><em id="brain-counterfactual-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="quality"><small>11</small><strong>Качество</strong><em id="brain-quality-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="action"><small>12</small><strong>Выбор</strong><em id="brain-action-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="execution"><small>13</small><strong>Разрешение</strong><em id="brain-execution-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="performance"><small>14</small><strong>Скорость</strong><em id="brain-performance-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="continuous-learning"><small>15</small><strong>Самообучение</strong><em id="brain-continuous-learning-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="metacognition"><small>16</small><strong>Самопроверка</strong><em id="brain-metacognition-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="verification"><small>17</small><strong>Перепроверка</strong><em id="brain-verification-detail">ожидание</em></div>
+              <div class="brain-node decision-node" data-brain-node="decision"><small>18</small><strong>Решение</strong><em id="brain-decision-detail">ожидание</em></div>
+              <div class="brain-node" data-brain-node="tool"><small>19</small><strong>Действие</strong><em id="brain-tool-detail">ожидание</em></div>
+            </div>
+
+            <div class="brain-detail-grid">
+              <article class="brain-detail-card">
+                <div class="brain-detail-title"><span>Память в контексте</span><b id="brain-memory-count">0</b></div>
+                <div id="brain-memory-stream" class="brain-stream"><p class="brain-empty">Пока пусто.</p></div>
+              </article>
+              <article class="brain-detail-card reasoning-card">
+                <div class="brain-detail-title"><span>Основание решения</span><b id="brain-reasoning-id">—</b></div>
+                <div id="brain-reasoning" class="brain-reasoning">Выберите карточку в «Айшин заметила».</div>
+              </article>
+              <article class="brain-detail-card">
+                <div class="brain-detail-title"><span>Последние события</span><b id="brain-event-count">0</b></div>
+                <div id="brain-event-stream" class="brain-stream"><p class="brain-empty">Событий пока нет.</p></div>
+              </article>
+            </div>
+
+            <div class="sensor-section">
+              <div class="section-heading compact"><div><h3>Состояние системы</h3></div></div>
+              <div id="sensor-cards" class="sensor-grid">
+                <article class="sensor-card"><span>Ядро</span><strong>—</strong></article>
+                <article class="sensor-card"><span>Планы</span><strong>—</strong></article>
+                <article class="sensor-card"><span>Модули</span><strong>—</strong></article>
+                <article class="sensor-card"><span>Файлы</span><strong>—</strong></article>
+              </div>
             </div>
           </div>
-          <div id="sensor-cards" class="sensor-grid">
-            <article class="sensor-card"><span>Runtime</span><strong>—</strong></article>
-            <article class="sensor-card"><span>Planner</span><strong>—</strong></article>
-            <article class="sensor-card"><span>Modules</span><strong>—</strong></article>
-            <article class="sensor-card"><span>Filesystem</span><strong>—</strong></article>
-          </div>
-        </section>
-
-        <section class="chat">
-          <div id="messages" class="messages">
-            <div class="message aishin">Я здесь, Господин. Это первый запуск моего нового дома.</div>
-          </div>
-          <form id="chat-form" class="composer">
-            <input id="chat-input" autocomplete="off" placeholder="Напишите Айшин...">
-            <button type="submit">Отправить</button>
-          </form>
-        </section>
+        </details>
       </section>
 
       <section id="placeholder-module" class="module-page">
         <div class="placeholder-card">
-          <p class="eyebrow">МОДУЛЬ ЗАЛОЖЕН</p>
+          <p class="overline">РАЗДЕЛ</p>
           <h2 id="placeholder-title">Модуль</h2>
           <p id="placeholder-description"></p>
-          <span>Функциональность будет наращиваться поверх общего ядра и базы данных.</span>
         </div>
       </section>
     </main>

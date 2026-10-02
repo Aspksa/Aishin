@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 14,
+      "latest_schema_version": 15,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -150,8 +150,8 @@
         "Cloud settings secret not exposed",
         "updater mode git/zip"
       ],
-      "latest_confirmed_run_id": 37009020927,
-      "latest_confirmed_head_sha": "e78ad93109a3843f19d11c8cc5f49bb559fb0460"
+      "latest_confirmed_run_id": 37010233186,
+      "latest_confirmed_head_sha": "1320c856bbb3b18c0c8e7fa3580a2e0e00bf60e5"
     }
   },
   "implemented_architecture": [
@@ -864,14 +864,14 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Reflective Learning Technical Brain UI implemented and validated.",
-    "last_implemented_feature": "Live Self-Reflection → Learning Planner → Shadow Experiment → Review → Trusted Consolidation visualization, plus context budget diagnostics.",
-    "next_recommended_step": "Make Safe Experiments evaluate real isolated alternate reasoning strategies instead of projected candidate scores, while keeping promotion manual.",
+    "milestone": "Weighted Evidence Self-Learning implemented and validated.",
+    "last_implemented_feature": "Continuous Learning now ingests Self-Reflection, Context Budget and shadow experiment telemetry with evidence weights; Learning Quality Gate requires weighted evidence strength/confidence before trusted promotion.",
+    "next_recommended_step": "Replace projected shadow candidate scores with isolated real alternate-strategy evaluation and add learning-plan completion/regression detection.",
     "do_not_do": [
-      "Не отображать скрытый chain-of-thought.",
-      "Не продвигать experimental candidate автоматически.",
-      "Не считать собственный ответ Айшин доказательством успеха.",
-      "Не удалять память при context trimming.",
+      "Не считать слабую телеметрию равноценной явной обратной связи.",
+      "Не разрешать shadow experiment подтверждать себя как success.",
+      "Не продвигать candidate автоматически.",
+      "Не использовать assistant-generated answer как доказательство успеха.",
       "Не повышать version автоматически."
     ]
   },
@@ -999,6 +999,10 @@
     {
       "user_prompt": "Следующий сильный этап теперь логичный: вывести эти новые системы в «Технический мозг Айшин» ... делай",
       "result": "Added five live Technical Brain nodes Self-Reflection → Learning Plan → Experiment → Review → Consolidation; added live detail panel for quality, weak spots, learning goals, experiments and context budget; neural SVG learning loop uses actual runtime state. GitHub Actions run 37009020927 passed Ubuntu and Windows."
+    },
+    {
+      "user_prompt": "давай усилим Самообучение",
+      "result": "Strengthened Continuous Learning with weighted evidence, added Self-Reflection/Context Budget/Experiment observation sources, introduced learning_evidence_metrics and weighted trust gate. Weak repeated telemetry cannot become trusted by count alone; strong explicit evidence can. Schema 15. GitHub Actions 37010233186 passed Ubuntu and Windows."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -2352,6 +2356,51 @@
       "ubuntu": "success",
       "windows": "success",
       "javascript_syntax": "success",
+      "runtime_smoke": "success",
+      "launcher_check_only": "success"
+    }
+  },
+  "weighted_evidence_learning": {
+    "schema_version": 15,
+    "repository_paths": [
+      "app/core/continuous_learning.py",
+      "app/core/learning_quality.py",
+      "app/migrations.py"
+    ],
+    "new_sources": [
+      "self_reflection_runs",
+      "context_budget_reports",
+      "experiment_observations"
+    ],
+    "weights": {
+      "explicit_logic_feedback": 1,
+      "execution_outcome": 0.95,
+      "self_reflection": 0.85,
+      "performance": 0.7,
+      "context_budget": 0.6,
+      "memory_change": 0.55,
+      "graph_change": 0.5,
+      "event": 0.35,
+      "shadow_experiment": 0.35
+    },
+    "table": "learning_evidence_metrics",
+    "trust_gate": {
+      "observations_min": 5,
+      "weighted_evidence_min": 3.5,
+      "evidence_confidence_min": 0.62,
+      "effective_score_min": 0.62
+    },
+    "safety_rules": [
+      "Shadow experiment observations are observational only and never success/failure reinforcement.",
+      "Repeated weak telemetry alone cannot promote a pattern to trusted.",
+      "Explicit user feedback remains the strongest learning signal.",
+      "Existing contradiction, drift, decay and staleness checks remain active."
+    ],
+    "validation": {
+      "run_id": 37010233186,
+      "ubuntu": "success",
+      "windows": "success",
+      "self_check": "success",
       "runtime_smoke": "success",
       "launcher_check_only": "success"
     }

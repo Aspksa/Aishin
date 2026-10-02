@@ -282,9 +282,13 @@ class EvolutionEngine:
         variant = champion
         assignment_type = "champion" if champion else "baseline"
 
-        if champion is None and challenger is not None:
+        if challenger is not None:
             policy = self._json(challenger["policy_json"], {})
-            fraction = self._clamp(float(policy.get("traffic_fraction") or 0.25), 0.05, 0.40)
+            fraction = self._clamp(
+                float(policy.get("traffic_fraction") or 0.25),
+                0.05,
+                0.40,
+            )
             bucket = int(
                 hashlib.sha256(
                     f"{scope}|{family}|{request_id}".encode("utf-8")
@@ -1315,6 +1319,35 @@ class EvolutionEngine:
             if policy is None:
                 continue
 
+            champion = self._variant_for_family(
+                scope=scope,
+                family=family,
+                lifecycle="champion",
+            )
+            if champion is not None:
+                champion_policy = self._json(
+                    champion["policy_json"],
+                    {},
+                )
+                comparable_champion = {
+                    key: champion_policy.get(key)
+                    for key in (
+                        "preferred_mode",
+                        "verification_bias",
+                        "context_multiplier",
+                    )
+                }
+                comparable_candidate = {
+                    key: policy.get(key)
+                    for key in (
+                        "preferred_mode",
+                        "verification_bias",
+                        "context_multiplier",
+                    )
+                }
+                if comparable_champion == comparable_candidate:
+                    continue
+
             variant_key = (
                 f"{family}:"
                 + self._hash_key(
@@ -1323,7 +1356,12 @@ class EvolutionEngine:
                     generation,
                 )
             )
-            baseline = float(cap["fitness"] or 0.0)
+            baseline = (
+                float(champion["observed_fitness"] or 0.0)
+                if champion is not None
+                and int(champion["evidence_count"] or 0) >= 3
+                else float(cap["fitness"] or 0.0)
+            )
             with connect() as conn:
                 old = conn.execute(
                     """SELECT id FROM evolution_variants

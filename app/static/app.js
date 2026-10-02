@@ -50,6 +50,312 @@ document.querySelectorAll(".nav-item[data-module]").forEach((button) => {
   });
 });
 
+const developmentOpen = document.getElementById("development-open");
+const developmentBack = document.getElementById("development-back");
+let developmentDays = 30;
+
+function openDevelopmentPage() {
+  document.querySelectorAll(".nav-item[data-module]").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll(".module-page").forEach((page) => page.classList.remove("active"));
+  document.getElementById("development-module")?.classList.add("active");
+  document.getElementById("page-title").textContent = "Развитие Айшин";
+  refreshDevelopmentDetails(developmentDays);
+}
+
+function closeDevelopmentPage() {
+  document.querySelectorAll(".module-page").forEach((page) => page.classList.remove("active"));
+  document.getElementById("assistant-module")?.classList.add("active");
+  document.querySelector('.nav-item[data-module="assistant"]')?.classList.add("active");
+  document.getElementById("page-title").textContent = pages.assistant.title;
+}
+
+developmentOpen?.addEventListener("click", openDevelopmentPage);
+developmentBack?.addEventListener("click", closeDevelopmentPage);
+
+document.querySelectorAll("[data-development-days]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll("[data-development-days]").forEach((item) => item.classList.remove("active"));
+    button.classList.add("active");
+    developmentDays = Number(button.dataset.developmentDays || 30);
+    refreshDevelopmentDetails(developmentDays);
+  });
+});
+
+function formatDevelopmentNumber(value) {
+  return new Intl.NumberFormat("ru-RU").format(Number(value || 0));
+}
+
+function developmentPhrase(score, delta) {
+  if (score <= 0) return "Я только начинаю накапливать подтверждённый опыт.";
+  if (delta > 0.2) return "Я расту на подтверждённом опыте и становлюсь точнее.";
+  if (delta < -0.2) return "Я обнаружила слабые места и честно учитываю их в развитии.";
+  return "Я продолжаю учиться на реальной работе.";
+}
+
+function setDevelopmentRing(element, score) {
+  if (!element) return;
+  const bounded = Math.max(0, Math.min(100, Number(score || 0)));
+  element.style.setProperty("--development-score", String(bounded));
+}
+
+function renderDevelopmentCompact(development) {
+  if (!development) return;
+  const score = Number(development.overall_score || 0);
+  const delta = Number(development.monthly_delta || 0);
+  const scoreEl = document.getElementById("development-score");
+  const deltaEl = document.getElementById("development-delta");
+  const phraseEl = document.getElementById("development-phrase");
+  if (scoreEl) scoreEl.textContent = `${score.toFixed(1)}%`;
+  if (deltaEl) {
+    const sign = delta > 0 ? "+" : "";
+    deltaEl.textContent = `${sign}${delta.toFixed(1)}%`;
+    deltaEl.classList.toggle("negative", delta < 0);
+  }
+  if (phraseEl) phraseEl.textContent = developmentPhrase(score, delta);
+  setDevelopmentRing(document.getElementById("development-ring"), score);
+
+  const mini = document.getElementById("development-mini-components");
+  if (mini) {
+    const keys = [
+      ["memory", "◈", "Память"],
+      ["accuracy", "✓", "Точность"],
+      ["error_learning", "↻", "Ошибки"],
+      ["strategies", "◇", "Стратегии"]
+    ];
+    mini.replaceChildren();
+    keys.forEach(([key, icon, label]) => {
+      const item = document.createElement("span");
+      const iconEl = document.createElement("b");
+      iconEl.textContent = icon;
+      const text = document.createTextNode(` ${label} `);
+      const value = document.createElement("strong");
+      value.textContent = `${Number(development.components?.[key]?.score || 0).toFixed(0)}%`;
+      item.append(iconEl, text, value);
+      mini.appendChild(item);
+    });
+  }
+}
+
+function renderDevelopmentList(containerId, items, emptyText, formatter) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.replaceChildren();
+  if (!items?.length) {
+    const empty = document.createElement("p");
+    empty.className = "brain-empty";
+    empty.textContent = emptyText;
+    container.appendChild(empty);
+    return;
+  }
+  items.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "development-list-item";
+    const data = formatter(item);
+    const icon = document.createElement("span");
+    icon.className = "development-list-icon";
+    icon.textContent = data.icon || "✦";
+    const copy = document.createElement("div");
+    const strong = document.createElement("strong");
+    strong.textContent = data.title;
+    const small = document.createElement("small");
+    small.textContent = data.detail || "";
+    copy.append(strong, small);
+    row.append(icon, copy);
+    container.appendChild(row);
+  });
+}
+
+function renderDevelopmentDetails(current, history) {
+  if (!current) return;
+  const score = Number(current.overall_score || 0);
+  const delta = Number(current.monthly_delta || 0);
+  const detailScore = document.getElementById("development-detail-score");
+  const detailDelta = document.getElementById("development-detail-delta");
+  const detailTitle = document.getElementById("development-detail-title");
+  if (detailScore) detailScore.textContent = `${score.toFixed(1)}%`;
+  if (detailDelta) {
+    const sign = delta > 0 ? "+" : "";
+    detailDelta.textContent = `${sign}${delta.toFixed(1)}%`;
+    detailDelta.classList.toggle("negative", delta < 0);
+  }
+  if (detailTitle) detailTitle.textContent = developmentPhrase(score, delta);
+  const principle = document.getElementById("development-principle");
+  if (principle) principle.textContent = current.principle || "";
+  setDevelopmentRing(document.getElementById("development-detail-ring"), score);
+
+  const componentContainer = document.getElementById("development-components");
+  if (componentContainer) {
+    componentContainer.replaceChildren();
+    const order = [
+      "memory", "knowledge", "connections", "analytics",
+      "accuracy", "error_learning", "strategies", "user_help"
+    ];
+    order.forEach((key) => {
+      const item = current.components?.[key];
+      if (!item) return;
+      const card = document.createElement("article");
+      card.className = "development-component-card";
+      const head = document.createElement("div");
+      head.className = "development-component-head";
+      const icon = document.createElement("span");
+      icon.textContent = item.icon || "✦";
+      const copy = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = item.label;
+      const weight = document.createElement("small");
+      weight.textContent = `вклад ${Number(item.weight || 0).toFixed(0)}%`;
+      copy.append(title, weight);
+      const value = document.createElement("b");
+      value.textContent = `${Number(item.score || 0).toFixed(1)}%`;
+      head.append(icon, copy, value);
+
+      const bar = document.createElement("div");
+      bar.className = "development-progress";
+      const fill = document.createElement("i");
+      fill.style.width = `${Math.max(0, Math.min(100, Number(item.score || 0)))}%`;
+      bar.appendChild(fill);
+
+      const evidence = document.createElement("p");
+      evidence.textContent = item.evidence || "";
+      card.append(head, bar, evidence);
+      componentContainer.appendChild(card);
+    });
+  }
+
+  renderDevelopmentList(
+    "development-reasons",
+    current.growth_reasons,
+    "История ещё недостаточна для сравнения.",
+    (item) => ({
+      icon: Number(item.value || 0) < 0 ? "↓" : "↑",
+      title: item.text || "Изменение",
+      detail: item.kind === "history" ? "Нужны новые снимки развития." : "Подтверждено сохранёнными данными."
+    })
+  );
+  renderDevelopmentList(
+    "development-learning",
+    current.learning_now,
+    "Сейчас нет открытых целей обучения.",
+    (item) => ({
+      icon: "↻",
+      title: item.topic || "Цель обучения",
+      detail: `${item.rationale || "Обучение по накопленному опыту"} · приоритет ${Math.round(Number(item.priority || 0) * 100)}%`
+    })
+  );
+  renderDevelopmentList(
+    "development-mastered",
+    current.mastered,
+    "Trusted-навыки ещё накапливают доказательства.",
+    (item) => ({
+      icon: "✓",
+      title: item.pattern_key || item.category || "Проверенный паттерн",
+      detail: `${item.category || "опыт"} · качество ${Math.round(Number(item.effective_score || 0) * 100)}% · наблюдений ${item.observations || 0}`
+    })
+  );
+  renderDevelopmentList(
+    "development-needs",
+    current.growth_needs,
+    "Точки роста будут рассчитаны после появления данных.",
+    (item) => ({
+      icon: item.icon || "◇",
+      title: `${item.label || "Направление"} — ${Number(item.score || 0).toFixed(1)}%`,
+      detail: item.why || ""
+    })
+  );
+
+  const counters = current.counters || {};
+  const counterMap = {
+    "dev-count-experience": counters.experience_events,
+    "dev-count-knowledge": counters.knowledge_items,
+    "dev-count-links": counters.connections,
+    "dev-count-documents": counters.studied_documents,
+    "dev-count-patterns": counters.trusted_patterns,
+    "dev-count-hypotheses": counters.confirmed_hypotheses,
+    "dev-count-errors": counters.error_signals,
+    "dev-count-strategies": counters.trusted_strategies
+  };
+  Object.entries(counterMap).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = formatDevelopmentNumber(value);
+  });
+
+  renderDevelopmentChart(history || []);
+}
+
+function renderDevelopmentChart(history) {
+  const svg = document.getElementById("development-chart");
+  const empty = document.getElementById("development-chart-empty");
+  if (!svg || !empty) return;
+  svg.replaceChildren();
+
+  if (!history?.length) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+
+  const values = history.map((item) => Number(item.overall_score || 0));
+  const width = 800;
+  const height = 220;
+  const padX = 42;
+  const padY = 24;
+  const usableW = width - padX * 2;
+  const usableH = height - padY * 2;
+  const min = Math.max(0, Math.min(...values) - 5);
+  const max = Math.min(100, Math.max(...values) + 5);
+  const span = Math.max(1, max - min);
+  const ns = "http://www.w3.org/2000/svg";
+
+  [0, 0.5, 1].forEach((ratio) => {
+    const y = padY + usableH * ratio;
+    const line = document.createElementNS(ns, "line");
+    line.setAttribute("x1", String(padX));
+    line.setAttribute("x2", String(width - padX));
+    line.setAttribute("y1", String(y));
+    line.setAttribute("y2", String(y));
+    line.setAttribute("class", "development-chart-grid");
+    svg.appendChild(line);
+  });
+
+  const points = history.map((item, index) => {
+    const x = history.length === 1
+      ? width / 2
+      : padX + (usableW * index) / (history.length - 1);
+    const value = Number(item.overall_score || 0);
+    const y = padY + usableH * (1 - (value - min) / span);
+    return {x, y, value, created_at: item.created_at};
+  });
+
+  if (points.length > 1) {
+    const path = document.createElementNS(ns, "polyline");
+    path.setAttribute("points", points.map((p) => `${p.x},${p.y}`).join(" "));
+    path.setAttribute("class", "development-chart-line");
+    svg.appendChild(path);
+  }
+
+  points.forEach((point, index) => {
+    const dot = document.createElementNS(ns, "circle");
+    dot.setAttribute("cx", String(point.x));
+    dot.setAttribute("cy", String(point.y));
+    dot.setAttribute("r", index === points.length - 1 ? "5" : "3");
+    dot.setAttribute("class", "development-chart-dot");
+    const title = document.createElementNS(ns, "title");
+    title.textContent = `${point.value.toFixed(1)}% · ${point.created_at || ""}`;
+    dot.appendChild(title);
+    svg.appendChild(dot);
+  });
+}
+
+async function refreshDevelopmentDetails(days = 30) {
+  try {
+    const data = await fetchJson(`/api/assistant/development?scope=personal&days=${days}`);
+    renderDevelopmentCompact(data.current);
+    renderDevelopmentDetails(data.current, data.history);
+  } catch (error) {
+    console.error("Development Metrics:", error);
+  }
+}
+
 const form = document.getElementById("chat-form");
 const input = document.getElementById("chat-input");
 const messages = document.getElementById("messages");
@@ -1070,6 +1376,10 @@ async function refreshDashboard(evaluate = false) {
     );
     renderSensors(sensors);
     renderLivingBrain(state, sensors, pending, approved);
+    renderDevelopmentCompact(state.development);
+    if (document.getElementById("development-module")?.classList.contains("active")) {
+      refreshDevelopmentDetails(developmentDays);
+    }
 
     const center = document.querySelector(".approval-center");
     center.classList.remove("flash");

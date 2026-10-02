@@ -65,7 +65,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.5', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.6', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -162,7 +162,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.5',
+        'version': '0.0.6',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -215,6 +215,49 @@ def assistant_brain() -> dict:
             ],
         },
     }
+
+
+@app.get('/api/assistant/intelligence')
+def assistant_intelligence(
+    scope: str = 'personal',
+    history_limit: int = 90,
+    route_limit: int = 30,
+) -> dict:
+    return engine.cognitive_intelligence.dashboard(
+        scope=scope,
+        history_limit=max(1, min(history_limit, 365)),
+        route_limit=max(1, min(route_limit, 200)),
+        persist=True,
+    )
+
+
+@app.get('/api/assistant/intelligence/routes')
+def assistant_intelligence_routes(
+    scope: str = 'personal',
+    limit: int = 50,
+) -> list[dict]:
+    return engine.cognitive_intelligence.routes(
+        scope=scope,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/intelligence/history')
+def assistant_intelligence_history(
+    scope: str = 'personal',
+    limit: int = 90,
+) -> list[dict]:
+    return engine.cognitive_intelligence.history(
+        scope=scope,
+        limit=max(1, min(limit, 1000)),
+    )
+
+
+@app.get('/api/assistant/intelligence/transfer')
+def assistant_intelligence_transfer(
+    scope: str = 'personal',
+) -> list[dict]:
+    return engine.cognitive_intelligence.transfer_map(scope=scope)
 
 
 @app.get('/api/assistant/growth')

@@ -426,7 +426,7 @@ Live Brain содержит отдельный узел `Verification`, кото
 SQLite:
 - добавлен `app/migrations.py`;
 - таблица `schema_migrations` хранит применённые миграции;
-- текущая версия схемы: `2`;
+- текущая версия схемы: `3`;
 - `init_db()` автоматически применяет недостающие миграции;
 - self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
 
@@ -446,3 +446,40 @@ Runtime:
 - Windows / Python 3.11: success.
 
 Это первый этап проекта, где runtime-проверка выполнена фактически в CI, а не только структурно по содержимому репозитория.
+
+
+## Aishin Logic Engine v1
+Logic Engine управляет способом обработки задачи до финального ответа Cloud.ru.
+
+Динамические режимы:
+- `FAST` — короткая линейная обработка простой задачи;
+- `DEEP` — сравнение нескольких технически релевантных вариантов;
+- `VERIFY` — приоритет доказательной перепроверки;
+- `PLAN` — цель → зависимости → следующий шаг → критерий завершения;
+- `DIAGNOSE` — симптомы → подтверждённые факты → гипотезы → проверки → причина.
+
+Режим выбирается детерминированно по intent, сложности запроса, метакогнитивному confidence, противоречиям и состоянию Planner.
+
+Компоненты:
+- Reasoning Controller;
+- Rule Engine;
+- Evidence Chain;
+- Contradiction Resolver;
+- Dynamic Thinking Mode;
+- Decision Journal.
+
+Decision Journal сохраняет только техническую трассу: режим, сработавшие правила, evidence, противоречия, альтернативные стратегии, выбранную стратегию, unresolved и confidence. Скрытая chain-of-thought не сохраняется и не экспонируется.
+
+Если Logic Engine выбирает `VERIFY` или `DIAGNOSE`, Verification Engine запускается принудительно до финального ответа. После Verification выполняется финальная Metacognition, затем фиксируется Logic Trace и только потом вызывается Cloud.ru.
+
+Хранилище:
+- `logic_decisions`;
+- `logic_rule_events`;
+- schema migration version `3`.
+
+API:
+- `GET /api/assistant/logic`
+
+Live Brain содержит отдельный узел Logic Engine и отображает текущий mode/complexity.
+
+Это развитие текущей версии `0.0.3`; номер версии не меняется.

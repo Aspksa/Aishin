@@ -70,6 +70,41 @@ def main() -> int:
             "diagnostics": ai_diag,
         }
 
+        if engine.verification.should_run(
+            intent="conversation",
+            status="insufficient_data",
+        ):
+            raise RuntimeError(
+                "Обычный conversation не должен запускать Verification "
+                "только из-за insufficient_data"
+            )
+        if not engine.verification.should_run(
+            intent="verification",
+            status="cautious",
+        ):
+            raise RuntimeError("Explicit verification должен запускать Verification")
+
+        checks["verification_trigger_policy"] = {
+            "status": "ok",
+            "conversation_insufficient": False,
+            "explicit_verification": True,
+            "action_insufficient": engine.verification.should_run(
+                intent="action",
+                status="insufficient_data",
+            ),
+        }
+
+        checks["performance_observability"] = {
+            "status": "ok",
+            "history_entries": len(
+                engine.performance.recent(scope="personal", limit=10)
+            ),
+            "budgets": __import__(
+                "app.core.performance",
+                fromlist=["PerformanceTracker"],
+            ).PerformanceTracker.DEFAULT_BUDGETS_MS,
+        }
+
         checks["cognitive_trace_isolation"] = {
             "status": "ok",
             "store": engine.cognitive_traces.__class__.__name__,

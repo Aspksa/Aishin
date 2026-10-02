@@ -41,9 +41,13 @@ class LearningQualityGate:
                        q.decay_factor,
                        q.contradiction_rate,
                        q.age_days,
-                       q.reason AS quality_reason
+                       q.reason AS quality_reason,
+                       COALESCE(m.weighted_observations, p.observations) AS weighted_observations,
+                       COALESCE(m.evidence_confidence, 0.75) AS evidence_confidence,
+                       COALESCE(m.source_types_json, '[]') AS source_types_json
                    FROM learning_patterns p
                    JOIN learning_pattern_quality q ON q.pattern_id=p.id
+                   LEFT JOIN learning_evidence_metrics m ON m.pattern_id=p.id
                    WHERE p.scope=? AND q.lifecycle='trusted'
                    ORDER BY q.effective_score DESC,
                             p.observations DESC,
@@ -57,6 +61,9 @@ class LearningQualityGate:
             item = dict(row)
             item["evidence"] = json.loads(
                 item.pop("evidence_json") or "[]"
+            )
+            item["source_types"] = json.loads(
+                item.pop("source_types_json", "[]") or "[]"
             )
             result.append(item)
         return result
@@ -135,8 +142,13 @@ class LearningQualityGate:
     def _refresh_patterns(self, *, scope: str) -> dict:
         with connect() as conn:
             rows = conn.execute(
-                """SELECT * FROM learning_patterns
-                   WHERE scope=?""",
+                """SELECT p.*,
+                          COALESCE(m.weighted_observations, p.observations) AS weighted_observations,
+                          COALESCE(m.evidence_confidence, 0.75) AS evidence_confidence,
+                          COALESCE(m.source_types_json, '[]') AS source_types_json
+                   FROM learning_patterns p
+                   LEFT JOIN learning_evidence_metrics m ON m.pattern_id=p.id
+                   WHERE p.scope=?""",
                 (scope,),
             ).fetchall()
 
@@ -157,6 +169,17 @@ class LearningQualityGate:
                 half_life_days=self.PATTERN_HALF_LIFE_DAYS,
             )
             effective = self._decayed_score(raw, decay)
+            weighted_observations = float(
+                item.get("weighted_observations") or observations
+            )
+            evidence_confidence = float(
+                item.get("evidence_confidence") or 0.75
+            )
+            confidence_factor = 0.65 + (0.35 * evidence_confidence)
+            effective = round(
+                0.5 + ((effective - 0.5) * confidence_factor),
+                4,
+            )
 
             outcomes = successes + failures
             contradiction_rate = (
@@ -171,6 +194,8 @@ class LearningQualityGate:
                 effective_score=effective,
                 contradiction_rate=contradiction_rate,
                 age_days=age_days,
+                evidence_strength=weighted_observations,
+                evidence_confidence=evidence_confidence,
             )
 
             if self._upsert_pattern_quality(
@@ -293,6 +318,8 @@ class LearningQualityGate:
         effective_score: float,
         contradiction_rate: float,
         age_days: float,
+        evidence_strength: float = 0.0,
+        evidence_confidence: float = 0.75,
     ) -> tuple[str, str]:
         if observations < 3:
             return "candidate", "insufficient_observations"
@@ -307,8 +334,19 @@ class LearningQualityGate:
             return "observed", "high_contradiction_rate"
 
         trust_threshold = 0.62
-        if observations >= 5 and effective_score >= trust_threshold:
-            return "trusted", "sufficient_repeated_evidence"
+        if (
+            observations >= 5
+            and evidence_strength >= 3.5
+            and evidence_confidence >= 0.62
+            and effective_score >= trust_threshold
+        ):
+            return "trusted", "weighted_repeated_evidence"
+
+        if observations >= 5 and evidence_strength < 3.5:
+            return "observed", "insufficient_weighted_evidence"
+
+        if evidence_confidence < 0.62:
+            return "observed", "low_evidence_confidence"
 
         return "observed", "requires_more_confirmation"
 

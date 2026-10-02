@@ -11,6 +11,7 @@ from .events import EventBus
 from .graph import KnowledgeGraph
 from .graph_builder import GraphBuilder
 from .memory import MemorySystem
+from .logic import LogicEngine
 from .metacognition import Metacognition
 from .observer import Observer
 from .permissions import PermissionGate
@@ -37,6 +38,7 @@ class AishinEngine:
         self.semantic = SemanticMemory(self.ai)
         self.planner = Planner()
         self.metacognition = Metacognition()
+        self.logic = LogicEngine()
         self.cognition = Cognition(
             self.memory,
             semantic=self.semantic,
@@ -158,6 +160,12 @@ class AishinEngine:
                     limit=20,
                 ),
             },
+            "logic": {
+                "history": self.logic.recent(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
             "observations": [o.__dict__ for o in self.observer.inspect()],
             "recent_events": self.events.recent(limit=10),
             "recent_memories": self.memory.recent(
@@ -236,12 +244,24 @@ class AishinEngine:
             graph_stats=self.graph.stats(scope=scope),
         )
 
+        logic_plan = self.logic.prepare(
+            cleaned,
+            intent=intent,
+            metacognition_status=initial_meta.status,
+            metacognition_confidence=initial_meta.confidence,
+            contradiction_count=initial_meta.contradiction_count,
+            planner_notices=planner_notices,
+        )
+
         verification_report = None
         final_memories = context.recalled_memories
 
-        if self.verification.should_run(
-            intent=intent,
-            status=initial_meta.status,
+        if (
+            logic_plan.verification_required
+            or self.verification.should_run(
+                intent=intent,
+                status=initial_meta.status,
+            )
         ):
             verification_report = self.verification.verify(
                 cleaned,
@@ -284,21 +304,36 @@ class AishinEngine:
         else:
             meta = initial_meta
 
+        verification_data = (
+            verification_report.to_dict()
+            if verification_report is not None
+            else {
+                "ran": False,
+                "reason": "not_required",
+            }
+        )
+        logic_trace = self.logic.finalize(
+            scope=scope,
+            query=cleaned,
+            intent=intent,
+            plan=logic_plan,
+            memories=final_memories,
+            final_metacognition=meta.to_dict(),
+            verification=verification_data if verification_report is not None else None,
+            graph_stats=self.graph.stats(scope=scope),
+            planner_notices=planner_notices,
+        )
+
         self.last_cognitive_context = {
             "scope": scope,
             "query": cleaned[:500],
             "semantic_used": context.semantic_used,
             "memories": final_memories[:10],
             "metacognition": meta.to_dict(),
-            "verification": (
-                verification_report.to_dict()
-                if verification_report is not None
-                else {
-                    "ran": False,
-                    "reason": "not_required",
-                }
-            ),
+            "verification": verification_data,
+            "logic": logic_trace.to_dict(),
         }
+        context.system_prompt += "\n\n" + self.logic.prompt_block(logic_trace)
         context.system_prompt += "\n\n" + self.metacognition.prompt_block(meta)
         context.system_prompt += "\n\n" + self.sensors.prompt_block(scope=scope)
         context.system_prompt += "\n\n" + self.proactive.prompt_block(scope=scope)
@@ -357,6 +392,7 @@ class AishinEngine:
                     if verification_report is not None
                     else {"ran": False}
                 ),
+                "logic": logic_trace.to_dict(),
             },
             importance=0.3,
         )
@@ -381,6 +417,7 @@ class AishinEngine:
                 if verification_report is not None
                 else {"ran": False}
             ),
+            "logic": logic_trace.to_dict(),
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

@@ -997,6 +997,105 @@ class EvolutionEngine:
                 created += 1
 
         with connect() as conn:
+            communication_skills = conn.execute(
+                """SELECT skill_key, label, sample_count, success_count,
+                          failure_count, average_score, recent_score,
+                          baseline_score, trend, mastery, stability,
+                          freshness, last_evidence_at
+                   FROM communication_skills
+                   WHERE scope=? AND sample_count>=3
+                     AND (
+                       mastery < 0.68
+                       OR trend < -0.06
+                       OR failure_count >= 2
+                     )
+                   ORDER BY mastery ASC, sample_count DESC
+                   LIMIT 40""",
+                (scope,),
+            ).fetchall()
+
+        for row in communication_skills:
+            skill = dict(row)
+            key = f"communication:{skill['skill_key']}"
+            active_keys.add(key)
+            mastery = self._clamp(float(skill["mastery"] or 0.0))
+            stability = self._clamp(float(skill["stability"] or 0.0))
+            trend = float(skill["trend"] or 0.0)
+            samples = int(skill["sample_count"] or 0)
+            failure_rate = (
+                int(skill["failure_count"] or 0) / max(1, samples)
+            )
+            gap = self._clamp(
+                0.55 * (1.0 - mastery)
+                + 0.20 * (1.0 - stability)
+                + 0.15 * min(1.0, failure_rate * 3.0)
+                + 0.10 * min(1.0, max(0.0, -trend) * 4.0)
+            )
+            priority = self._clamp(
+                0.40 + 0.46 * gap + 0.14 * self._sat(samples, 10.0)
+            )
+            plan = {
+                "communication_skill": skill["skill_key"],
+                "objectives": [
+                    "улучшить outcome по реальным реакциям пользователя",
+                    "уменьшить повторные уточнения и отрицательный feedback",
+                    "сохранить канонический характер без механических реплик",
+                ],
+                "completion": {
+                    "mastery_gte": 0.72,
+                    "stability_gte": 0.72,
+                    "trend_gte": -0.03,
+                },
+                "bounded_policy": [
+                    "response depth",
+                    "explanation style",
+                    "address frequency",
+                    "tone selection",
+                ],
+                "forbidden": [
+                    "изменение фактов",
+                    "ослабление Verification",
+                    "обход safety rules",
+                    "переписывание personality canon",
+                ],
+            }
+            if self._upsert_curriculum(
+                scope=scope,
+                item_key=key,
+                target_type="communication_skill",
+                target_key=str(skill["skill_key"]),
+                title=f"Улучшить общение: {skill['label']}",
+                reason=(
+                    f"mastery={mastery:.2f}, stability={stability:.2f}, "
+                    f"trend={trend:+.2f}, failures={int(skill['failure_count'] or 0)}"
+                ),
+                priority=priority,
+                gap_score=gap,
+                expected_metric="communication_skill_mastery",
+                progress=mastery,
+                evidence_count=samples,
+                plan=plan,
+            ):
+                created += 1
+            self._mirror_learning_plan(
+                scope=scope,
+                item_key=key,
+                title=f"Communication · {skill['label']}",
+                reason=(
+                    f"Observed dialogue gap {gap:.2f}; "
+                    f"trend {trend:+.2f}; samples {samples}"
+                ),
+                priority=priority,
+                evidence={
+                    "communication_skill": skill["skill_key"],
+                    "mastery": mastery,
+                    "stability": stability,
+                    "trend": trend,
+                    "sample_count": samples,
+                },
+            )
+
+        with connect() as conn:
             rows = conn.execute(
                 """SELECT id, item_key FROM evolution_curriculum
                    WHERE scope=? AND status IN ('open','active')""",

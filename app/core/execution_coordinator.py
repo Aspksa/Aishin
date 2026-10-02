@@ -163,10 +163,17 @@ class ExecutionCoordinator:
             }
 
         tool_name = str(decision.get("tool_name") or "")
+        execution_arguments = dict(decision.get("arguments") or {})
+        if tool_name == "project.write_text":
+            execution_arguments["_expected_sha256"] = (
+                revalidation.get("expected_sha256")
+                or self.tools.MISSING_SHA256
+            )
+
         tool_result = self.tools.invoke(
             tool_name,
             scope=scope,
-            arguments=decision.get("arguments") or {},
+            arguments=execution_arguments,
             dry_run=False,
             approved=True,
         )
@@ -196,6 +203,68 @@ class ExecutionCoordinator:
             "revalidation": revalidation,
             "tool_result": tool_result,
             "rollback": rollback,
+        }
+
+    def rollback_attempt(
+        self,
+        attempt_id: int,
+        *,
+        scope: str,
+        approved: bool = False,
+    ) -> dict:
+        with connect() as conn:
+            row = conn.execute(
+                """SELECT * FROM execution_attempts
+                   WHERE id=? AND scope=?""",
+                (attempt_id, scope),
+            ).fetchone()
+
+        if row is None:
+            raise ValueError("execution attempt not found in scope")
+
+        item = dict(row)
+        rollback = json.loads(item.get("rollback_json") or "{}")
+        if not rollback.get("available"):
+            raise ValueError("rollback metadata unavailable")
+
+        preview = self.tools.invoke(
+            "project.rollback_write",
+            scope=scope,
+            arguments=rollback,
+            dry_run=True,
+            approved=False,
+        )
+        if preview.get("status") != "preview":
+            return {
+                "status": preview.get("status"),
+                "attempt_id": attempt_id,
+                "preview": preview,
+                "executed": False,
+            }
+
+        if not approved:
+            return {
+                "status": "approval_required",
+                "attempt_id": attempt_id,
+                "preview": preview,
+                "executed": False,
+                "requires_fresh_approval": True,
+            }
+
+        result = self.tools.invoke(
+            "project.rollback_write",
+            scope=scope,
+            arguments=rollback,
+            dry_run=False,
+            approved=True,
+        )
+        return {
+            "status": result.get("status"),
+            "attempt_id": attempt_id,
+            "preview": preview,
+            "tool_result": result,
+            "executed": result.get("status") == "success",
+            "requires_fresh_approval": True,
         }
 
     def recent_approvals(
@@ -337,6 +406,14 @@ class ExecutionCoordinator:
                 "preview_hash_now": current_preview_hash,
             }
 
+        preview_output = preview.get("output") or {}
+        expected_sha256 = None
+        if tool_name == "project.write_text":
+            if preview_output.get("existing_file"):
+                expected_sha256 = preview_output.get("existing_sha256")
+            else:
+                expected_sha256 = self.tools.MISSING_SHA256
+
         return {
             "valid": True,
             "reason": "revalidated",
@@ -344,6 +421,7 @@ class ExecutionCoordinator:
             "global_mode": global_mode,
             "arguments_hash": current_arguments_hash,
             "preview_hash": current_preview_hash,
+            "expected_sha256": expected_sha256,
         }
 
     def _active_approval(

@@ -126,6 +126,14 @@ def main() -> int:
                 engine.verification.recent(scope="personal", limit=10)
             ),
         }
+        checks["logic_engine"] = {
+            "status": "ok",
+            "engine": engine.logic.__class__.__name__,
+            "history_entries": len(
+                engine.logic.recent(scope="personal", limit=10)
+            ),
+            "modes": ["FAST", "DEEP", "VERIFY", "PLAN", "DIAGNOSE"],
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

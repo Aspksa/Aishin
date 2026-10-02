@@ -162,6 +162,37 @@ def init_db() -> None:
                 title = excluded.title,
                 description = excluded.description
         ''', MODULES)
+
+        conn.execute(
+            """INSERT OR IGNORE INTO master_profile(key, value_json, source, confidence)
+               VALUES (?, ?, ?, ?)""",
+            ("primary_address", json.dumps("Господин", ensure_ascii=False), "project_foundation", 1.0),
+        )
+        conn.execute(
+            """INSERT OR IGNORE INTO master_profile(key, value_json, source, confidence)
+               VALUES (?, ?, ?, ?)""",
+            ("assistant_mode", json.dumps("personal_single_owner", ensure_ascii=False), "project_foundation", 1.0),
+        )
+
+        seed_key = "personal_aishin_relationship_seed_v1"
+        seeded = conn.execute("SELECT 1 FROM settings WHERE key=?", (seed_key,)).fetchone()
+        if not seeded:
+            shared = "Айшин и Господин вместе создают и развивают проект Aishin."
+            conn.execute(
+                """INSERT INTO relationship_memory(kind, content, importance, confidence, source)
+                   VALUES (?, ?, ?, ?, ?)""",
+                ("shared_project_principle", shared, 1.0, 1.0, "explicit_user"),
+            )
+            conn.execute(
+                """INSERT INTO personal_timeline(event_type, title, details, scope, importance)
+                   VALUES (?, ?, ?, ?, ?)""",
+                ("shared_project_principle", "Совместное развитие Aishin", shared, "relationship", 1.0),
+            )
+            conn.execute(
+                "INSERT INTO settings(key, value) VALUES (?, ?)",
+                (seed_key, "1"),
+            )
+
         conn.commit()
 
 

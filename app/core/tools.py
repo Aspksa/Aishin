@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+import hashlib
 from pathlib import Path
 
 from ..db import add_tool_action, recent_tool_actions
@@ -24,6 +26,7 @@ class ToolRegistry:
         ".git",
         ".venv",
         "aishin.db",
+        ".aishin_backups",
     }
 
     SPECS = {
@@ -209,18 +212,68 @@ class ToolRegistry:
         if name == "project.write_text":
             path = self._safe_path(str(arguments.get("path") or ""))
             content = str(arguments.get("content") or "")
-            if len(content.encode("utf-8")) > 1_000_000:
+            encoded = content.encode("utf-8")
+            if len(encoded) > 1_000_000:
                 raise ValueError("Содержимое слишком большое")
+
+            existed = path.is_file()
+            before_sha256 = None
+            before_bytes = 0
+            if existed:
+                before = path.read_bytes()
+                before_bytes = len(before)
+                before_sha256 = hashlib.sha256(before).hexdigest()
+
             if dry_run:
                 return {
                     "would_write": str(path.relative_to(self.root)),
-                    "bytes": len(content.encode("utf-8")),
+                    "bytes": len(encoded),
+                    "existing_file": existed,
+                    "existing_bytes": before_bytes,
+                    "existing_sha256": before_sha256,
                 }
+
+            rollback = {
+                "available": False,
+                "kind": "none",
+                "target": str(path.relative_to(self.root)),
+            }
+
+            if existed:
+                stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+                backup = (
+                    self.root
+                    / ".aishin_backups"
+                    / stamp
+                    / path.relative_to(self.root)
+                )
+                backup.parent.mkdir(parents=True, exist_ok=True)
+                backup.write_bytes(path.read_bytes())
+                rollback = {
+                    "available": True,
+                    "kind": "restore_backup",
+                    "target": str(path.relative_to(self.root)),
+                    "backup_path": str(backup.relative_to(self.root)),
+                    "before_sha256": before_sha256,
+                }
+            else:
+                rollback = {
+                    "available": True,
+                    "kind": "remove_created_file",
+                    "target": str(path.relative_to(self.root)),
+                    "requires_separate_approval": True,
+                }
+
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content, encoding="utf-8")
+            path.write_bytes(encoded)
+            after_sha256 = hashlib.sha256(encoded).hexdigest()
+            rollback["after_sha256"] = after_sha256
+
             return {
                 "path": str(path.relative_to(self.root)),
-                "bytes": len(content.encode("utf-8")),
+                "bytes": len(encoded),
+                "sha256": after_sha256,
+                "rollback": rollback,
             }
 
         raise ValueError("Инструмент не реализован")
@@ -235,7 +288,7 @@ class ToolRegistry:
             raise ValueError("Выход за пределы проекта запрещён") from exc
 
         lowered_parts = [part.casefold() for part in relative.parts]
-        if any(part in self.FORBIDDEN_NAMES for part in relative.parts):
+        if any(part.casefold() in self.FORBIDDEN_NAMES for part in relative.parts):
             raise ValueError("Доступ к защищённому пути запрещён")
         if any(part.startswith(".env") for part in lowered_parts):
             raise ValueError("Доступ к env-файлам запрещён")

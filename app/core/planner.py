@@ -215,3 +215,38 @@ class Planner:
                 )
 
         return notices
+
+
+    def prompt_block(self, *, scope: str) -> str:
+        items = self.open_items(scope=scope)
+        notices = self.inspect(scope=scope)
+
+        lines = [
+            "Внутренний планировщик Айшин.",
+            "Не утверждай, что задача выполнена, пока её статус явно не completed.",
+            "Не выполняй внешние действия без соответствующего разрешения.",
+        ]
+
+        if items["goals"]:
+            lines.append("Активные цели:")
+            for goal in items["goals"][:8]:
+                lines.append(
+                    f"- #{goal['id']} {goal['title']} "
+                    f"(priority={float(goal['priority']):.2f}, status={goal['status']})"
+                )
+
+        if items["tasks"]:
+            lines.append("Открытые задачи:")
+            for task in items["tasks"][:12]:
+                due = f", due={task['due_at']}" if task.get("due_at") else ""
+                lines.append(
+                    f"- #{task['id']} {task['title']} "
+                    f"(priority={float(task['priority']):.2f}, status={task['status']}{due})"
+                )
+
+        if notices:
+            lines.append("Требует внимания:")
+            for notice in notices[:8]:
+                lines.append(f"- [{notice.severity}] {notice.message}")
+
+        return "\n".join(lines)

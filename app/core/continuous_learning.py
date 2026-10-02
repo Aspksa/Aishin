@@ -40,13 +40,14 @@ class ContinuousLearningEngine:
         *,
         state: StateManager,
         events: EventBus,
-        interval_seconds: float = 5.0,
+        interval_seconds: float = 15.0,
     ) -> None:
         self.state = state
         self.events = events
         self.interval_seconds = max(2.0, min(60.0, float(interval_seconds)))
         self._stop = asyncio.Event()
         self._last_mode: dict[str, str] = {}
+        self._last_cycle_recorded_at: dict[str, float] = {}
 
     def prepare_start(self) -> None:
         self._stop.clear()

@@ -194,6 +194,18 @@ def main() -> int:
             ),
             "execution_policy": "selection_never_executes_tools",
         }
+        checks["execution_coordinator"] = {
+            "status": "ok",
+            "engine": engine.execution_coordinator.__class__.__name__,
+            "approval_ttl_minutes": engine.execution_coordinator.APPROVAL_TTL_MINUTES,
+            "approvals": len(
+                engine.execution_coordinator.recent_approvals(scope="personal", limit=10)
+            ),
+            "attempts": len(
+                engine.execution_coordinator.recent_attempts(scope="personal", limit=10)
+            ),
+            "policy": "one_shot_revalidate_before_execute",
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

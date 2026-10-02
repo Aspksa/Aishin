@@ -947,3 +947,68 @@ Schema остаётся `11`.
 - compileall, self-check и FastAPI runtime smoke: success.
 
 Первый усиленный self-check обнаружил старую Unicode-проблему поиска кириллицы. После замены SQLite LOWER-поиска на Unicode-safe casefold повторный run прошёл полностью.
+
+
+## Tool Registry Atomic Write Hardening
+`project.write_text` теперь пишет файлы атомарно.
+
+Write pipeline:
+1. проверяется текущий SHA-256 / отсутствие файла;
+2. при наличии `expected_sha256` состояние должно совпасть;
+3. для существующего файла создаётся backup;
+4. backup записывается атомарно и его SHA-256 сверяется с исходным файлом;
+5. новое содержимое записывается во временный файл в той же директории;
+6. temp file получает `flush + fsync`;
+7. выполняется `os.replace()`;
+8. директория fsync-ится там, где ОС это поддерживает;
+9. итоговый SHA-256 сверяется с записанными байтами.
+
+Execution Coordinator дополнительно передаёт внутренний `_expected_sha256` из свежего pre-execution preview. Поэтому изменение файла даже в узком окне между revalidation и записью блокирует write.
+
+Для нового файла используется специальный precondition `__missing__`: если файл успел появиться после проверки, запись отменяется.
+
+### Rollback hardening
+В Tool Registry добавлен destructive tool:
+- `project.rollback_write`
+
+Он всегда требует новое явное approval перед реальным выполнением, даже если capability `modify_files` когда-либо будет переведена в `allow`.
+
+Rollback существующего файла:
+- target должен всё ещё иметь `after_sha256` исходной операции;
+- backup должен находиться строго внутри `.aishin_backups/`;
+- backup SHA-256 должен совпасть с сохранённым `backup_sha256`;
+- восстановление выполняется атомарно;
+- итоговый SHA-256 проверяется повторно.
+
+Rollback нового файла:
+- удаление разрешено только если текущий SHA-256 совпадает с `after_sha256`;
+- если файл был изменён позже, rollback блокируется;
+- после unlink выполняется fsync директории там, где поддерживается.
+
+API:
+- `POST /api/assistant/execution/attempts/{attempt_id}/rollback`
+
+Первый вызов с `approved=false` возвращает preview / `approval_required`.
+Реальный rollback выполняется только отдельным запросом с новым `approved=true`, и Permission Gate проверяется заново непосредственно Tool Registry.
+
+Обычный доступ к `.aishin_backups/` остаётся запрещён; rollback использует отдельную внутреннюю проверку пути только для backup metadata.
+
+Новых таблиц не потребовалось.
+Schema остаётся `11`.
+Версия приложения остаётся `0.0.3`.
+
+### Подтверждение atomic write / rollback runtime
+Функциональный код подтверждён GitHub Actions:
+- run id: `36998386131`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.
+
+Self-check во временной директории подтвердил:
+- atomic replace;
+- expected SHA-256 guard;
+- backup integrity;
+- rollback restore;
+- destructive rollback tool.
+
+Первый runtime smoke ожидал HTTP 400 для нелокального rollback-теста, но local-only guard корректно вернул 403. Тест был исправлен так, чтобы 403 считался правильной защитой.

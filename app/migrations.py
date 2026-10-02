@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 3
+LATEST_SCHEMA_VERSION = 4
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -90,10 +90,44 @@ def _migration_003_logic_engine(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_004_context_and_causality(conn: sqlite3.Connection) -> None:
+    """Context Orchestrator and Causal Reasoning audit tables."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS context_traces (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            query TEXT NOT NULL,
+            budget_json TEXT NOT NULL DEFAULT '{}',
+            selected_json TEXT NOT NULL DEFAULT '{}',
+            estimated_chars INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS causal_assessments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            query TEXT NOT NULL,
+            claims_json TEXT NOT NULL DEFAULT '[]',
+            unresolved_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_context_traces_scope_created
+        ON context_traces(scope, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_causal_assessments_scope_created
+        ON causal_assessments(scope, created_at DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
     (3, "logic_engine_v1", _migration_003_logic_engine),
+    (4, "context_orchestrator_and_causality", _migration_004_context_and_causality),
 )
 
 

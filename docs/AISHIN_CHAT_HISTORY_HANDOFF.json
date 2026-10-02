@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T21:20:00+10:00",
+  "generated_at": "2026-10-02T21:38:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 12,
+      "latest_schema_version": 13,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -146,8 +146,8 @@
         "scripts/self_check.py",
         "scripts/runtime_smoke.py"
       ],
-      "latest_confirmed_run_id": 37000341016,
-      "latest_confirmed_head_sha": "675f7ac06d37a99e300b36137913bc8125f83cce"
+      "latest_confirmed_run_id": 37001952014,
+      "latest_confirmed_head_sha": "eb54fae4d1d9f013fce741917f19401e4bfaecea"
     }
   },
   "implemented_architecture": [
@@ -495,6 +495,19 @@
         "app/static/app.js"
       ],
       "details": "Always-on background learning around the model with automatic REALTIME/BACKGROUND/IDLE/MAINTENANCE mode selection. Learns locally from events, performance, explicit logic feedback, memory/graph changes and execution outcomes. Learned operational patterns feed back into cognition as weak experience, never as facts or permission."
+    },
+    {
+      "layer": "Learning Quality Gate / Strategy Evolution / Drift & Decay",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/learning_quality.py",
+        "app/core/continuous_learning.py",
+        "app/core/logic_learning.py",
+        "app/core/engine.py",
+        "app/migrations.py",
+        "app/main.py"
+      ],
+      "details": "Learned patterns and logic strategies now pass candidate→observed→trusted→deprecated lifecycle. Effective scores decay toward neutral with age. Recent explicit-feedback drift can demote strategies. Deprecated strategies are excluded from reuse and only trusted operational patterns are fed back into cognition."
     }
   ],
   "current_cognitive_flow": [
@@ -608,7 +621,10 @@
     "continuous_learning_state",
     "continuous_learning_queue",
     "learning_patterns",
-    "continuous_learning_cycles"
+    "continuous_learning_cycles",
+    "learning_pattern_quality",
+    "strategy_quality_state",
+    "learning_quality_events"
   ],
   "important_api": [
     "GET /health",
@@ -668,7 +684,10 @@
     "GET /api/assistant/continuous-learning/status",
     "GET /api/assistant/continuous-learning/cycles",
     "GET /api/assistant/continuous-learning/patterns",
-    "GET /api/assistant/continuous-learning/queue"
+    "GET /api/assistant/continuous-learning/queue",
+    "GET /api/assistant/continuous-learning/quality",
+    "GET /api/assistant/continuous-learning/strategies",
+    "GET /api/assistant/continuous-learning/quality-events"
   ],
   "key_fixed_bugs_and_safety_changes": [
     "Исправлена SQL-ошибка кавычек в запросе active memories.",
@@ -750,7 +769,13 @@
     "Background learning is local by default and does not continuously call Cloud.ru.",
     "Learning event payload metadata recursively redacts secret/content-like keys before queue storage.",
     "24/7 cycle audit noise is suppressed: empty cycles are not inserted every worker interval.",
-    "Continuous Learning Engine validated on Windows and Ubuntu in GitHub Actions run 37000341016."
+    "Continuous Learning Engine validated on Windows and Ubuntu in GitHub Actions run 37000341016.",
+    "Continuous Learning no longer feeds every repeated pattern into cognition; only trusted patterns pass the Quality Gate.",
+    "Old learned scores decay toward neutral and cannot remain permanently influential without fresh evidence.",
+    "Logic strategies are lifecycle-managed and deprecated strategies are excluded from recommendations.",
+    "Recent explicit-feedback deterioration raises strategy drift_score and can demote a previously trusted strategy.",
+    "Quality refresh avoids continuous SQLite writes when nothing materially changed.",
+    "Learning Quality Gate / Strategy Evolution / Drift & Decay validated on Windows and Ubuntu in GitHub Actions run 37001952014."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -791,18 +816,18 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Continuous Learning Engine with automatic modes completed, history saved, cross-platform runtime validated.",
-    "last_implemented_feature": "Always-on local self-learning around the model with automatic REALTIME/BACKGROUND/IDLE/MAINTENANCE mode selection and learned operational patterns feeding back into cognition.",
-    "next_recommended_step": "Add Learning Quality Gate and promotion lifecycle: candidate→observed→trusted/deprecated patterns, contradiction detection between learned patterns, drift/decay, and optional bounded Cloud.ru deep-analysis only for high-value BACKGROUND items. Separately add Windows autostart/service if true across-reboot 24/7 operation is required.",
+    "milestone": "Learning Quality Gate + Strategy Evolution + Drift/Decay completed, history saved, cross-platform runtime validated.",
+    "last_implemented_feature": "Lifecycle promotion/deprecation for learned patterns and logic strategies, age-based decay, recent-feedback drift and trusted-only cognition feedback.",
+    "next_recommended_step": "Self-Reflection Metrics + Learning Planner: detect recurring weak areas from verification errors, decision quality, performance, tool failures and user corrections; create internal improvement goals and safe experiments without changing real files/settings automatically.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не смешивать память Aishin с TooruDragon.",
-      "Не давать Continuous Learning права переписывать личность.",
-      "Не считать собственный ответ доказательством успешного обучения.",
-      "Не превращать learned pattern в факт без evidence/verification.",
-      "Не гонять Cloud.ru постоянно в 24/7 worker.",
-      "Не позволять learned pattern обходить Permission Gate / Verification."
+      "Не подавать candidate/observed/deprecated pattern как подтверждённый опыт.",
+      "Не оставлять старую strategy вечным лидером без decay.",
+      "Не считать собственный ответ success feedback.",
+      "Не позволять Strategy Evolution обходить Verification, Permission Gate или Execution Coordinator.",
+      "Не переписывать личность через Continuous Learning."
     ]
   },
   "development_sequence_current_chat": [
@@ -905,6 +930,10 @@
     {
       "user_prompt": "Давай сделаем постоянное самообучение системы вокруг модели. Режимы она сама должна ставить автоматически",
       "result": "Реализован Continuous Learning Engine. Schema migration 12: continuous_learning_state/queue, learning_patterns, cycles. Background worker автоматически стартует вместе с FastAPI и выбирает REALTIME/BACKGROUND/IDLE/MAINTENANCE по активности пользователя, очереди и maintenance due. Источники: events, performance, explicit Logic Learning feedback, memory/graph changes, execution outcomes. Local Pattern Learner возвращает проверенный operational experience в cognition как слабую подсказку. Cloud.ru в v1 background loop не вызывается постоянно. Пустые циклы не засоряют SQLite. Live Brain и 4 GET API добавлены. GitHub Actions run 37000341016 успешно прошёл Windows + Ubuntu. История сохранена."
+    },
+    {
+      "user_prompt": "Делай Learning Quality Gate + Strategy Evolution + Drift/Decay",
+      "result": "Реализован Learning Quality Gate. Schema migration 13: learning_pattern_quality, strategy_quality_state, learning_quality_events. Patterns и strategies проходят candidate→observed→trusted→deprecated. Pattern half-life 30d, strategy half-life 45d, stale deprecation 120d. Effective score/reliability decay к neutral 0.5. Strategy drift сравнивает recent explicit feedback failures с историей. LogicLearning исключает deprecated и приоритизирует trusted по effective reliability. Continuous Learning prompt получает только trusted operational patterns. No-op quality refresh не пишет БД постоянно. Добавлены quality/strategies/quality-events APIs и Live Brain trusted count. GitHub Actions run 37001952014 успешно прошёл Windows + Ubuntu. История сохранена."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -921,10 +950,10 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать schema 12 Continuous Learning Engine реализованным.",
-      "Режимы Continuous Learning должны оставаться автоматическими; не добавлять ручной selector без отдельного запроса.",
-      "Не включать постоянные Cloud.ru calls в background learner.",
-      "Следующий рекомендуемый этап: Learning Quality Gate / pattern promotion and decay; отдельно Windows autostart/service для across-reboot 24/7."
+      "Считать schema 13 Learning Quality Gate / Strategy Evolution / Drift & Decay реализованными.",
+      "Не возвращать raw pattern reuse без trusted lifecycle.",
+      "Не рекомендовать deprecated strategies.",
+      "Следующий рекомендуемый этап: Self-Reflection Metrics + Learning Planner + Safe Experiment Manager."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -2017,6 +2046,65 @@
     "runtime_limit": "Runs continuously while Aishin process is running. OS-level restart/autostart requires a separate Windows service/task layer.",
     "validation": {
       "run_id": 37000341016,
+      "windows": "success",
+      "ubuntu": "success"
+    }
+  },
+  "learning_quality_gate": {
+    "repository_path": "app/core/learning_quality.py",
+    "pattern_lifecycle": [
+      "candidate",
+      "observed",
+      "trusted",
+      "deprecated"
+    ],
+    "strategy_lifecycle": [
+      "candidate",
+      "observed",
+      "trusted",
+      "deprecated"
+    ],
+    "pattern_half_life_days": 30,
+    "strategy_half_life_days": 45,
+    "stale_deprecation_days": 120,
+    "pattern_quality_fields": [
+      "raw_score",
+      "effective_score",
+      "decay_factor",
+      "contradiction_rate",
+      "age_days",
+      "lifecycle",
+      "reason"
+    ],
+    "strategy_quality_fields": [
+      "raw_reliability",
+      "effective_reliability",
+      "decay_factor",
+      "drift_score",
+      "evidence_count",
+      "rank_in_mode",
+      "lifecycle",
+      "reason"
+    ],
+    "promotion_policy": "trusted requires repeated evidence, sufficient effective score and acceptable contradiction/drift",
+    "decay_policy": "old scores decay toward neutral 0.5 rather than remaining permanently authoritative",
+    "deprecation_policy": "stale or persistently low-quality patterns/strategies become deprecated",
+    "drift_policy": "recent explicit feedback failure rate is compared with historical failure rate; worsening raises drift_score and blocks trust",
+    "cognition_policy": "only trusted operational patterns are fed back into Continuous Learning prompt",
+    "logic_reuse_policy": "LogicLearning excludes deprecated strategies and ranks trusted→observed→candidate by effective reliability",
+    "no_op_write_policy": "quality state is not rewritten on every 15-second worker cycle unless material score/drift/rank/lifecycle changes",
+    "tables": [
+      "learning_pattern_quality",
+      "strategy_quality_state",
+      "learning_quality_events"
+    ],
+    "apis": [
+      "GET /api/assistant/continuous-learning/quality",
+      "GET /api/assistant/continuous-learning/strategies",
+      "GET /api/assistant/continuous-learning/quality-events"
+    ],
+    "validation": {
+      "run_id": 37001952014,
       "windows": "success",
       "ubuntu": "success"
     }

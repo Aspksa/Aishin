@@ -46,7 +46,7 @@ async def lifespan(_: FastAPI):
         interval_seconds=60,
         planner=engine.planner,
         sensors=engine.sensors,
-        proactive=engine.proactive,
+        proactive=engine.proactive_intelligence,
     )
     heartbeat_task = asyncio.create_task(heartbeat.run())
     engine.continuous_learning.prepare_start()
@@ -65,7 +65,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.6', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.7', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -146,6 +146,12 @@ class RollbackAction(BaseModel):
     approved: bool = False
 
 
+class ProactiveFeedback(BaseModel):
+    scope: str = 'personal'
+    feedback: str
+    reason: str = ''
+
+
 class CloudSettingsUpdate(BaseModel):
     api_key: str
 
@@ -162,7 +168,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.6',
+        'version': '0.0.7',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -686,6 +692,87 @@ def assistant_permission_update(
         'capability': capability,
         'mode': engine.permissions.mode(capability),
     }
+
+
+@app.get('/api/assistant/proactive-intelligence')
+def assistant_proactive_intelligence(
+    scope: str = 'personal',
+    incident_limit: int = 80,
+    signal_limit: int = 80,
+    run_limit: int = 40,
+) -> dict:
+    return engine.proactive_intelligence.dashboard(
+        scope=scope,
+        incident_limit=max(1, min(incident_limit, 300)),
+        signal_limit=max(1, min(signal_limit, 300)),
+        run_limit=max(1, min(run_limit, 200)),
+        refresh=False,
+    )
+
+
+@app.post('/api/assistant/proactive-intelligence/scan')
+def assistant_proactive_intelligence_scan(
+    request: Request,
+    scope: str = 'personal',
+) -> dict:
+    _local_only(request)
+    return engine.proactive_intelligence.evaluate(
+        scope=scope,
+        trigger='manual',
+    ).to_dict()
+
+
+@app.get('/api/assistant/proactive-intelligence/incidents')
+def assistant_proactive_intelligence_incidents(
+    scope: str = 'personal',
+    status: str | None = 'active',
+    limit: int = 100,
+) -> list[dict]:
+    return engine.proactive_intelligence.incidents(
+        scope=scope,
+        status=status,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/proactive-intelligence/expectations')
+def assistant_proactive_intelligence_expectations(
+    scope: str = 'personal',
+    limit: int = 100,
+) -> list[dict]:
+    return engine.proactive_intelligence.expectations(
+        scope=scope,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/proactive-intelligence/signals')
+def assistant_proactive_intelligence_signals(
+    scope: str = 'personal',
+    limit: int = 100,
+) -> list[dict]:
+    return engine.proactive_intelligence.signals(
+        scope=scope,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.post('/api/assistant/proactive-intelligence/incidents/{incident_id}/feedback')
+def assistant_proactive_intelligence_feedback(
+    incident_id: int,
+    payload: ProactiveFeedback,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.proactive_intelligence.feedback(
+            incident_id,
+            scope=payload.scope.strip() or 'personal',
+            feedback=payload.feedback,
+            reason=payload.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.post('/api/assistant/proactive/evaluate')

@@ -9,6 +9,7 @@ from .cognition import Cognition
 from .context_orchestrator import ContextOrchestrator
 from .causal import CausalReasoning
 from .counterfactual import CounterfactualReasoning
+from .action_selection import ActionSelector
 from .decision_quality import DecisionQualityScorer
 from .consolidation import MemoryConsolidator
 from .events import EventBus
@@ -74,6 +75,10 @@ class AishinEngine:
             root=project_root,
             permissions=self.permissions,
             planner=self.planner,
+        )
+        self.action_selector = ActionSelector(
+            tools=self.tools,
+            permissions=self.permissions,
         )
         self.verification = VerificationEngine(
             ai=self.ai,
@@ -214,6 +219,12 @@ class AishinEngine:
             },
             "decision_quality": {
                 "history": self.decision_quality.recent(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
+            "action_selection": {
+                "history": self.action_selector.recent(
                     scope=state.current_scope,
                     limit=20,
                 ),
@@ -435,6 +446,18 @@ class AishinEngine:
             counterfactual=counterfactual_assessment.to_dict(),
         )
 
+        action_selection = self.action_selector.select(
+            cleaned,
+            scope=scope,
+            mode=logic_trace.mode,
+            counterfactual=counterfactual_assessment.to_dict(),
+            decision_quality=decision_quality.to_dict(),
+            unresolved=(
+                list(logic_trace.unresolved)
+                + list(counterfactual_assessment.unresolved)
+            ),
+        )
+
         context.system_prompt, context_trace = self.context_orchestrator.compose(
             cleaned,
             scope=scope,
@@ -465,6 +488,7 @@ class AishinEngine:
             },
             "counterfactual": counterfactual_assessment.to_dict(),
             "decision_quality": decision_quality.to_dict(),
+            "action_selection": action_selection.to_dict(),
         }
         context.system_prompt += "\n\n" + self.logic.prompt_block(logic_trace)
         context.system_prompt += "\n\n" + self.hypotheses.prompt_block(hypothesis_run)
@@ -543,6 +567,7 @@ class AishinEngine:
                 },
                 "counterfactual": counterfactual_assessment.to_dict(),
                 "decision_quality": decision_quality.to_dict(),
+                "action_selection": action_selection.to_dict(),
             },
             importance=0.3,
         )
@@ -577,6 +602,7 @@ class AishinEngine:
             },
             "counterfactual": counterfactual_assessment.to_dict(),
             "decision_quality": decision_quality.to_dict(),
+            "action_selection": action_selection.to_dict(),
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

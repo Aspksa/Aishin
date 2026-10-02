@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 11
+LATEST_SCHEMA_VERSION = 12
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -352,6 +352,79 @@ def _migration_011_proactive_lifecycle(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_012_continuous_learning(conn: sqlite3.Connection) -> None:
+    """Continuous learning queue, automatic mode state and learned patterns."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS continuous_learning_state (
+            scope TEXT PRIMARY KEY,
+            mode TEXT NOT NULL DEFAULT 'IDLE',
+            mode_reason TEXT NOT NULL DEFAULT '',
+            worker_status TEXT NOT NULL DEFAULT 'stopped',
+            cursor_json TEXT NOT NULL DEFAULT '{}',
+            last_cycle_at TEXT,
+            last_maintenance_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS continuous_learning_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            source_type TEXT NOT NULL,
+            source_id INTEGER NOT NULL,
+            kind TEXT NOT NULL,
+            priority REAL NOT NULL DEFAULT 0.5,
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            status TEXT NOT NULL DEFAULT 'pending',
+            attempts INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, source_type, source_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_patterns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            category TEXT NOT NULL,
+            pattern_key TEXT NOT NULL,
+            observations INTEGER NOT NULL DEFAULT 0,
+            successes INTEGER NOT NULL DEFAULT 0,
+            failures INTEGER NOT NULL DEFAULT 0,
+            score REAL NOT NULL DEFAULT 0.5,
+            evidence_json TEXT NOT NULL DEFAULT '[]',
+            last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, category, pattern_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS continuous_learning_cycles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            queue_depth_before INTEGER NOT NULL DEFAULT 0,
+            processed INTEGER NOT NULL DEFAULT 0,
+            learned INTEGER NOT NULL DEFAULT 0,
+            cloud_used INTEGER NOT NULL DEFAULT 0,
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'success',
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_queue_scope_status
+        ON continuous_learning_queue(scope, status, priority DESC, id ASC);
+
+        CREATE INDEX IF NOT EXISTS idx_learning_patterns_scope_score
+        ON learning_patterns(scope, score DESC, observations DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_learning_cycles_scope_created
+        ON continuous_learning_cycles(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -364,6 +437,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (9, "cloud_resilience_and_request_traces", _migration_009_cloud_resilience_and_request_traces),
     (10, "performance_observability", _migration_010_performance_observability),
     (11, "proactive_lifecycle", _migration_011_proactive_lifecycle),
+    (12, "continuous_learning", _migration_012_continuous_learning),
 )
 
 

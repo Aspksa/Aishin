@@ -127,21 +127,35 @@ class ContinuousLearningEngine:
                 self._mark_maintenance(scope=scope)
 
             duration_ms = int((time.perf_counter() - started) * 1000)
-            cycle_id = self._record_cycle(
-                scope=scope,
-                mode=decision.mode,
-                reason=decision.reason,
-                queue_depth_before=queue_depth,
-                processed=processed,
-                learned=learned,
-                cloud_used=False,
-                duration_ms=duration_ms,
-                status="success",
-                details=details,
+            mode_changed = self._last_mode.get(scope) != decision.mode
+            now_mono = time.monotonic()
+            last_recorded = self._last_cycle_recorded_at.get(scope, 0.0)
+            should_record = (
+                mode_changed
+                or queue_depth > 0
+                or processed > 0
+                or decision.mode == "MAINTENANCE"
+                or now_mono - last_recorded >= 300.0
             )
+            cycle_id = None
+            if should_record:
+                cycle_id = self._record_cycle(
+                    scope=scope,
+                    mode=decision.mode,
+                    reason=decision.reason,
+                    queue_depth_before=queue_depth,
+                    processed=processed,
+                    learned=learned,
+                    cloud_used=False,
+                    duration_ms=duration_ms,
+                    status="success",
+                    details=details,
+                )
+                self._last_cycle_recorded_at[scope] = now_mono
+
             self._set_worker_status(scope=scope, status="running")
 
-            if self._last_mode.get(scope) != decision.mode:
+            if mode_changed:
                 self.events.emit(
                     "learning.mode.changed",
                     scope=scope,

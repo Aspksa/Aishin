@@ -367,6 +367,63 @@ def main() -> int:
                 "cloud_independent": True,
             }
 
+            growth_api = client.get(
+                "/api/assistant/growth",
+                params={
+                    "scope": "personal",
+                    "skill_limit": 20,
+                    "knowledge_limit": 20,
+                    "specialization_limit": 20,
+                    "history_limit": 20,
+                },
+            )
+            if growth_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/growth returned HTTP "
+                    f"{growth_api.status_code}: {growth_api.text[:300]}"
+                )
+            growth_data = growth_api.json()
+            growth_summary = growth_data.get("summary") or {}
+            if growth_summary.get("version") != "aishin-long-term-growth-v1":
+                raise RuntimeError(
+                    "Long Term Growth вернул несовместимую версию"
+                )
+            for key in ("skills", "knowledge", "specializations"):
+                if not isinstance(growth_data.get(key), list):
+                    raise RuntimeError(
+                        f"Long Term Growth {key} должен быть списком"
+                    )
+            if not isinstance(growth_summary.get("principles"), list):
+                raise RuntimeError(
+                    "Long Term Growth должен объяснять правила честного роста"
+                )
+            growth_skills = growth_summary.get("skills") or {}
+            growth_knowledge = growth_summary.get("knowledge") or {}
+            if int(growth_skills.get("mastered") or 0) > int(
+                growth_skills.get("total") or 0
+            ):
+                raise RuntimeError(
+                    "Mastered skills не могут превышать total skills"
+                )
+            if int(growth_knowledge.get("trusted") or 0) > int(
+                growth_knowledge.get("total") or 0
+            ):
+                raise RuntimeError(
+                    "Trusted knowledge не может превышать total knowledge"
+                )
+            schema = state_data.get("state", {}).get("schema")
+            checks["long_term_growth"] = {
+                "status": "ok",
+                "version": growth_summary.get("version"),
+                "score": growth_summary.get("overall_score"),
+                "skills": len(growth_data.get("skills") or []),
+                "knowledge": len(growth_data.get("knowledge") or []),
+                "specializations": len(
+                    growth_data.get("specializations") or []
+                ),
+                "history": len(growth_data.get("history") or []),
+            }
+
             live_brain = client.get(
                 "/api/assistant/live-brain",
                 params={

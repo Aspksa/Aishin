@@ -11,6 +11,7 @@ from .events import EventBus
 from .graph import KnowledgeGraph
 from .graph_builder import GraphBuilder
 from .memory import MemorySystem
+from .metacognition import Metacognition
 from .observer import Observer
 from .permissions import PermissionGate
 from .planner import Planner
@@ -34,6 +35,7 @@ class AishinEngine:
         self.personal = PersonalAishin()
         self.semantic = SemanticMemory(self.ai)
         self.planner = Planner()
+        self.metacognition = Metacognition()
         self.cognition = Cognition(
             self.memory,
             semantic=self.semantic,
@@ -138,6 +140,23 @@ class AishinEngine:
                     limit=20,
                 ),
             },
+            "metacognition": {
+                "last": (
+                    self.metacognition.recent(
+                        scope=state.current_scope,
+                        limit=1,
+                    )[0]
+                    if self.metacognition.recent(
+                        scope=state.current_scope,
+                        limit=1,
+                    )
+                    else None
+                ),
+                "history": self.metacognition.recent(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
             "observations": [o.__dict__ for o in self.observer.inspect()],
             "recent_events": self.events.recent(limit=10),
             "recent_memories": self.memory.recent(
@@ -191,12 +210,32 @@ class AishinEngine:
         planning_update = self.planner_builder.ingest(cleaned, scope=scope)
 
         context = self.cognition.build_context(cleaned, scope=scope)
+        planner_notices = [
+            notice.__dict__
+            for notice in self.planner.inspect(scope=scope)
+        ]
+        sensor_readings = self.sensors.scan(
+            scope=scope,
+            persist=False,
+        )
+        meta = self.metacognition.assess(
+            scope=scope,
+            intent=intent,
+            recalled_memories=context.recalled_memories,
+            semantic_used=context.semantic_used,
+            planner_notices=planner_notices,
+            sensor_readings=sensor_readings,
+            graph_stats=self.graph.stats(scope=scope),
+        )
+
         self.last_cognitive_context = {
             "scope": scope,
             "query": cleaned[:500],
             "semantic_used": context.semantic_used,
             "memories": context.recalled_memories[:10],
+            "metacognition": meta.to_dict(),
         }
+        context.system_prompt += "\n\n" + self.metacognition.prompt_block(meta)
         context.system_prompt += "\n\n" + self.sensors.prompt_block(scope=scope)
         context.system_prompt += "\n\n" + self.proactive.prompt_block(scope=scope)
         context.system_prompt += (
@@ -248,6 +287,7 @@ class AishinEngine:
                 "consolidation": consolidation.to_dict(),
                 "knowledge_graph": graph_update.to_dict(),
                 "planner": planning_update.to_dict(),
+                "metacognition": meta.to_dict(),
             },
             importance=0.3,
         )
@@ -266,6 +306,7 @@ class AishinEngine:
             "memory_consolidation": consolidation.to_dict(),
             "knowledge_graph": graph_update.to_dict(),
             "planner": planning_update.to_dict(),
+            "metacognition": meta.to_dict(),
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

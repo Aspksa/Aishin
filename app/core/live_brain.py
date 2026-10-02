@@ -326,6 +326,19 @@ class LiveBrainRuntime:
                 refresh=False,
             ),
         )
+        evolution = take(
+            "evolution",
+            {},
+            lambda: self.engine.evolution.dashboard(
+                scope=scope,
+                capability_limit=20,
+                variant_limit=24,
+                curriculum_limit=24,
+                transfer_limit=24,
+                cycle_limit=12,
+                refresh=False,
+            ),
+        )
 
         phase = self._latest_phase(events)
         phase_channel = self.PHASE_TO_CHANNEL.get(phase, "")
@@ -335,9 +348,19 @@ class LiveBrainRuntime:
         proactive_attention = int(
             proactive_summary.get("requires_attention") or 0
         )
+        evolution_summary = evolution.get("summary") or {}
+        evolution_regressions = int(
+            evolution_summary.get("regressions") or 0
+        )
         integrity = (
             "attention"
-            if errors or unresolved or warning_events or proactive_attention
+            if (
+                errors
+                or unresolved
+                or warning_events
+                or proactive_attention
+                or evolution_regressions
+            )
             else "healthy"
             if events or memories or graph_stats.get("entities")
             else "initializing"
@@ -409,6 +432,14 @@ class LiveBrainRuntime:
                 "awareness_score": proactive_summary.get("awareness_score"),
                 "active_incidents": proactive_summary.get("active_incidents"),
                 "attention_incidents": proactive_attention,
+                "evolution_generation": evolution_summary.get("generation"),
+                "evolution_score": evolution_summary.get("evolution_score"),
+                "evolution_stability": evolution_summary.get(
+                    "stability_score"
+                ),
+                "evolution_champions": evolution_summary.get("champions"),
+                "evolution_challengers": evolution_summary.get("challengers"),
+                "evolution_regressions": evolution_regressions,
             },
             "channels": channels,
             "safe_trace": self._safe_trace(trace),
@@ -440,6 +471,7 @@ class LiveBrainRuntime:
                 "latest_route": latest_intelligence_route,
             },
             "proactive_intelligence": proactive_intelligence,
+            "evolution": evolution,
             "quality": {
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
@@ -469,6 +501,12 @@ class LiveBrainRuntime:
                     "proactive_incidents + proactive_expectations + "
                     "proactive_attention_feedback"
                 ),
+                "evolution": (
+                    "evolution_state + evolution_capabilities + "
+                    "evolution_variants + evolution_assignments + "
+                    "evolution_curriculum + evolution_transfers + "
+                    "evolution_cycles"
+                ),
             },
         }
 
@@ -480,7 +518,7 @@ class LiveBrainRuntime:
         )
         return {
             "format": "AISHIN_LIVE_BRAIN_EXPORT",
-            "format_version": 5,
+            "format_version": 6,
             "scope": snapshot["scope"],
             "generated_at": snapshot["generated_at"],
             "policy": snapshot["trace_policy"],

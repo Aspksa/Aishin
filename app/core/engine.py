@@ -17,6 +17,7 @@ from .cognitive_intelligence import CognitiveIntelligenceEngine
 from .evolution_engine import EvolutionEngine
 from .research_intelligence import AutonomousResearchEngine
 from .communication_intelligence import CommunicationIntelligenceEngine
+from .document_intelligence import DocumentIntelligenceEngine
 from .self_reflection import SelfReflectionMetrics
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
@@ -162,6 +163,13 @@ class AishinEngine:
         self.communication = CommunicationIntelligenceEngine(
             events=self.events,
         )
+        self.documents = DocumentIntelligenceEngine(
+            ai=self.ai,
+            graph=self.graph,
+            research=self.research,
+            events=self.events,
+            root=project_root / "data" / "documents",
+        )
         self.live_brain = LiveBrainRuntime(self)
 
     def reload_ai(self) -> dict:
@@ -173,6 +181,7 @@ class AishinEngine:
         self.verification.ai = self.ai
         self.consolidator.ai = self.ai
         self.research.ai = self.ai
+        self.documents.ai = self.ai
         return {
             "health": self.ai.cloudru.health(force=True)
             if self.ai.mode in {"cloudru", "cloud.ru"}
@@ -210,6 +219,9 @@ class AishinEngine:
         communication = self.communication.bootstrap(
             scope=state.current_scope,
         )
+        documents = self.documents.bootstrap(
+            scope=state.current_scope,
+        )
         self.events.emit(
             "aishin.started",
             scope=state.current_scope,
@@ -239,6 +251,15 @@ class AishinEngine:
                     ),
                     "persona_stability": communication.get(
                         "persona_stability"
+                    ),
+                },
+                "documents": {
+                    "ingestion_score": documents.get("ingestion_score"),
+                    "studied_documents": documents.get(
+                        "studied_documents"
+                    ),
+                    "ocr_required_documents": documents.get(
+                        "ocr_required_documents"
                     ),
                 },
             },
@@ -464,6 +485,13 @@ class AishinEngine:
                 scope=state.current_scope,
                 turn_limit=40,
                 event_limit=50,
+            ),
+            "documents": self.documents.dashboard(
+                scope=state.current_scope,
+                document_limit=50,
+                fact_limit=60,
+                contradiction_limit=40,
+                run_limit=30,
             ),
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(

@@ -402,6 +402,30 @@ def main() -> int:
                 "history_entries": len(context_traces.json()),
             }
 
+            causal_assessment = __import__(
+                "app.core.causal",
+                fromlist=["CausalReasoning"],
+            ).CausalReasoning().assess(
+                "Задержка возникла из-за ошибки сети",
+                scope="personal",
+                evidence=[
+                    {
+                        "content": (
+                            "Задержка возникла из-за ошибки сети"
+                        )
+                    }
+                ],
+                contradictions=[],
+            )
+            if not causal_assessment.assessment_id:
+                raise RuntimeError(
+                    "CausalReasoning.assess не сохранил assessment"
+                )
+            checks["causal_assess_runtime"] = {
+                "status": "ok",
+                "assessment_id": causal_assessment.assessment_id,
+            }
+
             causal = client.get(
                 "/api/assistant/causal",
                 params={"scope": "personal", "limit": 1},

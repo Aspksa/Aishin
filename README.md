@@ -569,3 +569,11 @@ API:
 
 Schema migration: `5`.
 Версия приложения остаётся `0.0.3`.
+
+
+### Подтверждение Hypothesis + Logic Learning runtime
+Hypothesis Manager и Logic Learning подтверждены GitHub Actions:
+- run id: `36990689777`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.

@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 from .events import EventBus
 from .planner import Planner
@@ -15,6 +16,7 @@ class Heartbeat:
         planner: Planner | None = None,
         sensors: SensorHub | None = None,
         proactive: ProactiveDecisionLoop | None = None,
+        research: Any | None = None,
     ):
         self.interval_seconds = interval_seconds
         self.state = StateManager()
@@ -22,6 +24,7 @@ class Heartbeat:
         self.planner = planner
         self.sensors = sensors
         self.proactive = proactive
+        self.research = research
         self._stop = asyncio.Event()
 
     async def run(self):
@@ -94,6 +97,39 @@ class Heartbeat:
                             scope=state.current_scope,
                             payload=evaluation.to_dict(),
                             importance=0.7,
+                        )
+
+                if self.research is not None and (
+                    ticks == 1 or ticks % 20 == 0
+                ):
+                    research_cycle = await asyncio.to_thread(
+                        self.research.run_cycle,
+                        scope=state.current_scope,
+                        trigger="heartbeat",
+                        max_sessions=1,
+                        synthesize=False,
+                        offline_only=True,
+                    )
+                    if (
+                        int(research_cycle.get("sessions_run") or 0)
+                        or int(research_cycle.get("gaps_discovered") or 0)
+                    ):
+                        self.events.emit(
+                            "research.heartbeat",
+                            scope=state.current_scope,
+                            payload={
+                                "gaps_discovered": research_cycle.get(
+                                    "gaps_discovered"
+                                ),
+                                "sessions_run": research_cycle.get(
+                                    "sessions_run"
+                                ),
+                                "evidence_added": research_cycle.get(
+                                    "evidence_added"
+                                ),
+                                "offline_only": True,
+                            },
+                            importance=0.25,
                         )
 
             try:

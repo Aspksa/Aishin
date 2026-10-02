@@ -165,6 +165,7 @@ class ProactiveIntelligenceEngine:
                 scope=scope,
                 signal=signal,
             )
+            active_fingerprints.add(str(signal["fingerprint"]))
             if float(stored_signal["attention_score"]) < threshold:
                 continue
 
@@ -290,7 +291,13 @@ class ProactiveIntelligenceEngine:
     ) -> dict:
         if refresh:
             self.evaluate(scope=scope, trigger="dashboard")
-        situation = self._latest_situation(scope=scope)
+        situation = self._latest_situation(scope=scope) or {
+            "awareness_score": 0.0,
+            "object_counts": {},
+            "state": {},
+            "delta": {},
+            "created_at": None,
+        }
         incidents = self.incidents(
             scope=scope,
             status=None,
@@ -520,9 +527,16 @@ class ProactiveIntelligenceEngine:
             resolved_at = None
             snoozed_until = incident.get("snoozed_until")
 
-            if feedback in {"noisy", "false_positive"}:
-                new_status = "dismissed"
-                resolved_at = datetime.now(timezone.utc).isoformat()
+            if feedback == "noisy":
+                new_status = "snoozed"
+                snoozed_until = (
+                    datetime.now(timezone.utc) + timedelta(days=7)
+                ).isoformat()
+            elif feedback == "false_positive":
+                new_status = "snoozed"
+                snoozed_until = (
+                    datetime.now(timezone.utc) + timedelta(days=30)
+                ).isoformat()
             elif feedback in {"handled", "resolved"}:
                 new_status = "resolved"
                 resolved_at = datetime.now(timezone.utc).isoformat()
@@ -557,6 +571,7 @@ class ProactiveIntelligenceEngine:
             "false_positive",
             "handled",
             "resolved",
+            "snooze",
         }:
             self._dismiss_pending_decision(incident)
 

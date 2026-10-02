@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from ..personality import personality
 from .memory import MemorySystem
+from .self_model import SelfModel
 
 @dataclass
 class CognitiveContext:
@@ -12,11 +13,12 @@ class CognitiveContext:
 class Cognition:
     def __init__(self, memory: MemorySystem):
         self.memory = memory
+        self.self_model = SelfModel()
 
     def build_context(self, message: str, *, scope: str):
         recalled = self.memory.recall(message, scope=scope, limit=8)
         block = self.memory.context_block(recalled)
-        prompt = personality.system_prompt
+        prompt = personality.system_prompt + '\n\n' + self.self_model.prompt_block()
         if block:
             prompt += '\n\nРелевантная память. Учитывай тип и confidence, проверяй противоречия:\n' + block
         return CognitiveContext(message, scope, recalled, prompt)

@@ -336,6 +336,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
   const executionGuard = state.execution_coordinator || {};
   const verification = state.working_memory?.verification || null;
   const performance = state.working_memory?.performance || (state.performance || [])[0] || null;
+  const continuousLearning = state.continuous_learning || null;
 
   setBrainNode(
     "sensors",
@@ -457,6 +458,16 @@ function renderLivingBrain(state, sensors, pending, approved) {
     performance
       ? `${performance.total_ms || 0} ms · ${performance.bottleneck || "—"}`
       : "замеров ещё нет"
+  );
+
+  const learningStatus = continuousLearning?.status || null;
+  setBrainNode(
+    "continuous-learning",
+    Boolean(learningStatus),
+    learningStatus?.worker_status === "error",
+    learningStatus
+      ? `${learningStatus.mode || "IDLE"} · queue ${learningStatus.queue?.pending || 0} · patterns ${continuousLearning?.patterns?.length || 0}`
+      : "worker ещё не запускался"
   );
 
   const metaStatus = meta?.status || "нет оценки";

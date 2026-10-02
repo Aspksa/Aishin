@@ -65,7 +65,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.4', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.5', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -162,7 +162,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.4',
+        'version': '0.0.5',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -215,6 +215,99 @@ def assistant_brain() -> dict:
             ],
         },
     }
+
+
+@app.get('/api/assistant/growth')
+def assistant_growth(
+    scope: str = 'personal',
+    skill_limit: int = 80,
+    knowledge_limit: int = 80,
+    specialization_limit: int = 40,
+    history_limit: int = 60,
+) -> dict:
+    return {
+        'summary': engine.long_term_growth.summary(scope=scope),
+        'skills': engine.long_term_growth.skills(
+            scope=scope,
+            limit=max(1, min(skill_limit, 300)),
+        ),
+        'knowledge': engine.long_term_growth.knowledge_trust(
+            scope=scope,
+            limit=max(1, min(knowledge_limit, 300)),
+        ),
+        'specializations': engine.long_term_growth.specializations(
+            scope=scope,
+            limit=max(1, min(specialization_limit, 100)),
+        ),
+        'history': engine.long_term_growth.history(
+            scope=scope,
+            limit=max(1, min(history_limit, 365)),
+        ),
+        'events': engine.long_term_growth.recent_events(
+            scope=scope,
+            limit=50,
+        ),
+    }
+
+
+@app.get('/api/assistant/growth/skills')
+def assistant_growth_skills(
+    scope: str = 'personal',
+    lifecycle: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.long_term_growth.skills(
+        scope=scope,
+        lifecycle=lifecycle,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/growth/knowledge')
+def assistant_growth_knowledge(
+    scope: str = 'personal',
+    trust_level: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.long_term_growth.knowledge_trust(
+        scope=scope,
+        trust_level=trust_level,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/growth/specializations')
+def assistant_growth_specializations(
+    scope: str = 'personal',
+    limit: int = 50,
+) -> list[dict]:
+    return engine.long_term_growth.specializations(
+        scope=scope,
+        limit=max(1, min(limit, 200)),
+    )
+
+
+@app.get('/api/assistant/growth/history')
+def assistant_growth_history(
+    scope: str = 'personal',
+    limit: int = 90,
+) -> list[dict]:
+    return engine.long_term_growth.history(
+        scope=scope,
+        limit=max(1, min(limit, 1000)),
+    )
+
+
+@app.post('/api/assistant/growth/refresh')
+def assistant_growth_refresh(
+    request: Request,
+    scope: str = 'personal',
+) -> dict:
+    _local_only(request)
+    return engine.long_term_growth.refresh(
+        scope=scope,
+        persist_snapshot=True,
+    )
 
 
 @app.get('/api/assistant/live-brain')

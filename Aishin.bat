@@ -68,12 +68,12 @@ if errorlevel 1 goto fail_dependencies
 if /I "%~1"=="--check-only" goto skip_update
 
 echo [4/7] Checking GitHub updates...
-where git >nul 2>nul
-if not errorlevel 1 (
-    git fetch origin main >>"%LOG%" 2>&1
-    if not errorlevel 1 (
-        git pull --ff-only origin main >>"%LOG%" 2>&1
-    )
+"%VPY%" -c "from pathlib import Path; from app.updater import ProjectUpdater; r=ProjectUpdater(Path.cwd()).update(); print('[UPDATE]', r.get('mode'), r.get('details'))" >>"%LOG%" 2>&1
+if errorlevel 1 (
+    echo       Update check failed; continuing with current files.
+    >>"%LOG%" echo WARNING: automatic project update failed.
+) else (
+    echo       Project files refreshed from GitHub.
 )
 goto after_update
 

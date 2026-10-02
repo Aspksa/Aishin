@@ -426,7 +426,7 @@ Live Brain содержит отдельный узел `Verification`, кото
 SQLite:
 - добавлен `app/migrations.py`;
 - таблица `schema_migrations` хранит применённые миграции;
-- текущая версия схемы: `4`;
+- текущая версия схемы: `5`;
 - `init_db()` автоматически применяет недостающие миграции;
 - self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
 
@@ -530,3 +530,42 @@ Context Orchestrator и Causal Reasoning подтверждены GitHub Actions
 - compileall, self-check и FastAPI runtime smoke: success.
 
 Во время первого прогона CI обнаружил некорректные newline-литералы в `app/core/context_orchestrator.py`; файл был переписан безопасно и повторный cross-platform run прошёл полностью.
+
+
+## Hypothesis Manager
+В режимах `VERIFY` и `DIAGNOSE` Aishin теперь поддерживает несколько конкурирующих гипотез одновременно.
+
+Правила:
+- гипотеза не становится фактом только из-за самого высокого confidence;
+- confidence нормализуется между конкурирующими кандидатами;
+- противоречия понижают confidence;
+- сохраняются supporting/opposing evidence;
+- Stop Rule завершает перебор только при достаточном преимуществе и отсутствии unresolved;
+- если остановка рано невозможна, выбирается следующая discriminating check — проверка, которая лучше разделит ведущие гипотезы.
+
+История:
+- `hypothesis_runs`
+
+API:
+- `GET /api/assistant/hypotheses`
+
+## Logic Learning
+Logic Learning не обучается на собственных ответах Айшин. Стратегия получает reinforcement только после явной последующей обратной связи Господина.
+
+Положительные сигналы включают: `сработало`, `получилось`, `исправлено`, `решено`, `заработало`, `помогло`.
+
+Отрицательные сигналы включают: `не сработало`, `не помогло`, `не работает`, `ошибка осталась`, `проблема осталась`, `стало хуже`.
+
+Надёжность стратегии считается с Beta(2,2) prior, поэтому один успешный случай не превращает стратегию в абсолютное правило.
+
+Хранилище:
+- `logic_strategies`
+- `logic_learning_events`
+
+API:
+- `GET /api/assistant/logic-learning`
+
+Подтверждённые стратегии добавляются в prompt только как прошлый опыт с reliability, а не как обязательное правило.
+
+Schema migration: `5`.
+Версия приложения остаётся `0.0.3`.

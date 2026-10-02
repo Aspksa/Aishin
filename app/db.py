@@ -1348,7 +1348,15 @@ def update_proactive_decision(
     status: str,
     execution: dict | None = None,
 ) -> None:
-    if status not in {"pending", "approved", "rejected", "executed", "failed", "dismissed"}:
+    if status not in {
+        "pending",
+        "approved",
+        "rejected",
+        "acknowledged",
+        "executed",
+        "failed",
+        "dismissed",
+    }:
         raise ValueError("invalid proactive decision status")
     with connect() as conn:
         cur = conn.execute(

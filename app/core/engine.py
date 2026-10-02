@@ -507,7 +507,33 @@ class AishinEngine:
             contradiction_count=initial_meta.contradiction_count,
             planner_notices=planner_notices,
         )
+        cognitive_route = self.cognitive_intelligence.route(
+            request_id=request_id,
+            scope=scope,
+            query=cleaned,
+            intent=intent,
+            base_mode=logic_plan.mode,
+            base_complexity=logic_plan.complexity,
+            metacognition=initial_meta.to_dict(),
+        )
+        logic_plan = self.cognitive_intelligence.adapt_logic_plan(
+            logic_plan,
+            cognitive_route,
+        )
         perf.checkpoint("sensors_metacognition")
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "phase": "adaptation",
+                "task_family": cognitive_route.task_family,
+                "base_mode": cognitive_route.base_mode,
+                "adapted_mode": cognitive_route.adapted_mode,
+                "route_confidence": cognitive_route.route_confidence,
+            },
+            importance=0.2,
+        )
 
         verification_report = None
         final_memories = context.recalled_memories

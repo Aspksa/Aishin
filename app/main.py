@@ -76,6 +76,35 @@ class TimelineEventCreate(BaseModel):
     importance: float = 0.5
 
 
+class GoalCreate(BaseModel):
+    title: str
+    description: str = ''
+    scope: str = 'personal'
+    priority: float = 0.5
+    due_at: str | None = None
+
+
+class TaskCreate(BaseModel):
+    title: str
+    description: str = ''
+    scope: str = 'personal'
+    goal_id: int | None = None
+    priority: float = 0.5
+    due_at: str | None = None
+
+
+class TaskDependencyCreate(BaseModel):
+    scope: str = 'personal'
+    task_id: int
+    depends_on_task_id: int
+
+
+class StatusUpdate(BaseModel):
+    scope: str = 'personal'
+    status: str
+    blocked_reason: str = ''
+
+
 @app.get('/', response_class=HTMLResponse)
 def home() -> str:
     template = templates.get_template('index.html')
@@ -233,6 +262,126 @@ def assistant_graph_changes(
     limit: int = 30,
 ) -> list[dict]:
     return engine.graph.changes(scope=scope, limit=max(1, min(limit, 100)))
+
+
+@app.get('/api/assistant/planner/goals')
+def assistant_planner_goals(
+    scope: str = 'personal',
+    status: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.planner.goals(
+        scope=scope,
+        status=status,
+        limit=max(1, min(limit, 300)),
+    )
+
+
+@app.post('/api/assistant/planner/goals')
+def create_planner_goal(payload: GoalCreate) -> dict:
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail='Название цели пустое')
+    goal_id = engine.planner.create_goal(
+        scope=payload.scope.strip() or 'personal',
+        title=title,
+        description=payload.description.strip(),
+        priority=max(0.0, min(1.0, payload.priority)),
+        source='explicit_user',
+        evidence=title,
+        due_at=payload.due_at,
+    )
+    return {'status': 'created', 'id': goal_id}
+
+
+@app.post('/api/assistant/planner/goals/{goal_id}/status')
+def update_planner_goal_status(goal_id: int, payload: StatusUpdate) -> dict:
+    try:
+        engine.planner.set_goal_status(
+            goal_id,
+            payload.status,
+            scope=payload.scope.strip() or 'personal',
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {'status': 'updated', 'id': goal_id}
+
+
+@app.get('/api/assistant/planner/tasks')
+def assistant_planner_tasks(
+    scope: str = 'personal',
+    status: str | None = None,
+    limit: int = 200,
+) -> list[dict]:
+    return engine.planner.tasks(
+        scope=scope,
+        status=status,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.post('/api/assistant/planner/tasks')
+def create_planner_task(payload: TaskCreate) -> dict:
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail='Название задачи пустое')
+    task_id = engine.planner.create_task(
+        scope=payload.scope.strip() or 'personal',
+        title=title,
+        description=payload.description.strip(),
+        goal_id=payload.goal_id,
+        priority=max(0.0, min(1.0, payload.priority)),
+        source='explicit_user',
+        evidence=title,
+        due_at=payload.due_at,
+    )
+    return {'status': 'created', 'id': task_id}
+
+
+@app.post('/api/assistant/planner/tasks/{task_id}/status')
+def update_planner_task_status(task_id: int, payload: StatusUpdate) -> dict:
+    try:
+        engine.planner.set_task_status(
+            task_id,
+            payload.status,
+            scope=payload.scope.strip() or 'personal',
+            blocked_reason=payload.blocked_reason.strip(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {'status': 'updated', 'id': task_id}
+
+
+@app.post('/api/assistant/planner/dependencies')
+def create_planner_dependency(payload: TaskDependencyCreate) -> dict:
+    try:
+        dependency_id = engine.planner.add_dependency(
+            scope=payload.scope.strip() or 'personal',
+            task_id=payload.task_id,
+            depends_on_task_id=payload.depends_on_task_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {'status': 'created', 'id': dependency_id}
+
+
+@app.get('/api/assistant/planner/notices')
+def assistant_planner_notices(scope: str = 'personal') -> list[dict]:
+    return [
+        notice.__dict__
+        for notice in engine.planner.inspect(scope=scope)
+    ]
+
+
+@app.get('/api/assistant/planner/changes')
+def assistant_planner_changes(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.planner.changes(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
 
 
 @app.get('/api/assistant/memory')

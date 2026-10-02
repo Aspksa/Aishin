@@ -6,6 +6,7 @@ from ..ai import AIManager
 from ..db import add_message, recent_messages
 from ..personality import personality
 from .cognition import Cognition
+from .cognitive_trace import CognitiveTraceStore
 from .context_orchestrator import ContextOrchestrator
 from .causal import CausalReasoning
 from .counterfactual import CounterfactualReasoning
@@ -108,12 +109,7 @@ class AishinEngine:
             personal=self.personal,
             events=self.events,
         )
-        self.last_cognitive_context: dict = {
-            "scope": "personal",
-            "query": "",
-            "semantic_used": False,
-            "memories": [],
-        }
+        self.cognitive_traces = CognitiveTraceStore()
 
     def startup(self) -> None:
         self.permissions.bootstrap()
@@ -251,15 +247,12 @@ class AishinEngine:
                 scope=state.current_scope,
                 limit=8,
             ),
-            "working_memory": (
-                self.last_cognitive_context
-                if self.last_cognitive_context.get("scope") == state.current_scope
-                else {
-                    "scope": state.current_scope,
-                    "query": "",
-                    "semantic_used": False,
-                    "memories": [],
-                }
+            "working_memory": self.cognitive_traces.latest(
+                scope=state.current_scope,
+            ),
+            "cognitive_traces": self.cognitive_traces.recent(
+                scope=state.current_scope,
+                limit=20,
             ),
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(
@@ -279,6 +272,7 @@ class AishinEngine:
         }
 
     def respond(self, message: str, *, scope: str = "personal") -> dict:
+        request_id = self.cognitive_traces.new_request_id()
         cleaned = message.strip()
         intent = self.cognition.classify(cleaned)
 
@@ -296,7 +290,13 @@ class AishinEngine:
         self.events.emit(
             "input.received",
             scope=scope,
-            payload={"intent": intent, "text_preview": cleaned[:240]},
+            payload={
+                "request_id": request_id,
+                "request_id": request_id,
+                "trace_id": trace_id,
+                "intent": intent,
+                "text_preview": cleaned[:240],
+            },
             importance=0.4,
         )
 
@@ -487,7 +487,7 @@ class AishinEngine:
             sensor_readings=sensor_readings,
         )
 
-        self.last_cognitive_context = {
+        request_trace = {
             "scope": scope,
             "query": cleaned[:500],
             "semantic_used": context.semantic_used,
@@ -540,6 +540,25 @@ class AishinEngine:
         ai_reply = self.ai.chat(
             system=context.system_prompt,
             messages=model_messages,
+        )
+
+        provider_runtime = {
+            "provider": ai_reply.provider,
+            "model": ai_reply.model,
+            "available": ai_reply.available,
+            "attempts": ai_reply.attempts,
+            "latency_ms": ai_reply.latency_ms,
+            "error": ai_reply.error,
+            "error_code": ai_reply.error_code,
+            "metadata": ai_reply.metadata,
+        }
+        trace_id = self.cognitive_traces.record(
+            request_id=request_id,
+            scope=scope,
+            query=cleaned,
+            trace=request_trace,
+            provider=provider_runtime,
+            status="completed" if ai_reply.available else "fallback",
         )
 
         if ai_reply.available:
@@ -595,6 +614,8 @@ class AishinEngine:
 
         return {
             "reply": reply,
+            "request_id": request_id,
+            "trace_id": trace_id,
             "intent": intent,
             "scope": scope,
             "memory_recalled": len(context.recalled_memories),
@@ -627,6 +648,7 @@ class AishinEngine:
             "llm_connected": ai_reply.available,
             "provider": ai_reply.provider,
             "model": ai_reply.model,
+            "provider_runtime": provider_runtime,
         }
 
     @staticmethod

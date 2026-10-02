@@ -43,6 +43,15 @@ def main() -> int:
                 'id="settings-module"',
                 'id="cloud-api-key"',
                 'id="brain-links"',
+                'data-brain-node="reflection"',
+                'data-brain-node="learning-plan"',
+                'data-brain-node="experiment"',
+                'data-brain-node="learning-check"',
+                'data-brain-node="consolidation"',
+                'id="reflection-quality"',
+                'id="learning-plan-stream"',
+                'id="experiment-stream"',
+                'id="context-budget-value"',
             )
             missing_ui = [
                 marker for marker in required_ui

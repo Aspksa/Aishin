@@ -5,11 +5,14 @@ from dataclasses import dataclass
 from ..db import (
     add_relationship_memory,
     add_timeline_event,
+    find_relationship_by_fingerprint,
     get_master_profile,
     recent_relationship_memories,
     recent_timeline,
     set_master_profile_value,
+    update_relationship_strength,
 )
+from .memory import fingerprint
 
 
 @dataclass
@@ -53,12 +56,24 @@ class PersonalAishin:
         confidence: float = 1.0,
         source: str = "conversation",
     ) -> int:
+        clean = content.strip()
+        fp = fingerprint(clean)
+        existing = find_relationship_by_fingerprint(fp)
+        if existing:
+            update_relationship_strength(
+                existing["id"],
+                confidence=max(float(existing["confidence"]), confidence),
+                importance=max(float(existing["importance"]), importance),
+            )
+            return int(existing["id"])
+
         return add_relationship_memory(
             kind=kind,
-            content=content.strip(),
+            content=clean,
             importance=importance,
             confidence=confidence,
             source=source,
+            fingerprint=fp,
         )
 
     def add_timeline(

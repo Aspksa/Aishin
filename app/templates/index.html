@@ -80,6 +80,34 @@
           </div>
 
           <aside class="today-panel">
+            <button id="development-open" class="development-card" type="button" aria-label="Открыть подробное развитие Айшин">
+              <div class="development-card-head">
+                <div>
+                  <p class="overline">РАЗВИТИЕ АЙШИН</p>
+                  <strong>Моя реальная динамика</strong>
+                </div>
+                <span class="development-symbol">✦</span>
+              </div>
+              <div class="development-main">
+                <div class="development-ring" id="development-ring">
+                  <span id="development-score">0.0%</span>
+                  <small>общий уровень</small>
+                </div>
+                <div class="development-growth">
+                  <span>За 30 дней</span>
+                  <strong id="development-delta">0.0%</strong>
+                  <small id="development-phrase">Я продолжаю учиться на реальной работе.</small>
+                </div>
+              </div>
+              <div id="development-mini-components" class="development-mini-components">
+                <span><b>◈</b> Память <strong>0%</strong></span>
+                <span><b>✓</b> Точность <strong>0%</strong></span>
+                <span><b>↻</b> Ошибки <strong>0%</strong></span>
+                <span><b>◇</b> Стратегии <strong>0%</strong></span>
+              </div>
+              <div class="development-open-hint">Подробности развития <span>→</span></div>
+            </button>
+
             <div class="today-head">
               <div>
                 <p class="overline">СЕЙЧАС</p>
@@ -281,6 +309,96 @@
             </div>
           </div>
         </details>
+      </section>
+
+      <section id="development-module" class="module-page">
+        <div class="development-page">
+          <div class="development-page-head">
+            <button id="development-back" class="ghost-button development-back" type="button">← Назад к Айшин</button>
+            <div>
+              <p class="overline">ЛИЧНОЕ ПРОСТРАНСТВО · РАЗВИТИЕ</p>
+              <h2>Развитие Айшин</h2>
+              <p>Только реальные показатели моей памяти, знаний, связей, качества и обучения.</p>
+            </div>
+            <div class="development-identity"><span>✦</span><strong>Айшин</strong><small>личная кицунэ-помощница</small></div>
+          </div>
+
+          <section class="development-hero">
+            <div class="development-hero-ring" id="development-detail-ring">
+              <span id="development-detail-score">0.0%</span>
+              <small>общий уровень</small>
+            </div>
+            <div class="development-hero-copy">
+              <p class="overline">ЧЕСТНАЯ МЕТРИКА</p>
+              <h3 id="development-detail-title">Я изучаю ваш мир и становлюсь точнее.</h3>
+              <p id="development-principle">Процент строится только по данным Айшин и не зависит от бренда внешнего AI-провайдера.</p>
+              <div class="development-growth-pill"><span>Рост за 30 дней</span><strong id="development-detail-delta">0.0%</strong></div>
+            </div>
+          </section>
+
+          <section class="development-section">
+            <div class="section-heading compact">
+              <div>
+                <p class="overline">8 НАПРАВЛЕНИЙ</p>
+                <h3>Из чего складывается развитие</h3>
+              </div>
+            </div>
+            <div id="development-components" class="development-components"></div>
+          </section>
+
+          <section class="development-section">
+            <div class="section-heading compact development-history-head">
+              <div>
+                <p class="overline">ИСТОРИЯ</p>
+                <h3>Как меняется развитие</h3>
+              </div>
+              <div class="development-periods">
+                <button type="button" data-development-days="7">7 дней</button>
+                <button type="button" data-development-days="30" class="active">30 дней</button>
+                <button type="button" data-development-days="90">3 месяца</button>
+                <button type="button" data-development-days="365">Год</button>
+              </div>
+            </div>
+            <div class="development-chart-wrap">
+              <svg id="development-chart" class="development-chart" viewBox="0 0 800 220" role="img" aria-label="История развития Айшин"></svg>
+              <p id="development-chart-empty" class="brain-empty">История ещё накапливается.</p>
+            </div>
+          </section>
+
+          <div class="development-detail-grid">
+            <section class="development-section">
+              <div class="section-heading compact"><div><p class="overline">ПОЧЕМУ ИЗМЕНИЛОСЬ</p><h3>Причины роста</h3></div></div>
+              <div id="development-reasons" class="development-list"></div>
+            </section>
+            <section class="development-section">
+              <div class="section-heading compact"><div><p class="overline">СЕЙЧАС В ОБУЧЕНИИ</p><h3>Текущие цели</h3></div></div>
+              <div id="development-learning" class="development-list"></div>
+            </section>
+            <section class="development-section">
+              <div class="section-heading compact"><div><p class="overline">УЖЕ ОСВОЕНО</p><h3>Проверенные навыки</h3></div></div>
+              <div id="development-mastered" class="development-list"></div>
+            </section>
+            <section class="development-section">
+              <div class="section-heading compact"><div><p class="overline">ТОЧКИ РОСТА</p><h3>Где мне ещё учиться</h3></div></div>
+              <div id="development-needs" class="development-list"></div>
+            </section>
+          </div>
+
+          <section class="development-section">
+            <div class="section-heading compact"><div><p class="overline">РЕАЛЬНЫЕ СЧЁТЧИКИ</p><h3>Что накоплено в моей системе</h3></div></div>
+            <div class="development-counter-grid">
+              <article><span>✦</span><div><strong id="dev-count-experience">0</strong><small>событий опыта</small></div></article>
+              <article><span>◈</span><div><strong id="dev-count-knowledge">0</strong><small>элементов знаний</small></div></article>
+              <article><span>⌁</span><div><strong id="dev-count-links">0</strong><small>связей</small></div></article>
+              <article><span>▤</span><div><strong id="dev-count-documents">0</strong><small>изученных документов</small></div></article>
+              <article><span>◎</span><div><strong id="dev-count-patterns">0</strong><small>trusted-паттернов</small></div></article>
+              <article><span>△</span><div><strong id="dev-count-hypotheses">0</strong><small>подтверждённых гипотез</small></div></article>
+              <article><span>↻</span><div><strong id="dev-count-errors">0</strong><small>сигналов ошибок</small></div></article>
+              <article><span>◇</span><div><strong id="dev-count-strategies">0</strong><small>trusted-стратегий</small></div></article>
+            </div>
+            <p class="development-honesty">Если показатель ещё не подтверждён данными, он остаётся нулевым — Айшин не дорисовывает опыт.</p>
+          </section>
+        </div>
       </section>
 
       <section id="settings-module" class="module-page">

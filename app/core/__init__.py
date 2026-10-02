@@ -1,1 +1,9 @@
-"""Core runtime for Aishin.\n\nThe core keeps identity, persistent state, memory, events and cognition separate\nfrom any specific LLM provider.\n"""\n\nfrom .engine import AishinEngine\n\n__all__ = ["AishinEngine"]\n
+"""Core runtime for Aishin.
+
+The core keeps identity, persistent state, memory, events and cognition separate
+from any specific LLM provider.
+"""
+
+from .engine import AishinEngine
+
+__all__ = ["AishinEngine"]

@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 15,
+      "latest_schema_version": 16,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -150,8 +150,8 @@
         "Cloud settings secret not exposed",
         "updater mode git/zip"
       ],
-      "latest_confirmed_run_id": 37010233186,
-      "latest_confirmed_head_sha": "1320c856bbb3b18c0c8e7fa3580a2e0e00bf60e5"
+      "latest_confirmed_run_id": 37012862347,
+      "latest_confirmed_head_sha": "8d211d403e57e361b4c8f889253e1fdad1866498"
     }
   },
   "implemented_architecture": [
@@ -864,14 +864,15 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Weighted Evidence Self-Learning implemented and validated.",
-    "last_implemented_feature": "Continuous Learning now ingests Self-Reflection, Context Budget and shadow experiment telemetry with evidence weights; Learning Quality Gate requires weighted evidence strength/confidence before trusted promotion.",
-    "next_recommended_step": "Replace projected shadow candidate scores with isolated real alternate-strategy evaluation and add learning-plan completion/regression detection.",
+    "milestone": "Aishin Development Metrics Engine and Russian development dashboard implemented and validated.",
+    "last_implemented_feature": "Transparent 0–100 development score with 8 weighted dimensions, persisted history, growth reasons and dedicated Russian UI opened from the right side of the main page.",
+    "next_recommended_step": "Add explicit hypothesis-confirmation lifecycle and document-study registry so confirmed hypotheses and studied documents can become richer first-class development evidence.",
     "do_not_do": [
-      "Не считать слабую телеметрию равноценной явной обратной связи.",
-      "Не разрешать shadow experiment подтверждать себя как success.",
-      "Не продвигать candidate автоматически.",
-      "Не использовать assistant-generated answer как доказательство успеха.",
+      "Не использовать Cloud.ru/model brand как вклад в развитие Айшин.",
+      "Не показывать случайные или вручную заданные проценты.",
+      "Не считать загруженный, но не изученный документ изученным.",
+      "Не считать гипотезу подтверждённой без отдельного evidence.",
+      "Не подменять короткую историю показателем роста за 30 дней.",
       "Не повышать version автоматически."
     ]
   },
@@ -1003,6 +1004,10 @@
     {
       "user_prompt": "давай усилим Самообучение",
       "result": "Strengthened Continuous Learning with weighted evidence, added Self-Reflection/Context Budget/Experiment observation sources, introduced learning_evidence_metrics and weighted trust gate. Weak repeated telemetry cannot become trusted by count alone; strong explicit evidence can. Schema 15. GitHub Actions 37010233186 passed Ubuntu and Windows."
+    },
+    {
+      "user_prompt": "Сделай справа на главной Развитие Айшин, при клике отдельный экран, на русском и красивые значки.",
+      "result": "Implemented Development Metrics Engine, schema 16, /api/assistant/development, right-column compact card and dedicated Russian development screen with 8 dimensions, history 7/30/90/365, growth reasons, learning goals, mastered trusted patterns, growth needs and real counters. GitHub Actions 37012862347 passed Ubuntu and Windows."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -2403,6 +2408,59 @@
       "self_check": "success",
       "runtime_smoke": "success",
       "launcher_check_only": "success"
+    }
+  },
+  "development_metrics": {
+    "formula_version": "aishin-development-v1",
+    "schema_version": 16,
+    "weights": {
+      "memory": 20,
+      "knowledge": 20,
+      "connections": 15,
+      "analytics": 10,
+      "accuracy": 10,
+      "error_learning": 10,
+      "strategies": 10,
+      "user_help": 5
+    },
+    "paths": [
+      "app/core/development_metrics.py",
+      "app/migrations.py",
+      "app/core/engine.py",
+      "app/main.py",
+      "app/templates/index.html",
+      "app/static/app.js",
+      "app/static/style.css"
+    ],
+    "api": "GET /api/assistant/development?scope=personal&days=30",
+    "ui": {
+      "main_page_position": "right column of personal space",
+      "compact_card": "Развитие Айшин",
+      "detail_screen": "Развитие Айшин",
+      "periods_days": [
+        7,
+        30,
+        90,
+        365
+      ],
+      "language": "Russian",
+      "icons": "local symbols, no external cloud branding"
+    },
+    "honesty_rules": [
+      "Only persisted Aishin data contributes to score.",
+      "Cloud.ru contributes no direct development score.",
+      "Missing evidence stays low/zero.",
+      "Confirmed hypotheses remain zero until a real confirmation lifecycle exists.",
+      "30-day delta requires an actual snapshot at least 30 days old."
+    ],
+    "validation": {
+      "run_id": 37012862347,
+      "ubuntu": "success",
+      "windows": "success",
+      "javascript": "success",
+      "self_check": "success",
+      "runtime_smoke": "success",
+      "launcher": "success"
     }
   }
 }

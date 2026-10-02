@@ -39,6 +39,11 @@ def main() -> int:
             "relationship_memories": len(personal.relationship_memory),
             "timeline_events": len(personal.timeline),
         }
+        checks["memory_consolidation"] = {
+            "status": "ok",
+            "consolidator": engine.consolidator.__class__.__name__,
+            "audit_entries": len(engine.memory.recent_changes(limit=10)),
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

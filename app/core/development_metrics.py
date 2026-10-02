@@ -262,6 +262,39 @@ class DevelopmentMetricsEngine:
                 "SELECT COUNT(*) FROM messages WHERE scope=?",
                 (scope,),
             ))
+            durable_skills = int(scalar(
+                """SELECT COUNT(*) FROM growth_skills
+                   WHERE scope=? AND lifecycle IN ('established','mastered')""",
+                (scope,),
+            ))
+            mastered_skills = int(scalar(
+                """SELECT COUNT(*) FROM growth_skills
+                   WHERE scope=? AND lifecycle='mastered'""",
+                (scope,),
+            ))
+            specializations = int(scalar(
+                "SELECT COUNT(*) FROM growth_specializations WHERE scope=?",
+                (scope,),
+            ))
+            strong_specializations = int(scalar(
+                """SELECT COUNT(*) FROM growth_specializations
+                   WHERE scope=? AND level IN ('strong','mastered')""",
+                (scope,),
+            ))
+            trusted_knowledge = int(scalar(
+                """SELECT COUNT(*) FROM knowledge_trust
+                   WHERE scope=? AND trust_level='trusted'""",
+                (scope,),
+            ))
+            stale_knowledge = int(scalar(
+                """SELECT COUNT(*) FROM knowledge_trust
+                   WHERE scope=? AND trust_level='stale'""",
+                (scope,),
+            ))
+            average_knowledge_trust = scalar(
+                "SELECT AVG(trust_score) FROM knowledge_trust WHERE scope=?",
+                (scope,),
+            )
 
         knowledge_items = memories + entities
         return {
@@ -295,6 +328,13 @@ class DevelopmentMetricsEngine:
             "tool_actions": tool_total,
             "tool_successes": tool_successes,
             "messages": messages,
+            "durable_skills": durable_skills,
+            "mastered_skills": mastered_skills,
+            "specializations": specializations,
+            "strong_specializations": strong_specializations,
+            "trusted_knowledge": trusted_knowledge,
+            "stale_knowledge": stale_knowledge,
+            "average_knowledge_trust": round(average_knowledge_trust, 4),
         }
 
     def _components(self, c: dict) -> dict:

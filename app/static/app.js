@@ -17,6 +17,10 @@ const pages = {
     title: "Эволюция Айшин",
     description: "Самообучение, champion/challenger, curriculum и перенос опыта."
   },
+  research: {
+    title: "Исследования Айши",
+    description: "Пробелы знаний, Evidence Ledger, claims и противоречия."
+  },
   account: {
     title: "Личный кабинет",
     description: "Здесь будет профиль владельца, персональные настройки, доступы и параметры Айшин."
@@ -55,6 +59,11 @@ document.querySelectorAll(".nav-item[data-module]").forEach((button) => {
       document.getElementById("evolution-module")?.classList.add("active");
       if (typeof window.AISHIN_EVOLUTION_REFRESH === "function") {
         window.AISHIN_EVOLUTION_REFRESH();
+      }
+    } else if (code === "research") {
+      document.getElementById("research-module")?.classList.add("active");
+      if (typeof window.AISHIN_RESEARCH_REFRESH === "function") {
+        window.AISHIN_RESEARCH_REFRESH();
       }
     } else if (code === "settings") {
       document.getElementById("settings-module").classList.add("active");

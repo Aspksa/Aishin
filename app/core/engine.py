@@ -845,6 +845,21 @@ class AishinEngine:
             scope=scope,
             persist_snapshot=True,
         )
+        intelligence_outcome = self.cognitive_intelligence.complete_route(
+            request_id=request_id,
+            scope=scope,
+            decision_quality=decision_quality.overall,
+            reflection_quality=reflection.quality_score,
+            provider_available=ai_reply.available,
+            unresolved_count=(
+                len(logic_trace.unresolved)
+                + len(counterfactual_assessment.unresolved)
+            ),
+        )
+        cognitive_intelligence = self.cognitive_intelligence.current(
+            scope=scope,
+            persist=True,
+        )
         self.events.emit(
             "cognition.phase",
             scope=scope,
@@ -874,6 +889,11 @@ class AishinEngine:
         request_trace["learning_planner"] = learning_plans
         request_trace["safe_experiments"] = experiment_updates
         request_trace["long_term_growth"] = long_term_growth
+        request_trace["cognitive_intelligence"] = {
+            "route": cognitive_route.to_dict(),
+            "outcome": intelligence_outcome,
+            "current": cognitive_intelligence,
+        }
 
         trace_id = self.cognitive_traces.record(
             request_id=request_id,
@@ -940,6 +960,14 @@ class AishinEngine:
                     "knowledge": long_term_growth.get("knowledge"),
                     "specializations": long_term_growth.get("specializations"),
                 },
+                "cognitive_intelligence": {
+                    "overall_score": cognitive_intelligence.get("overall_score"),
+                    "task_family": cognitive_route.task_family,
+                    "adapted_mode": cognitive_route.adapted_mode,
+                    "route_confidence": cognitive_route.route_confidence,
+                    "outcome_score": intelligence_outcome.get("outcome_score"),
+                    "transfer_used": cognitive_route.transfer_used,
+                },
             },
             importance=0.3,
         )
@@ -983,6 +1011,11 @@ class AishinEngine:
             "learning_planner": learning_plans,
             "safe_experiments": experiment_updates,
             "long_term_growth": long_term_growth,
+            "cognitive_intelligence": {
+                "route": cognitive_route.to_dict(),
+                "outcome": intelligence_outcome,
+                "current": cognitive_intelligence,
+            },
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

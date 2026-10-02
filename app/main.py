@@ -191,6 +191,12 @@ def assistant_memory(scope: str = 'personal', limit: int = 20) -> list[dict]:
     return engine.memory.recent(scope=scope, limit=limit)
 
 
+@app.get('/api/assistant/memory-changes')
+def assistant_memory_changes(limit: int = 30) -> list[dict]:
+    limit = max(1, min(limit, 100))
+    return engine.memory.recent_changes(limit=limit)
+
+
 @app.post('/api/assistant/message')
 def assistant_message(payload: ChatMessage) -> dict:
     text = payload.message.strip()

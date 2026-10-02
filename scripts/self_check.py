@@ -134,6 +134,26 @@ def main() -> int:
             ),
             "modes": ["FAST", "DEEP", "VERIFY", "PLAN", "DIAGNOSE"],
         }
+        fast_budget = engine.context_orchestrator.budget_for("FAST")
+        verify_budget = engine.context_orchestrator.budget_for("VERIFY")
+        if fast_budget.memories >= verify_budget.memories:
+            raise RuntimeError("Context budget FAST должен быть меньше VERIFY")
+        checks["context_orchestrator"] = {
+            "status": "ok",
+            "engine": engine.context_orchestrator.__class__.__name__,
+            "fast": fast_budget.__dict__,
+            "verify": verify_budget.__dict__,
+            "history_entries": len(
+                engine.context_orchestrator.recent(scope="personal", limit=10)
+            ),
+        }
+        checks["causal_reasoning"] = {
+            "status": "ok",
+            "engine": engine.causal.__class__.__name__,
+            "history_entries": len(
+                engine.causal.recent(scope="personal", limit=10)
+            ),
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

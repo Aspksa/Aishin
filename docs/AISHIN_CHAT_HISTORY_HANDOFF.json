@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T18:51:00+10:00",
+  "generated_at": "2026-10-02T19:08:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -39,7 +39,7 @@
     "canonical_profile_repository_path": "app/data/AISHIN_PERSONALITY_PROFILE.json",
     "compatibility_profile_repository_path": "app/data/aishin_personality.json",
     "current_loader_path": "app/personality.py",
-    "current_loader_note": "На момент handoff loader всё ещё использует lowercase app/data/aishin_personality.json. Это известная техническая задолженность: канонический AISHIN_PERSONALITY_PROFILE.json должен стать primary source или нужен явный compatibility fallback.",
+    "current_loader_note": "Исправлено: app/personality.py теперь canonical-first загружает app/data/AISHIN_PERSONALITY_PROFILE.json; lowercase app/data/aishin_personality.json используется только как compatibility fallback. Self-check требует source=canonical.",
     "identity": {
       "name": "Айшин",
       "short_name": "Айши",
@@ -111,7 +111,42 @@
       "Мобильное приложение",
       "Рабочее пространство",
       "Система обновления"
-    ]
+    ],
+    "database_migrations": {
+      "framework": "app/migrations.py",
+      "migration_table": "schema_migrations",
+      "latest_schema_version": 2,
+      "automatic_on_init": true,
+      "self_check": [
+        "schema up-to-date",
+        "PRAGMA foreign_keys=ON",
+        "PRAGMA integrity_check=ok"
+      ]
+    },
+    "runtime_validation": {
+      "workflow": ".github/workflows/runtime-check.yml",
+      "runtime_smoke": "scripts/runtime_smoke.py",
+      "confirmed_run_id": 36987889755,
+      "confirmed_head_sha": "ee3632631a4043d6e69212b8a42aaf3ce907dbe7",
+      "result": "success",
+      "platforms": [
+        {
+          "os": "ubuntu-latest",
+          "python": "3.11",
+          "conclusion": "success"
+        },
+        {
+          "os": "windows-latest",
+          "python": "3.11",
+          "conclusion": "success"
+        }
+      ],
+      "checks": [
+        "python compileall",
+        "scripts/self_check.py",
+        "scripts/runtime_smoke.py"
+      ]
+    }
   },
   "implemented_architecture": [
     {
@@ -424,23 +459,23 @@
     "Proactive decisions дедуплицируются только в pending status.",
     "Resolved planner proposals автоматически dismissed.",
     "Self-check не должен мутировать proactive/metacognitive/verification state.",
-    "Live Brain показывает actual Working Memory последнего cognitive pass, а не просто recent DB records."
+    "Live Brain показывает actual Working Memory последнего cognitive pass, а не просто recent DB records.",
+    "Canonical personality loader переведён на AISHIN_PERSONALITY_PROFILE.json с legacy fallback.",
+    "Добавлена формальная таблица schema_migrations и migration framework schema version 2.",
+    "CI выявил и исправил буквальные \\\\n в app/core/__init__.py и app/core/events.py.",
+    "CI выявил и исправил Windows UnicodeEncodeError диагностических JSON; self_check/runtime_smoke принудительно используют UTF-8.",
+    "GitHub Actions runtime check подтверждён success на Windows и Ubuntu Python 3.11 (run 36987889755)."
   ],
   "known_technical_debt_and_unverified_items": [
     {
       "priority": "high",
-      "item": "Canonical personality loader",
-      "detail": "app/personality.py всё ещё грузит app/data/aishin_personality.json, хотя канонический файл AISHIN_PERSONALITY_PROFILE.json уже добавлен. Следующий чат должен безопасно сделать canonical-first loader/fallback и исключить drift."
+      "item": "Context budget",
+      "detail": "Нужен token/context budgeter для personality + self-model + personal context + planner + sensors + memory + verification, чтобы рост ядра не раздувал prompt."
     },
     {
       "priority": "high",
-      "item": "Runtime tests",
-      "detail": "Из GitHub connector выполнялись структурные проверки содержимого, но проект не запускался в реальном Windows/runtime окружении в этом чате. Нельзя утверждать, что self_check и uvicorn фактически прошли."
-    },
-    {
-      "priority": "high",
-      "item": "Database migrations",
-      "detail": "Схема растёт через CREATE TABLE / _ensure_column; нужен формальный schema_version/migration layer до дальнейшего усложнения."
+      "item": "Cloud.ru resilience",
+      "detail": "Нужны health cache, controlled retries/backoff для 429/5xx, безопасные error snippets и единая timeout/retry policy."
     },
     {
       "priority": "medium",
@@ -470,15 +505,15 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Verification Engine completed structurally on main; machine-readable handoff being created.",
-    "last_implemented_feature": "Verification Engine with final metacognitive reassessment before Cloud.ru answer.",
-    "next_recommended_step": "Fix canonical personality loader first, then add formal schema migrations and run actual runtime/self-check tests before expanding autonomy further.",
+    "milestone": "Reliability foundation completed: canonical personality loader + formal DB migrations + successful cross-platform runtime CI.",
+    "last_implemented_feature": "Canonical profile primary source, schema_migrations version 2, runtime smoke and GitHub Actions Windows/Linux validation.",
+    "next_recommended_step": "Implement Context Budgeter first, then Cloud.ru resilience (health cache, retry/backoff, safe errors).",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не превращать Aishin в multi-user SaaS.",
       "Не смешивать память Aishin с TooruDragon.",
-      "Не заявлять, что runtime tests passed, пока они реально не запущены."
+      "Не коммитить Cloud.ru API key или другие секреты."
     ]
   },
   "development_sequence_current_chat": [
@@ -529,6 +564,10 @@
     {
       "user_prompt": "Делай после этого на гиг хабе создай файл машино читаемой история Aishi сохрани туда весь этот чат . план и что сделали и на чем остановились и куда подключаться всю нужную информацию тдля следующего чата джпт",
       "result": "Добавлен Verification Engine; затем создан этот handoff-файл."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Закрыт технический фундамент: canonical-first personality loader, formal schema migrations, runtime_smoke, Aishin.bat Python 3.11 validation, GitHub Actions Windows/Linux CI. Первый CI выявил две реальные ошибки (literal \\\\n и Windows cp1252), они исправлены; run 36987889755 успешно прошёл на обеих ОС."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -544,9 +583,9 @@
     "first_actions": [
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
-      "Сначала fetch current tree и нужные файлы; перед update обязательно fetch current SHA.",
-      "Проверить текущий HEAD, потому что repo может измениться после создания handoff.",
-      "Не полагаться только на этот handoff, если пользователь просит фактическое изменение repo: перепроверять current files."
+      "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
+      "Считать canonical personality loader и migrations уже закрытыми, не переделывать без причины.",
+      "Следующий рекомендуемый этап: Context Budgeter, затем Cloud.ru resilience."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",

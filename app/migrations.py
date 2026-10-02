@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 17
+LATEST_SCHEMA_VERSION = 18
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -757,6 +757,61 @@ def _migration_017_long_term_growth(
     )
 
 
+def _migration_018_cognitive_intelligence(
+    conn: sqlite3.Connection,
+) -> None:
+    """Adaptive skill routing and evidence-grounded intelligence metrics."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS cognitive_intelligence_routes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id TEXT NOT NULL UNIQUE,
+            scope TEXT NOT NULL,
+            query_preview TEXT NOT NULL DEFAULT '',
+            task_family TEXT NOT NULL DEFAULT 'general',
+            intent TEXT NOT NULL DEFAULT 'conversation',
+            base_mode TEXT NOT NULL DEFAULT 'FAST',
+            adapted_mode TEXT NOT NULL DEFAULT 'FAST',
+            route_confidence REAL NOT NULL DEFAULT 0.0,
+            context_multiplier REAL NOT NULL DEFAULT 1.0,
+            selected_skill_ids_json TEXT NOT NULL DEFAULT '[]',
+            selected_specialization_ids_json TEXT NOT NULL DEFAULT '[]',
+            selected_knowledge_ids_json TEXT NOT NULL DEFAULT '[]',
+            transfer_used INTEGER NOT NULL DEFAULT 0,
+            transfer_skill_ids_json TEXT NOT NULL DEFAULT '[]',
+            rationale_json TEXT NOT NULL DEFAULT '[]',
+            outcome_score REAL,
+            successful INTEGER,
+            unresolved_count INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS cognitive_intelligence_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            formula_version TEXT NOT NULL,
+            overall_score REAL NOT NULL DEFAULT 0.0,
+            dimensions_json TEXT NOT NULL DEFAULT '{}',
+            evidence_json TEXT NOT NULL DEFAULT '{}',
+            route_stats_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_intelligence_routes_scope_created
+        ON cognitive_intelligence_routes(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_intelligence_routes_family_outcome
+        ON cognitive_intelligence_routes(
+            scope, task_family, successful, outcome_score DESC
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_intelligence_snapshots_scope_created
+        ON cognitive_intelligence_snapshots(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -775,6 +830,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (15, "weighted_learning_evidence", _migration_015_weighted_learning_evidence),
     (16, "development_metrics", _migration_016_development_metrics),
     (17, "long_term_growth", _migration_017_long_term_growth),
+    (18, "cognitive_intelligence", _migration_018_cognitive_intelligence),
 )
 
 

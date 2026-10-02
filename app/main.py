@@ -16,6 +16,8 @@ from .core.engine import AishinEngine
 from .core.heartbeat import Heartbeat
 from .db import init_db, list_modules, record_update
 from .personality import personality
+from .system_settings import CloudSettingsService
+from .updater import ProjectUpdater
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = Path(__file__).resolve().parent
@@ -28,6 +30,8 @@ templates = Environment(
 )
 
 engine = AishinEngine()
+cloud_settings = CloudSettingsService(ROOT)
+project_updater = ProjectUpdater(ROOT)
 heartbeat: Heartbeat | None = None
 heartbeat_task: asyncio.Task | None = None
 learning_task: asyncio.Task | None = None
@@ -140,6 +144,10 @@ class DecisionAction(BaseModel):
 class RollbackAction(BaseModel):
     scope: str = 'personal'
     approved: bool = False
+
+
+class CloudSettingsUpdate(BaseModel):
+    api_key: str
 
 
 @app.get('/', response_class=HTMLResponse)
@@ -760,6 +768,46 @@ def assistant_execution_rollback(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.get('/api/settings/cloudru')
+def cloudru_settings_status() -> dict:
+    status = cloud_settings.public_status()
+    health = engine.ai.health()
+    return {
+        **status,
+        "available": bool(health.get("available")),
+        "model_available": health.get("model_available"),
+        "error": health.get("error"),
+    }
+
+
+@app.post('/api/settings/cloudru')
+def cloudru_settings_save(
+    payload: CloudSettingsUpdate,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        status = cloud_settings.save_key(payload.api_key)
+        runtime = engine.reload_ai()
+        return {
+            "status": "saved",
+            "settings": status,
+            "health": runtime["health"],
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post('/api/settings/cloudru/test')
+def cloudru_settings_test(request: Request) -> dict:
+    _local_only(request)
+    result = cloud_settings.test()
+    return {
+        "status": "ok" if result.get("available") else "error",
+        "health": result,
+    }
+
+
 @app.get('/api/assistant/action-selection')
 def assistant_action_selection(
     scope: str = 'personal',
@@ -915,19 +963,38 @@ def _local_only(request: Request) -> None:
         raise HTTPException(status_code=403, detail='Обновление разрешено только локально')
 
 
+@app.get('/api/system/update/status')
+def system_update_status() -> dict:
+    return {
+        'mode': project_updater.mode(),
+        'git_checkout': (ROOT / '.git').exists(),
+    }
+
+
 @app.post('/api/system/update')
 def system_update(request: Request) -> dict:
     _local_only(request)
     engine.events.emit('system.update.started', importance=0.5)
     try:
-        fetch = subprocess.run(['git', 'fetch', 'origin', 'main'], cwd=ROOT, capture_output=True, text=True, timeout=30, check=True)
-        pull = subprocess.run(['git', 'pull', '--ff-only', 'origin', 'main'], cwd=ROOT, capture_output=True, text=True, timeout=30, check=True)
-        details = (fetch.stdout + '\n' + pull.stdout).strip() or 'Обновление проверено'
+        result = project_updater.update()
+        details = str(result.get('details') or 'Обновление завершено')
         record_update('success', details)
-        engine.events.emit('system.update.completed', payload={'details': details[:500]}, importance=0.6)
-        return {'status': 'success', 'details': details}
+        engine.events.emit(
+            'system.update.completed',
+            payload={
+                'details': details[:500],
+                'mode': result.get('mode'),
+                'restart_required': result.get('restart_required', True),
+            },
+            importance=0.6,
+        )
+        return result
     except Exception as exc:
         details = str(exc)
         record_update('error', details)
-        engine.events.emit('system.update.failed', payload={'error': details[:500]}, importance=0.9)
+        engine.events.emit(
+            'system.update.failed',
+            payload={'error': details[:500]},
+            importance=0.9,
+        )
         raise HTTPException(status_code=500, detail=details)

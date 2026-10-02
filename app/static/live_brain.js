@@ -61,7 +61,7 @@
         '<div class="live-brain-title">',
           '<div id="live-brain-orb" class="live-brain-orb" aria-hidden="true"></div>',
           '<div>',
-            '<p class="overline">AISHIN 00.00.10 · LIVE BRAIN</p>',
+            '<p class="overline">AISHIN 00.00.11 · LIVE BRAIN</p>',
             '<h3>Нейронная обсерватория Айшин</h3>',
             '<p>Живые события, память, связи, проверки, качество и безопасная техническая трасса.</p>',
           '</div>',
@@ -83,6 +83,7 @@
         '<article class="live-brain-metric"><span>Эволюция</span><strong id="lb-evolution-score">—</strong><small id="lb-evolution-generation">G1 · 0 champions</small></article>',
         '<article class="live-brain-metric"><span>Исследования</span><strong id="lb-research-score">—</strong><small id="lb-research-status">0 gaps · 0 trusted</small></article>',
         '<article class="live-brain-metric"><span>Общение</span><strong id="lb-communication-score">—</strong><small id="lb-communication-status">0 evidence · persona —</small></article>',
+        '<article class="live-brain-metric"><span>Документы</span><strong id="lb-documents-score">—</strong><small id="lb-documents-status">0 studied · 0 OCR</small></article>',
       '</div>',
       '<div class="live-brain-columns">',
         '<article class="live-brain-panel">',
@@ -369,6 +370,8 @@
     var researchSummary = research.summary || {};
     var communication = data.communication || {};
     var communicationSummary = communication.summary || {};
+    var documents = data.documents || {};
+    var documentsSummary = documents.summary || {};
 
     setText("#live-brain-runtime", data.runtime_version || "runtime");
     setText("#live-brain-status", integrity.status || "—");
@@ -391,6 +394,8 @@
     setText("#lb-research-status", n(researchSummary.open_gaps) + " gaps · " + n(researchSummary.trusted_claims) + " trusted · " + n(researchSummary.open_contradictions) + " conflicts");
     setText("#lb-communication-score", communicationSummary.communication_score == null ? "—" : n(communicationSummary.communication_score).toFixed(1) + "%");
     setText("#lb-communication-status", n(communicationSummary.evaluated_turns) + " evidence · persona " + n(communicationSummary.persona_stability).toFixed(0) + "% · explain " + n(communicationSummary.explanation_success).toFixed(0) + "%");
+    setText("#lb-documents-score", documentsSummary.ingestion_score == null ? "—" : n(documentsSummary.ingestion_score).toFixed(1) + "%");
+    setText("#lb-documents-status", n(documentsSummary.studied_documents) + " studied · " + n(documentsSummary.ocr_required_documents) + " OCR · " + n(documentsSummary.contradiction_count) + " conflicts");
     setText("#lb-current-phase", "фаза: " + (pulse.phase || "idle"));
     setText("#lb-event-total", compact(pulse.events_total) + " всего");
 

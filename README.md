@@ -672,3 +672,13 @@ Live Brain показывает отдельный узел Action Selection с 
 
 Schema migration: `7`.
 Версия приложения остаётся `0.0.3`.
+
+
+### Подтверждение Action Selection runtime
+Action Selection / Expected Utility подтверждён GitHub Actions:
+- run id: `36991833619`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.
+
+Action Selector не исполняет выбранное действие сам: реальное выполнение остаётся за Tool Registry и Permission Gate.

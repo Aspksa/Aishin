@@ -138,6 +138,17 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS memory_changes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL,
+                memory_id INTEGER,
+                action TEXT NOT NULL,
+                reason TEXT NOT NULL DEFAULT '',
+                before_json TEXT,
+                after_json TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -155,6 +166,12 @@ def init_db() -> None:
         _ensure_column(conn, 'memories', 'tags_json', "TEXT NOT NULL DEFAULT '[]'")
         _ensure_column(conn, 'memories', 'source', "TEXT NOT NULL DEFAULT 'unknown'")
         _ensure_column(conn, 'memories', 'last_accessed_at', 'TEXT')
+        _ensure_column(conn, 'memories', 'fingerprint', 'TEXT')
+        _ensure_column(conn, 'memories', 'memory_key', 'TEXT')
+        _ensure_column(conn, 'memories', 'status', "TEXT NOT NULL DEFAULT 'active'")
+        _ensure_column(conn, 'memories', 'superseded_by', 'INTEGER')
+        _ensure_column(conn, 'relationship_memory', 'fingerprint', 'TEXT')
+        _ensure_column(conn, 'relationship_memory', 'status', "TEXT NOT NULL DEFAULT 'active'")
         conn.executemany('''
             INSERT INTO modules(code, title, description)
             VALUES (?, ?, ?)
@@ -258,12 +275,12 @@ def recent_messages(limit: int = 20, scope: str | None = None) -> list[dict]:
     return [dict(row) for row in reversed(rows)]
 
 
-def add_memory(*, scope: str, kind: str, content: str, confidence: float, importance: float, tags: list[str], source: str) -> int:
+def add_memory(*, scope: str, kind: str, content: str, confidence: float, importance: float, tags: list[str], source: str, fingerprint: str | None = None, memory_key: str | None = None) -> int:
     with connect() as conn:
         cur=conn.execute('''
-            INSERT INTO memories(scope, kind, content, confidence, importance, tags_json, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (scope, kind, content, confidence, importance, json.dumps(tags, ensure_ascii=False), source))
+            INSERT INTO memories(scope, kind, content, confidence, importance, tags_json, source, fingerprint, memory_key)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (scope, kind, content, confidence, importance, json.dumps(tags, ensure_ascii=False), source, fingerprint, memory_key))
         conn.commit(); return int(cur.lastrowid)
 
 
@@ -275,7 +292,7 @@ def _memory_row(row: sqlite3.Row) -> dict:
 
 def recent_memories(scope: str = 'personal', limit: int = 12) -> list[dict]:
     with connect() as conn:
-        rows=conn.execute('SELECT * FROM memories WHERE scope=? ORDER BY importance DESC, id DESC LIMIT ?', (scope, limit)).fetchall()
+        rows=conn.execute('SELECT * FROM memories WHERE scope=? AND status='active' ORDER BY importance DESC, id DESC LIMIT ?', (scope, limit)).fetchall()
     return [_memory_row(row) for row in rows]
 
 
@@ -285,7 +302,7 @@ def search_memories(terms: list[str], scope: str = 'personal', limit: int = 8) -
     where=' OR '.join(['LOWER(content) LIKE ?' for _ in terms])
     params=[f'%{term.lower()}%' for term in terms]
     with connect() as conn:
-        rows=conn.execute(f'''SELECT * FROM memories WHERE scope=? AND ({where}) ORDER BY importance DESC, confidence DESC, id DESC LIMIT ?''', [scope, *params, limit]).fetchall()
+        rows=conn.execute(f'''SELECT * FROM memories WHERE scope=? AND status='active' AND ({where}) ORDER BY importance DESC, confidence DESC, id DESC LIMIT ?''', [scope, *params, limit]).fetchall()
     return [_memory_row(row) for row in rows]
 
 
@@ -463,3 +480,97 @@ def recent_timeline(limit: int = 20, scope: str | None = None) -> list[dict]:
                 (limit,),
             ).fetchall()
     return [dict(row) for row in rows]
+
+
+def find_memory_by_fingerprint(scope: str, fingerprint: str) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            """SELECT * FROM memories
+               WHERE scope=? AND fingerprint=? AND status='active'
+               ORDER BY id DESC LIMIT 1""",
+            (scope, fingerprint),
+        ).fetchone()
+    return _memory_row(row) if row else None
+
+
+def find_active_memory_by_key(scope: str, memory_key: str) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            """SELECT * FROM memories
+               WHERE scope=? AND memory_key=? AND status='active'
+               ORDER BY id DESC LIMIT 1""",
+            (scope, memory_key),
+        ).fetchone()
+    return _memory_row(row) if row else None
+
+
+def active_memories_for_scope(scope: str, limit: int = 100) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT * FROM memories
+               WHERE scope=? AND status='active'
+               ORDER BY id DESC LIMIT ?""",
+            (scope, limit),
+        ).fetchall()
+    return [_memory_row(row) for row in rows]
+
+
+def update_memory_strength(memory_id: int, *, confidence: float, importance: float) -> None:
+    with connect() as conn:
+        conn.execute(
+            """UPDATE memories
+               SET confidence=?, importance=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=?""",
+            (confidence, importance, memory_id),
+        )
+        conn.commit()
+
+
+def supersede_memory(old_memory_id: int, new_memory_id: int) -> None:
+    with connect() as conn:
+        conn.execute(
+            """UPDATE memories
+               SET status='superseded', superseded_by=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=?""",
+            (new_memory_id, old_memory_id),
+        )
+        conn.commit()
+
+
+def log_memory_change(scope: str, memory_id: int | None, action: str, reason: str = "", before: dict | None = None, after: dict | None = None) -> int:
+    with connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO memory_changes(scope, memory_id, action, reason, before_json, after_json)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                scope,
+                memory_id,
+                action,
+                reason,
+                json.dumps(before, ensure_ascii=False) if before is not None else None,
+                json.dumps(after, ensure_ascii=False) if after is not None else None,
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def recent_memory_changes(limit: int = 30) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM memory_changes ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        if item.get("before_json"):
+            item["before"] = json.loads(item.pop("before_json"))
+        else:
+            item.pop("before_json", None)
+        if item.get("after_json"):
+            item["after"] = json.loads(item.pop("after_json"))
+        else:
+            item.pop("after_json", None)
+        result.append(item)
+    return result

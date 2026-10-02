@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 7
+LATEST_SCHEMA_VERSION = 8
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -237,6 +237,49 @@ def _migration_007_action_selection(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_008_execution_coordinator(conn: sqlite3.Connection) -> None:
+    """One-shot approval and execution revalidation audit."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS execution_approvals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            decision_id INTEGER NOT NULL,
+            tool_name TEXT NOT NULL,
+            capability TEXT NOT NULL,
+            arguments_hash TEXT NOT NULL,
+            preview_hash TEXT NOT NULL,
+            permission_mode TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            expires_at TEXT NOT NULL,
+            consumed_at TEXT,
+            invalidated_reason TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS execution_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            decision_id INTEGER NOT NULL,
+            approval_id INTEGER,
+            tool_name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            revalidation_json TEXT NOT NULL DEFAULT '{}',
+            tool_result_json TEXT NOT NULL DEFAULT '{}',
+            rollback_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(approval_id) REFERENCES execution_approvals(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_execution_approvals_decision
+        ON execution_approvals(scope, decision_id, status, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_execution_attempts_scope_created
+        ON execution_attempts(scope, created_at DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -245,6 +288,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (5, "hypotheses_and_logic_learning", _migration_005_hypotheses_and_logic_learning),
     (6, "counterfactual_and_decision_quality", _migration_006_counterfactual_and_decision_quality),
     (7, "action_selection", _migration_007_action_selection),
+    (8, "execution_coordinator", _migration_008_execution_coordinator),
 )
 
 

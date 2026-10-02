@@ -129,6 +129,11 @@ class DecisionAction(BaseModel):
     reason: str = ''
 
 
+class RollbackAction(BaseModel):
+    scope: str = 'personal'
+    approved: bool = False
+
+
 @app.get('/', response_class=HTMLResponse)
 def home() -> str:
     template = templates.get_template('index.html')
@@ -653,6 +658,23 @@ def assistant_execution_attempts(
         scope=scope,
         limit=max(1, min(limit, 100)),
     )
+
+
+@app.post('/api/assistant/execution/attempts/{attempt_id}/rollback')
+def assistant_execution_rollback(
+    attempt_id: int,
+    payload: RollbackAction,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.execution_coordinator.rollback_attempt(
+            attempt_id,
+            scope=payload.scope.strip() or 'personal',
+            approved=payload.approved,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get('/api/assistant/action-selection')

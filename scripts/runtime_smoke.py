@@ -61,6 +61,20 @@ def main() -> int:
                 "count": len(tools.json()),
             }
 
+            performance = client.get(
+                "/api/assistant/performance",
+                params={"scope": "personal", "limit": 1},
+            )
+            if performance.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/performance returned HTTP "
+                    f"{performance.status_code}"
+                )
+            checks["performance"] = {
+                "status": "ok",
+                "history_entries": len(performance.json()),
+            }
+
             cognitive_traces = client.get(
                 "/api/assistant/cognitive-traces",
                 params={"scope": "personal", "limit": 1},

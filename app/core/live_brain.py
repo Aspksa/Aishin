@@ -360,6 +360,17 @@ class LiveBrainRuntime:
                 event_limit=30,
             ),
         )
+        documents = take(
+            "documents",
+            {},
+            lambda: self.engine.documents.dashboard(
+                scope=scope,
+                document_limit=24,
+                fact_limit=30,
+                contradiction_limit=24,
+                run_limit=12,
+            ),
+        )
 
         phase = self._latest_phase(events)
         phase_channel = self.PHASE_TO_CHANNEL.get(phase, "")
@@ -391,6 +402,11 @@ class LiveBrainRuntime:
                 ) < 60.0
             )
         )
+        documents_summary = documents.get("summary") or {}
+        document_attention = bool(
+            int(documents_summary.get("failed_documents") or 0)
+            or int(documents_summary.get("contradiction_count") or 0)
+        )
         integrity = (
             "attention"
             if (
@@ -401,6 +417,7 @@ class LiveBrainRuntime:
                 or evolution_regressions
                 or research_conflicts
                 or communication_attention
+                or document_attention
             )
             else "healthy"
             if events or memories or graph_stats.get("entities")
@@ -506,6 +523,23 @@ class LiveBrainRuntime:
                     communication_summary.get("explanation_success")
                 ),
                 "communication_attention": communication_attention,
+                "document_ingestion_score": documents_summary.get(
+                    "ingestion_score"
+                ),
+                "document_studied": documents_summary.get(
+                    "studied_documents"
+                ),
+                "document_ocr_required": documents_summary.get(
+                    "ocr_required_documents"
+                ),
+                "document_duplicates": documents_summary.get(
+                    "duplicate_documents"
+                ),
+                "document_facts": documents_summary.get("fact_count"),
+                "document_contradictions": documents_summary.get(
+                    "contradiction_count"
+                ),
+                "document_attention": document_attention,
             },
             "channels": channels,
             "safe_trace": self._safe_trace(trace),
@@ -540,6 +574,7 @@ class LiveBrainRuntime:
             "evolution": evolution,
             "research": research,
             "communication": communication,
+            "documents": documents,
             "quality": {
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
@@ -586,6 +621,12 @@ class LiveBrainRuntime:
                     "communication_preferences + communication_skills + "
                     "communication_feedback + communication_events"
                 ),
+                "documents": (
+                    "document_state + documents + document_pages + "
+                    "document_sections + document_chunks + "
+                    "document_chunk_vectors + document_facts + "
+                    "document_contradictions + document_ingestion_runs"
+                ),
             },
         }
 
@@ -597,7 +638,7 @@ class LiveBrainRuntime:
         )
         return {
             "format": "AISHIN_LIVE_BRAIN_EXPORT",
-            "format_version": 8,
+            "format_version": 9,
             "scope": snapshot["scope"],
             "generated_at": snapshot["generated_at"],
             "policy": snapshot["trace_policy"],

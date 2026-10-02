@@ -269,6 +269,19 @@ def init_db() -> None:
             ON proactive_decisions(scope, fingerprint)
             WHERE status='pending';
 
+            CREATE TABLE IF NOT EXISTS metacognitive_assessments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL,
+                intent TEXT NOT NULL,
+                status TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                evidence_score REAL NOT NULL,
+                contradiction_count INTEGER NOT NULL DEFAULT 0,
+                missing_data_json TEXT NOT NULL DEFAULT '[]',
+                reasons_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -1332,3 +1345,54 @@ def update_proactive_decision(
         if cur.rowcount == 0:
             raise ValueError("decision not found in scope")
         conn.commit()
+
+
+def add_metacognitive_assessment(
+    *,
+    scope: str,
+    intent: str,
+    status: str,
+    confidence: float,
+    evidence_score: float,
+    contradiction_count: int,
+    missing_data: list[str],
+    reasons: list[str],
+) -> int:
+    with connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO metacognitive_assessments(
+                   scope, intent, status, confidence, evidence_score,
+                   contradiction_count, missing_data_json, reasons_json
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                scope,
+                intent,
+                status,
+                confidence,
+                evidence_score,
+                contradiction_count,
+                json.dumps(missing_data, ensure_ascii=False),
+                json.dumps(reasons, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def recent_metacognitive_assessments(
+    scope: str,
+    limit: int = 30,
+) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT * FROM metacognitive_assessments
+               WHERE scope=? ORDER BY id DESC LIMIT ?""",
+            (scope, limit),
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["missing_data"] = json.loads(item.pop("missing_data_json") or "[]")
+        item["reasons"] = json.loads(item.pop("reasons_json") or "[]")
+        result.append(item)
+    return result

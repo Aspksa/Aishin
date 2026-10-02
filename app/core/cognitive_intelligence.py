@@ -30,6 +30,9 @@ class CognitiveRoute:
     transfer_skill_ids: list[int] = field(default_factory=list)
     prior_family_experience: dict = field(default_factory=dict)
     rationale: list[str] = field(default_factory=list)
+    evolution_policy: dict = field(default_factory=dict)
+    evolution_variant_id: int | None = None
+    evolution_generation: int | None = None
     route_id: int | None = None
 
     def to_dict(self) -> dict:
@@ -158,9 +161,19 @@ class CognitiveIntelligenceEngine:
         "DIAGNOSE": 4,
     }
 
-    def __init__(self, *, growth: Any, events: Any | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        growth: Any,
+        events: Any | None = None,
+        evolution: Any | None = None,
+    ) -> None:
         self.growth = growth
         self.events = events
+        self.evolution = evolution
+
+    def bind_evolution(self, evolution: Any) -> None:
+        self.evolution = evolution
 
     @staticmethod
     def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
@@ -329,6 +342,44 @@ class CognitiveIntelligenceEngine:
             transfer_used=transfer_used,
         )
 
+        evolution_policy: dict = {}
+        evolution_variant_id = None
+        evolution_generation = None
+        if self.evolution is not None:
+            try:
+                evolution_policy = self.evolution.routing_hint(
+                    scope=scope,
+                    family=task_family,
+                    base_mode=adapted_mode,
+                    request_id=request_id,
+                    base_complexity=base_complexity,
+                )
+            except Exception as exc:
+                evolution_policy = {
+                    "policy_applied": False,
+                    "reason": f"evolution_hint_error:{str(exc)[:120]}",
+                }
+
+            preferred_mode = str(
+                evolution_policy.get("preferred_mode") or adapted_mode
+            )
+            if (
+                preferred_mode in self.MODE_ORDER
+                and self.MODE_ORDER[preferred_mode]
+                > self.MODE_ORDER.get(adapted_mode, 0)
+            ):
+                adapted_mode = preferred_mode
+
+            evolution_multiplier = float(
+                evolution_policy.get("context_multiplier") or 1.0
+            )
+            context_multiplier = max(
+                0.90,
+                min(1.30, context_multiplier * evolution_multiplier),
+            )
+            evolution_variant_id = evolution_policy.get("variant_id")
+            evolution_generation = evolution_policy.get("generation")
+
         rationale = [
             f"task_family={task_family}",
             f"base_mode={base_mode}",
@@ -351,6 +402,13 @@ class CognitiveIntelligenceEngine:
         if transfer_used:
             rationale.append(
                 "Обнаружен подтверждённый перенос навыка между типами задач."
+            )
+        if evolution_policy.get("policy_applied"):
+            rationale.append(
+                "Evolution Engine применил bounded runtime-policy: "
+                f"type={evolution_policy.get('assignment_type')}, "
+                f"generation={evolution_policy.get('generation')}, "
+                f"variant={evolution_policy.get('variant_key')}."
             )
         for signal in family_signals[:3]:
             rationale.append(
@@ -375,6 +433,17 @@ class CognitiveIntelligenceEngine:
             transfer_skill_ids=transfer_skill_ids,
             prior_family_experience=prior,
             rationale=rationale,
+            evolution_policy=evolution_policy,
+            evolution_variant_id=(
+                int(evolution_variant_id)
+                if evolution_variant_id is not None
+                else None
+            ),
+            evolution_generation=(
+                int(evolution_generation)
+                if evolution_generation is not None
+                else None
+            ),
         )
         route.route_id = self._record_route(route=route, query=query)
         self._emit(
@@ -389,6 +458,11 @@ class CognitiveIntelligenceEngine:
                 "skills": len(selected_skills),
                 "knowledge": len(selected_knowledge),
                 "transfer_used": transfer_used,
+                "evolution_variant_id": route.evolution_variant_id,
+                "evolution_generation": route.evolution_generation,
+                "evolution_assignment": route.evolution_policy.get(
+                    "assignment_type"
+                ),
             },
             importance=0.25,
         )
@@ -519,11 +593,29 @@ class CognitiveIntelligenceEngine:
             },
             importance=0.3,
         )
+
+        evolution_observation = None
+        if self.evolution is not None:
+            try:
+                evolution_observation = self.evolution.observe_outcome(
+                    scope=scope,
+                    request_id=request_id,
+                    outcome_score=outcome,
+                    successful=successful,
+                    unresolved_count=int(unresolved_count),
+                )
+            except Exception as exc:
+                evolution_observation = {
+                    "observed": False,
+                    "reason": f"evolution_observe_error:{str(exc)[:160]}",
+                }
+
         return {
             "request_id": request_id,
             "outcome_score": round(outcome, 4),
             "successful": successful,
             "unresolved_count": int(unresolved_count),
+            "evolution": evolution_observation,
         }
 
     def dashboard(

@@ -425,6 +425,76 @@ def main() -> int:
                 "context_after": budget_report.estimated_tokens_after,
                 "auto_promotion": False,
             }
+
+            for index in range(6):
+                engine.continuous_learning._observe_pattern(
+                    scope=test_scope,
+                    category="selfcheck_weighted",
+                    pattern_key="weak_telemetry",
+                    success=True,
+                    evidence_weight=0.35,
+                    evidence={
+                        "source_type": "events",
+                        "source_id": 1000 + index,
+                    },
+                )
+                engine.continuous_learning._observe_pattern(
+                    scope=test_scope,
+                    category="selfcheck_weighted",
+                    pattern_key="strong_feedback",
+                    success=True,
+                    evidence_weight=1.0,
+                    evidence={
+                        "source_type": "logic_learning",
+                        "source_id": 2000 + index,
+                    },
+                )
+
+            weighted_quality = (
+                engine.continuous_learning.quality_gate.refresh(
+                    scope=test_scope
+                )
+            )
+            weighted_patterns = engine.continuous_learning.patterns(
+                scope=test_scope,
+                limit=20,
+            )
+            by_key = {
+                item["pattern_key"]: item
+                for item in weighted_patterns
+                if item["category"] == "selfcheck_weighted"
+            }
+            weak_pattern = by_key.get("weak_telemetry")
+            strong_pattern = by_key.get("strong_feedback")
+            if not weak_pattern or not strong_pattern:
+                raise RuntimeError(
+                    "Weighted Learning Evidence не сохранил тестовые паттерны"
+                )
+            if weak_pattern.get("lifecycle") == "trusted":
+                raise RuntimeError(
+                    "Слабая телеметрия не должна становиться trusted "
+                    "только из-за количества повторов"
+                )
+            if strong_pattern.get("lifecycle") != "trusted":
+                raise RuntimeError(
+                    "Повторная сильная evidence не достигла trusted"
+                )
+            if float(strong_pattern.get("weighted_observations", 0)) <= float(
+                weak_pattern.get("weighted_observations", 0)
+            ):
+                raise RuntimeError(
+                    "Weighted observations не различают силу evidence"
+                )
+
+            checks["weighted_learning_evidence"] = {
+                "status": "ok",
+                "weak_lifecycle": weak_pattern.get("lifecycle"),
+                "weak_weighted": weak_pattern.get("weighted_observations"),
+                "strong_lifecycle": strong_pattern.get("lifecycle"),
+                "strong_weighted": strong_pattern.get("weighted_observations"),
+                "quality": weighted_quality,
+                "shadow_self_confirmation": False,
+            }
         finally:
             with connect() as conn:
                 conn.execute(
@@ -450,6 +520,24 @@ def main() -> int:
                 )
                 conn.execute(
                     "DELETE FROM context_budget_reports WHERE scope=?",
+                    (test_scope,),
+                )
+                conn.execute(
+                    """DELETE FROM learning_pattern_quality
+                       WHERE pattern_id IN (
+                           SELECT id FROM learning_patterns WHERE scope=?
+                       )""",
+                    (test_scope,),
+                )
+                conn.execute(
+                    """DELETE FROM learning_evidence_metrics
+                       WHERE pattern_id IN (
+                           SELECT id FROM learning_patterns WHERE scope=?
+                       )""",
+                    (test_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM learning_patterns WHERE scope=?",
                     (test_scope,),
                 )
                 conn.commit()

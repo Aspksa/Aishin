@@ -370,6 +370,16 @@ class LearningQualityGate:
                 else None
             )
             lifecycle_changed = old_lifecycle != lifecycle
+            needs_update = (
+                old is None
+                or lifecycle_changed
+                or abs(float(old["raw_score"]) - raw_score) > 1e-6
+                or abs(float(old["effective_score"]) - effective_score) >= 0.005
+                or abs(float(old["contradiction_rate"]) - contradiction_rate) >= 0.02
+                or str(old["reason"]) != reason
+            )
+            if not needs_update:
+                return False
 
             conn.execute(
                 """INSERT INTO learning_pattern_quality(
@@ -470,6 +480,21 @@ class LearningQualityGate:
                 else None
             )
             lifecycle_changed = old_lifecycle != lifecycle
+            needs_update = (
+                old is None
+                or lifecycle_changed
+                or abs(float(old["raw_reliability"]) - raw_reliability) > 1e-6
+                or abs(
+                    float(old["effective_reliability"])
+                    - effective_reliability
+                ) >= 0.005
+                or abs(float(old["drift_score"]) - drift_score) >= 0.02
+                or int(old["evidence_count"]) != evidence_count
+                or old["rank_in_mode"] != rank_in_mode
+                or str(old["reason"]) != reason
+            )
+            if not needs_update:
+                return False
 
             conn.execute(
                 """INSERT INTO strategy_quality_state(

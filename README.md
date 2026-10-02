@@ -426,7 +426,7 @@ Live Brain содержит отдельный узел `Verification`, кото
 SQLite:
 - добавлен `app/migrations.py`;
 - таблица `schema_migrations` хранит применённые миграции;
-- текущая версия схемы: `7`;
+- текущая версия схемы: `8`;
 - `init_db()` автоматически применяет недостающие миграции;
 - self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
 
@@ -682,3 +682,47 @@ Action Selection / Expected Utility подтверждён GitHub Actions:
 - compileall, self-check и FastAPI runtime smoke: success.
 
 Action Selector не исполняет выбранное действие сам: реальное выполнение остаётся за Tool Registry и Permission Gate.
+
+
+## Approval / Execution Coordinator
+Реальное выполнение planned/proactive действий теперь отделено от простого status=`approved`.
+
+Ключевые свойства:
+- approval одноразовый;
+- TTL approval: 15 минут;
+- approval привязан к decision id, tool, capability, arguments hash и dry-run preview hash;
+- новое approval инвалидирует старое активное approval по той же decision;
+- непосредственно перед исполнением повторно проверяются:
+  - текущий status decision;
+  - tool/capability;
+  - Permission Gate;
+  - глобальный `execute_planned_action`;
+  - arguments hash;
+  - текущий dry-run preview hash;
+  - срок действия approval;
+- если состояние изменилось, approval становится stale/invalidated, действие не выполняется, а решение возвращается в `pending` для нового одобрения;
+- successful/failed execution consumes approval, поэтому повторно использовать его нельзя.
+
+Для `project.write_text` dry-run включает состояние существующего файла и SHA-256. Перед перезаписью существующего файла создаётся локальный backup в `.aishin_backups/`; backup-папка исключена из Git. Tool result содержит rollback metadata и SHA-256 до/после. Для нового файла rollback metadata помечает удаление созданного файла как отдельное действие, требующее самостоятельного разрешения.
+
+Хранилище:
+- `execution_approvals`
+- `execution_attempts`
+
+API:
+- `GET /api/assistant/execution/approvals`
+- `GET /api/assistant/execution/attempts`
+
+Live Brain содержит узел `Execution Guard`.
+
+Schema migration: `8`.
+Версия приложения остаётся `0.0.3`.
+
+### Подтверждение Approval / Execution runtime
+Approval / Execution Coordinator подтверждён GitHub Actions:
+- run id: `36992853640`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.
+
+Во время интеграции CI обнаружил ошибочную раннюю передачу coordinator в PlannerBuilder; она была исправлена до итогового зелёного run.

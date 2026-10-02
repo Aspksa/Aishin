@@ -339,6 +339,18 @@ class LiveBrainRuntime:
                 refresh=False,
             ),
         )
+        research = take(
+            "research",
+            {},
+            lambda: self.engine.research.dashboard(
+                scope=scope,
+                gap_limit=24,
+                session_limit=18,
+                claim_limit=30,
+                evidence_limit=40,
+                cycle_limit=12,
+            ),
+        )
 
         phase = self._latest_phase(events)
         phase_channel = self.PHASE_TO_CHANNEL.get(phase, "")
@@ -352,6 +364,10 @@ class LiveBrainRuntime:
         evolution_regressions = int(
             evolution_summary.get("regressions") or 0
         )
+        research_summary = research.get("summary") or {}
+        research_conflicts = int(
+            research_summary.get("open_contradictions") or 0
+        )
         integrity = (
             "attention"
             if (
@@ -360,6 +376,7 @@ class LiveBrainRuntime:
                 or warning_events
                 or proactive_attention
                 or evolution_regressions
+                or research_conflicts
             )
             else "healthy"
             if events or memories or graph_stats.get("entities")
@@ -440,6 +457,15 @@ class LiveBrainRuntime:
                 "evolution_champions": evolution_summary.get("champions"),
                 "evolution_challengers": evolution_summary.get("challengers"),
                 "evolution_regressions": evolution_regressions,
+                "research_score": research_summary.get("research_score"),
+                "research_open_gaps": research_summary.get("open_gaps"),
+                "research_trusted_claims": research_summary.get(
+                    "trusted_claims"
+                ),
+                "research_conflicted_claims": research_summary.get(
+                    "conflicted_claims"
+                ),
+                "research_open_contradictions": research_conflicts,
             },
             "channels": channels,
             "safe_trace": self._safe_trace(trace),
@@ -472,6 +498,7 @@ class LiveBrainRuntime:
             },
             "proactive_intelligence": proactive_intelligence,
             "evolution": evolution,
+            "research": research,
             "quality": {
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
@@ -507,6 +534,12 @@ class LiveBrainRuntime:
                     "evolution_curriculum + evolution_transfers + "
                     "evolution_cycles"
                 ),
+                "research": (
+                    "research_state + research_sources + research_gaps + "
+                    "research_sessions + research_evidence + "
+                    "research_claims + research_contradictions + "
+                    "research_cycles"
+                ),
             },
         }
 
@@ -518,7 +551,7 @@ class LiveBrainRuntime:
         )
         return {
             "format": "AISHIN_LIVE_BRAIN_EXPORT",
-            "format_version": 6,
+            "format_version": 7,
             "scope": snapshot["scope"],
             "generated_at": snapshot["generated_at"],
             "policy": snapshot["trace_policy"],

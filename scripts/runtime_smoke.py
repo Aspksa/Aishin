@@ -61,6 +61,20 @@ def main() -> int:
                 "count": len(tools.json()),
             }
 
+            action_selection = client.get(
+                "/api/assistant/action-selection",
+                params={"scope": "personal", "limit": 1},
+            )
+            if action_selection.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/action-selection returned HTTP "
+                    f"{action_selection.status_code}"
+                )
+            checks["action_selection"] = {
+                "status": "ok",
+                "history_entries": len(action_selection.json()),
+            }
+
             counterfactual = client.get(
                 "/api/assistant/counterfactual",
                 params={"scope": "personal", "limit": 1},

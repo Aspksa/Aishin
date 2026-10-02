@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 12
+LATEST_SCHEMA_VERSION = 13
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -425,6 +425,74 @@ def _migration_012_continuous_learning(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_013_learning_quality_and_strategy_evolution(
+    conn: sqlite3.Connection,
+) -> None:
+    """Learning Quality Gate, strategy evolution and drift/decay state."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS learning_pattern_quality (
+            pattern_id INTEGER PRIMARY KEY,
+            scope TEXT NOT NULL,
+            lifecycle TEXT NOT NULL DEFAULT 'candidate',
+            raw_score REAL NOT NULL DEFAULT 0.5,
+            effective_score REAL NOT NULL DEFAULT 0.5,
+            decay_factor REAL NOT NULL DEFAULT 1.0,
+            contradiction_rate REAL NOT NULL DEFAULT 0.0,
+            age_days REAL NOT NULL DEFAULT 0.0,
+            reason TEXT NOT NULL DEFAULT '',
+            promoted_at TEXT,
+            deprecated_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(pattern_id) REFERENCES learning_patterns(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS strategy_quality_state (
+            strategy_id INTEGER PRIMARY KEY,
+            scope TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            lifecycle TEXT NOT NULL DEFAULT 'candidate',
+            raw_reliability REAL NOT NULL DEFAULT 0.5,
+            effective_reliability REAL NOT NULL DEFAULT 0.5,
+            decay_factor REAL NOT NULL DEFAULT 1.0,
+            drift_score REAL NOT NULL DEFAULT 0.0,
+            evidence_count INTEGER NOT NULL DEFAULT 0,
+            rank_in_mode INTEGER,
+            reason TEXT NOT NULL DEFAULT '',
+            promoted_at TEXT,
+            deprecated_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(strategy_id) REFERENCES logic_strategies(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_quality_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            subject_type TEXT NOT NULL,
+            subject_id INTEGER NOT NULL,
+            old_lifecycle TEXT NOT NULL DEFAULT '',
+            new_lifecycle TEXT NOT NULL DEFAULT '',
+            old_score REAL,
+            new_score REAL,
+            reason TEXT NOT NULL DEFAULT '',
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_pattern_quality_scope_lifecycle
+        ON learning_pattern_quality(scope, lifecycle, effective_score DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_strategy_quality_scope_mode
+        ON strategy_quality_state(
+            scope, mode, lifecycle, effective_reliability DESC
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_learning_quality_events_scope_created
+        ON learning_quality_events(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -438,6 +506,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (10, "performance_observability", _migration_010_performance_observability),
     (11, "proactive_lifecycle", _migration_011_proactive_lifecycle),
     (12, "continuous_learning", _migration_012_continuous_learning),
+    (13, "learning_quality_and_strategy_evolution", _migration_013_learning_quality_and_strategy_evolution),
 )
 
 

@@ -53,6 +53,14 @@ def main() -> int:
             "personal": engine.graph.stats(scope="personal"),
             "relationship": engine.graph.stats(scope="relationship"),
         }
+        checks["planner"] = {
+            "status": "ok",
+            "open_items": engine.planner.open_items(scope="personal"),
+            "notices": [
+                notice.__dict__
+                for notice in engine.planner.inspect(scope="personal")
+            ],
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

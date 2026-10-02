@@ -1802,6 +1802,21 @@ def main() -> int:
                 raise RuntimeError(
                     "Document detail API недоступен"
                 )
+            document_search_api = client.get(
+                "/api/assistant/documents/search",
+                params={
+                    "scope": document_scope,
+                    "query": "норма расхода топлива",
+                    "limit": 10,
+                },
+            )
+            if (
+                document_search_api.status_code != 200
+                or not document_search_api.json()
+            ):
+                raise RuntimeError(
+                    "Document search API не вернул grounded retrieval"
+                )
 
             checks["document_intelligence"] = {
                 "status": "ok",

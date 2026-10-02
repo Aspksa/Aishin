@@ -274,7 +274,7 @@ class ProactiveDecisionLoop:
         update_proactive_decision(
             decision_id,
             scope=scope,
-            status="executed" if success else ("approved" if stale else "failed"),
+            status="executed" if success else ("pending" if stale else "failed"),
             execution=execution,
         )
         self.events.emit(

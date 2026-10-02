@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <img id="brand-logo" class="brand-logo" alt="Айшин">
+        <div>
+          <strong>Aishin</strong>
+          <span>Kitsune</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        {% for module in modules %}
+        <button class="nav-item {% if loop.first %}active{% endif %}" data-module="{{ module.code }}">
+          <span class="nav-dot"></span>
+          <span>
+            <strong>{{ module.title }}</strong>
+            <small>{{ module.description }}</small>
+          </span>
+        </button>
+        {% endfor %}
+      </nav>
+
+      <div class="sidebar-bottom">
+        <button id="update-btn" class="nav-item system-item">
+          <span class="nav-dot"></span>
+          <span>
+            <strong>Система обновления</strong>
+            <small>Обновление программы через GitHub</small>
+          </span>
+        </button>
+        <div id="update-status" class="status-line">Система готова</div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">AISHIN CORE · v0.0.1</p>
+          <h1 id="page-title">Aishin Kitsune</h1>
+        </div>
+        <div class="health"><span></span> Ядро активно</div>
+      </header>
+
+      <section id="assistant-module" class="module-page active">
+        <div class="hero">
+          <div class="portrait-wrap">
+            <img id="hero-logo" class="portrait" alt="Айшин">
+          </div>
+          <div class="hero-copy">
+            <p class="eyebrow">ЛИЧНАЯ AI-ПОМОЩНИЦА</p>
+            <h2>С возвращением, Господин. Я рядом.</h2>
+            <p>
+              Личность Айшин хранится отдельно от AI-модели. Характер, принципы,
+              память и правила поведения принадлежат ядру проекта, а не одному
+              конкретному провайдеру.
+            </p>
+            <div class="chips">
+              {% for trait in profile.traits[:5] %}
+              <span>{{ trait }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <article class="card">
+            <p class="card-label">ДУША</p>
+            <h3>Личность и принципы</h3>
+            <p>Точность, память, забота, собственное мнение и спокойное предупреждение о рисках.</p>
+          </article>
+          <article class="card">
+            <p class="card-label">ПАМЯТЬ</p>
+            <h3>SQLite-фундамент</h3>
+            <p>Уже заложено разделение памяти по областям и типам достоверности.</p>
+          </article>
+          <article class="card">
+            <p class="card-label">МОЗГ</p>
+            <h3>AI-движок</h3>
+            <p>Интерфейс готов к подключению локальной или облачной модели следующим этапом.</p>
+          </article>
+        </div>
+
+        <section class="chat">
+          <div id="messages" class="messages">
+            <div class="message aishin">Я здесь, Господин. Это первый запуск моего нового дома.</div>
+          </div>
+          <form id="chat-form" class="composer">
+            <input id="chat-input" autocomplete="off" placeholder="Напишите Айшин...">
+            <button type="submit">Отправить</button>
+          </form>
+        </section>
+      </section>
+
+      <section id="placeholder-module" class="module-page">
+        <div class="placeholder-card">
+          <p class="eyebrow">МОДУЛЬ ЗАЛОЖЕН</p>
+          <h2 id="placeholder-title">Модуль</h2>
+          <p id="placeholder-description"></p>
+          <span>Функциональность будет наращиваться поверх общего ядра и базы данных.</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/logo.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -633,3 +633,11 @@ Live Brain показывает отдельные узлы Counterfactual и De
 
 Schema migration: `6`.
 Версия приложения остаётся `0.0.3`.
+
+
+### Подтверждение Counterfactual + Decision Quality runtime
+Counterfactual Reasoning и Decision Quality Scoring подтверждены GitHub Actions:
+- run id: `36991246148`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.

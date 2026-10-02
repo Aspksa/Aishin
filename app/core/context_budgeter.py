@@ -47,8 +47,10 @@ class ContextBudgeter:
         mode: str,
         system_prompt: str,
         messages: list[dict],
+        budget_multiplier: float = 1.0,
     ) -> tuple[str, list[dict], ContextBudgetReport]:
-        total_budget = self.budget_for(mode)
+        budget_multiplier = max(0.85, min(1.35, float(budget_multiplier)))
+        total_budget = int(round(self.budget_for(mode) * budget_multiplier))
         input_budget = max(1500, total_budget - self.RESERVED_OUTPUT_TOKENS)
         before = self._estimate(system_prompt, messages)
         original_chars = len(system_prompt) + sum(
@@ -124,6 +126,22 @@ class ContextBudgeter:
             "history_before": report.history_before,
             "history_after": report.history_after,
             "reserved_output_tokens": ContextBudgeter.RESERVED_OUTPUT_TOKENS,
+            "adaptive_budget": True,
+            "base_token_budget": ContextBudgeter.TOKEN_BUDGETS.get(
+                report.mode,
+                ContextBudgeter.TOKEN_BUDGETS["FAST"],
+            ),
+            "budget_multiplier": round(
+                report.token_budget
+                / max(
+                    1,
+                    ContextBudgeter.TOKEN_BUDGETS.get(
+                        report.mode,
+                        ContextBudgeter.TOKEN_BUDGETS["FAST"],
+                    ),
+                ),
+                4,
+            ),
         }
         with connect() as conn:
             cur = conn.execute(

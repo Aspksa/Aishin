@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T19:49:00+10:00",
+  "generated_at": "2026-10-02T20:00:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 7,
+      "latest_schema_version": 8,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -146,8 +146,8 @@
         "scripts/self_check.py",
         "scripts/runtime_smoke.py"
       ],
-      "latest_confirmed_run_id": 36991833619,
-      "latest_confirmed_head_sha": "350894656d0c07ac1364ef13c2550f116bdc0b21"
+      "latest_confirmed_run_id": 36992853640,
+      "latest_confirmed_head_sha": "e292c420425c5b1903473261f412b27e7f632e4c"
     }
   },
   "implemented_architecture": [
@@ -391,6 +391,19 @@
         "app/main.py"
       ],
       "details": "Ranks candidate actions after Counterfactual + Decision Quality using expected benefit, risk, reversibility, permission friction and unresolved uncertainty. Selection is proposal-only and never executes Tool Registry automatically."
+    },
+    {
+      "layer": "Approval / Execution Coordinator",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/execution_coordinator.py",
+        "app/core/proactive.py",
+        "app/core/tools.py",
+        "app/core/engine.py",
+        "app/migrations.py",
+        "app/main.py"
+      ],
+      "details": "One-shot 15-minute approvals bound to decision/tool/capability/arguments/preview hashes. Pre-execution revalidation checks TTL, permissions and underlying state. Stale approvals invalidate and return decisions to pending. File writes produce backup/rollback metadata."
     }
   ],
   "current_cognitive_flow": [
@@ -411,11 +424,12 @@
     "Decision Quality Scoring",
     "Action Selection / Expected Utility ranks candidate actions",
     "Context Orchestrator rebuilds final prompt according to Logic Mode budget",
-    "Learned strategy hints for current mode",
-    "Proactive Context + Tool safety rules",
-    "Cloud.ru Chat",
-    "Response",
-    "Any real action remains separate behind Tool Registry + Permission Gate",
+    "Cloud.ru response",
+    "Proactive proposal may be approved by user",
+    "Execution Coordinator issues one-shot approval",
+    "Immediate pre-execution revalidation",
+    "Tool Registry executes only if still valid and permitted",
+    "Approval consumed; execution/rollback metadata audited",
     "Event + State update"
   ],
   "metacognition": {
@@ -507,7 +521,9 @@
     "logic_learning_events",
     "counterfactual_assessments",
     "decision_quality_scores",
-    "action_selections"
+    "action_selections",
+    "execution_approvals",
+    "execution_attempts"
   ],
   "important_api": [
     "GET /health",
@@ -555,7 +571,9 @@
     "GET /api/assistant/logic-learning",
     "GET /api/assistant/counterfactual",
     "GET /api/assistant/decision-quality",
-    "GET /api/assistant/action-selection"
+    "GET /api/assistant/action-selection",
+    "GET /api/assistant/execution/approvals",
+    "GET /api/assistant/execution/attempts"
   ],
   "key_fixed_bugs_and_safety_changes": [
     "Исправлена SQL-ошибка кавычек в запросе active memories.",
@@ -591,7 +609,14 @@
     "Action Selection is structurally separated from execution: choosing a candidate never invokes Tool Registry.",
     "Permission deny applies a blocking state; ask marks approval_required; Tool Registry still rechecks permission at real invocation.",
     "Expected utility penalizes risk, low reversibility, permission friction and unresolved uncertainty.",
-    "Action Selection validated on Windows and Ubuntu in GitHub Actions run 36991833619."
+    "Action Selection validated on Windows and Ubuntu in GitHub Actions run 36991833619.",
+    "Approved proactive decisions no longer pass approved=True directly from old status alone; execution requires a live one-shot approval.",
+    "One-shot approval is bound to arguments and dry-run preview hashes and expires after 15 minutes.",
+    "State changes after approval invalidate execution; stale decisions return to pending for fresh approval.",
+    "project.write_text now records existing-file SHA-256 in preview and creates local rollback backup before overwrite.",
+    ".aishin_backups/ is excluded from Git and protected from project file tools.",
+    "Integration bug that accidentally passed coordinator into PlannerBuilder before initialization was detected and fixed before final CI.",
+    "Approval / Execution Coordinator validated on Windows and Ubuntu in GitHub Actions run 36992853640."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -632,20 +657,20 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Action Selection / Expected Utility completed, history saved, cross-platform runtime validated.",
-    "last_implemented_feature": "Proposal-only action ranking based on counterfactual confidence, decision quality, risk, reversibility, uncertainty and Permission Gate state.",
-    "next_recommended_step": "Harden the execution lifecycle: Approval/Execution Coordinator with one-shot approvals, stale-proposal invalidation, pre-execution revalidation and rollback/backup metadata where applicable.",
+    "milestone": "Approval / Execution Coordinator completed, history saved, cross-platform runtime validated.",
+    "last_implemented_feature": "One-shot stale-safe approvals, pre-execution revalidation, execution audit and file rollback/backup metadata.",
+    "next_recommended_step": "Reliability/performance hardening: Cloud.ru resilience (health cache, bounded retry/backoff, timeout/error policy) plus per-request cognitive trace isolation to remove global last_cognitive_context concurrency risk.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не превращать Aishin в multi-user SaaS.",
       "Не смешивать память Aishin с TooruDragon.",
       "Не сохранять и не экспонировать private chain-of-thought.",
-      "Не выдавать counterfactual scenario за гарантированный прогноз.",
-      "Не трактовать Decision Quality или utility как гарантию правильности.",
-      "Не считать Action Selection выполнением.",
+      "Не считать approval выполнением.",
+      "Не переиспользовать consumed/stale approval.",
+      "Не выполнять action без свежей pre-execution revalidation.",
       "Не обходить Permission Gate и Tool Registry.",
-      "Не коммитить Cloud.ru API key или другие секреты."
+      "Не коммитить .aishin_backups или Cloud.ru API key."
     ]
   },
   "development_sequence_current_chat": [
@@ -720,6 +745,10 @@
     {
       "user_prompt": "Делай и сохрани историю",
       "result": "Добавлен Action Selection / Expected Utility Controller. Schema migration 7, action_selections, API, Live Brain node, permission-aware utility ranking, strict no-auto-execution boundary, self-check/runtime smoke. GitHub Actions run 36991833619 успешно прошёл Windows + Ubuntu. История сохранена в этом handoff."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлен Approval / Execution Coordinator. Schema migration 8, execution_approvals, execution_attempts, one-shot 15-minute approvals, arguments/preview hashes, stale invalidation, pre-execution permission/state revalidation, project.write_text backup + SHA-256 rollback metadata, APIs and Live Brain Execution Guard. Stale action returns to pending. GitHub Actions run 36992853640 прошёл Windows + Ubuntu. История сохранена в handoff."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -736,9 +765,9 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать Logic Engine, Context Orchestrator, Causal Reasoning, Hypothesis Manager, Logic Learning, Counterfactual Reasoning, Decision Quality и Action Selection уже реализованными.",
-      "Соблюдать границу: Action Selection не равно execution; реальное действие только через Tool Registry + Permission Gate.",
-      "Следующий рекомендуемый этап: Approval/Execution Coordinator с pre-execution revalidation и защитой от stale approvals."
+      "Считать Approval / Execution Coordinator schema 8 реализованным.",
+      "Не возвращаться к прямому approved=True без one-shot coordinator revalidation.",
+      "Следующий рекомендуемый этап: Cloud.ru resilience + per-request cognitive trace isolation."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -1514,5 +1543,47 @@
     "api": "GET /api/assistant/action-selection",
     "live_brain_node": "Action Selection",
     "safety_rule": "Selection never executes a tool. Tool Registry and Permission Gate remain authoritative; ask requires explicit approval and deny blocks execution."
+  },
+  "execution_coordinator": {
+    "repository_path": "app/core/execution_coordinator.py",
+    "approval_ttl_minutes": 15,
+    "approval_binding": [
+      "decision_id",
+      "scope",
+      "tool_name",
+      "capability",
+      "arguments_hash",
+      "preview_hash",
+      "permission_mode"
+    ],
+    "revalidation": [
+      "approval expiry",
+      "decision still approved",
+      "tool unchanged",
+      "capability unchanged",
+      "capability permission not deny",
+      "execute_planned_action not deny",
+      "arguments hash unchanged",
+      "fresh dry-run preview succeeds",
+      "preview hash unchanged"
+    ],
+    "stale_behavior": "invalidate approval, do not execute tool, proactive decision returns to pending for fresh approval",
+    "one_shot_behavior": "successful or failed real execution consumes approval; approval cannot be reused",
+    "file_write_backup": {
+      "directory": ".aishin_backups/",
+      "gitignored": true,
+      "existing_file": "backup created before write; before/after SHA-256 recorded",
+      "new_file": "rollback metadata says remove_created_file and requires separate approval"
+    },
+    "tables": [
+      "execution_approvals",
+      "execution_attempts"
+    ],
+    "apis": [
+      "GET /api/assistant/execution/approvals",
+      "GET /api/assistant/execution/attempts"
+    ],
+    "live_brain_node": "Execution Guard",
+    "safety_rule": "Approval is not execution. Revalidation happens immediately before Tool Registry invoke; stale or denied state blocks execution."
   }
 }

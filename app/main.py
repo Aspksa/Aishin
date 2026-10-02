@@ -650,6 +650,39 @@ def assistant_continuous_learning_patterns(
     )
 
 
+@app.get('/api/assistant/continuous-learning/quality')
+def assistant_continuous_learning_quality(
+    scope: str = 'personal',
+) -> dict:
+    return engine.continuous_learning.quality_status(
+        scope=scope,
+    )
+
+
+@app.get('/api/assistant/continuous-learning/strategies')
+def assistant_continuous_learning_strategies(
+    scope: str = 'personal',
+    mode: str | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    return engine.continuous_learning.strategy_evolution(
+        scope=scope,
+        mode=mode,
+        limit=max(1, min(limit, 200)),
+    )
+
+
+@app.get('/api/assistant/continuous-learning/quality-events')
+def assistant_continuous_learning_quality_events(
+    scope: str = 'personal',
+    limit: int = 50,
+) -> list[dict]:
+    return engine.continuous_learning.quality_events(
+        scope=scope,
+        limit=max(1, min(limit, 200)),
+    )
+
+
 @app.get('/api/assistant/continuous-learning/queue')
 def assistant_continuous_learning_queue(
     scope: str = 'personal',

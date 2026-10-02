@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 16
+LATEST_SCHEMA_VERSION = 17
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -646,6 +646,117 @@ def _migration_016_development_metrics(
     )
 
 
+def _migration_017_long_term_growth(
+    conn: sqlite3.Connection,
+) -> None:
+    """Durable skill mastery, knowledge trust and specialization map."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS growth_skills (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            skill_key TEXT NOT NULL,
+            source_type TEXT NOT NULL,
+            source_id INTEGER,
+            category TEXT NOT NULL,
+            title TEXT NOT NULL,
+            lifecycle TEXT NOT NULL DEFAULT 'forming',
+            mastery_score REAL NOT NULL DEFAULT 0.0,
+            reliability REAL NOT NULL DEFAULT 0.0,
+            evidence_count REAL NOT NULL DEFAULT 0.0,
+            successes REAL NOT NULL DEFAULT 0.0,
+            failures REAL NOT NULL DEFAULT 0.0,
+            freshness REAL NOT NULL DEFAULT 1.0,
+            stability REAL NOT NULL DEFAULT 0.0,
+            first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_evidence_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, skill_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS knowledge_trust (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            subject_type TEXT NOT NULL,
+            subject_id INTEGER NOT NULL,
+            category TEXT NOT NULL,
+            label TEXT NOT NULL,
+            base_confidence REAL NOT NULL DEFAULT 0.0,
+            freshness REAL NOT NULL DEFAULT 1.0,
+            corroboration REAL NOT NULL DEFAULT 0.0,
+            conflict_penalty REAL NOT NULL DEFAULT 0.0,
+            trust_score REAL NOT NULL DEFAULT 0.0,
+            trust_level TEXT NOT NULL DEFAULT 'unverified',
+            evidence_count INTEGER NOT NULL DEFAULT 1,
+            reasons_json TEXT NOT NULL DEFAULT '[]',
+            last_seen_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, subject_type, subject_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS growth_specializations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            specialization_key TEXT NOT NULL,
+            label TEXT NOT NULL,
+            skill_count INTEGER NOT NULL DEFAULT 0,
+            mastered_skills INTEGER NOT NULL DEFAULT 0,
+            evidence_count REAL NOT NULL DEFAULT 0.0,
+            depth_score REAL NOT NULL DEFAULT 0.0,
+            breadth_score REAL NOT NULL DEFAULT 0.0,
+            trust_score REAL NOT NULL DEFAULT 0.0,
+            overall_score REAL NOT NULL DEFAULT 0.0,
+            level TEXT NOT NULL DEFAULT 'forming',
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, specialization_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS long_term_growth_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            overall_score REAL NOT NULL DEFAULT 0.0,
+            durable_skills INTEGER NOT NULL DEFAULT 0,
+            mastered_skills INTEGER NOT NULL DEFAULT 0,
+            specializations INTEGER NOT NULL DEFAULT 0,
+            trusted_knowledge INTEGER NOT NULL DEFAULT 0,
+            stale_knowledge INTEGER NOT NULL DEFAULT 0,
+            average_trust REAL NOT NULL DEFAULT 0.0,
+            average_freshness REAL NOT NULL DEFAULT 0.0,
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS long_term_growth_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            subject_type TEXT NOT NULL,
+            subject_key TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            old_state TEXT NOT NULL DEFAULT '',
+            new_state TEXT NOT NULL DEFAULT '',
+            score REAL,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_growth_skills_scope_lifecycle
+        ON growth_skills(scope, lifecycle, mastery_score DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_knowledge_trust_scope_level
+        ON knowledge_trust(scope, trust_level, trust_score DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_growth_specializations_scope_score
+        ON growth_specializations(scope, overall_score DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_long_term_growth_snapshots_scope
+        ON long_term_growth_snapshots(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_long_term_growth_events_scope
+        ON long_term_growth_events(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -663,6 +774,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (14, "reflection_planner_experiments_context_budget", _migration_014_reflection_planning_experiments_context_budget),
     (15, "weighted_learning_evidence", _migration_015_weighted_learning_evidence),
     (16, "development_metrics", _migration_016_development_metrics),
+    (17, "long_term_growth", _migration_017_long_term_growth),
 )
 
 

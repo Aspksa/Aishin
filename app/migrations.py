@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 10
+LATEST_SCHEMA_VERSION = 11
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -328,6 +328,30 @@ def _migration_010_performance_observability(
     )
 
 
+def _migration_011_proactive_lifecycle(conn: sqlite3.Connection) -> None:
+    """Persistent condition lifecycle for proactive decision dedupe."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS proactive_conditions (
+            scope TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            source TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1,
+            generation INTEGER NOT NULL DEFAULT 1,
+            last_decision_id INTEGER,
+            disposition TEXT NOT NULL DEFAULT '',
+            last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(scope, fingerprint)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_proactive_conditions_active
+        ON proactive_conditions(scope, active, updated_at DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -339,6 +363,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (8, "execution_coordinator", _migration_008_execution_coordinator),
     (9, "cloud_resilience_and_request_traces", _migration_009_cloud_resilience_and_request_traces),
     (10, "performance_observability", _migration_010_performance_observability),
+    (11, "proactive_lifecycle", _migration_011_proactive_lifecycle),
 )
 
 

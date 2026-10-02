@@ -319,6 +319,8 @@ function renderLivingBrain(state, sensors, pending, approved) {
   const activeDecisions = [...pending, ...approved];
   const meta = state.metacognition?.last || state.working_memory?.metacognition || null;
   const logic = state.working_memory?.logic || null;
+  const contextTrace = state.working_memory?.context_orchestrator || null;
+  const causal = state.working_memory?.causal || null;
   const verification = state.working_memory?.verification || null;
 
   setBrainNode(
@@ -354,6 +356,24 @@ function renderLivingBrain(state, sensors, pending, approved) {
     logic
       ? `${logic.mode} · complexity ${Math.round(Number(logic.complexity || 0) * 100)}%`
       : "режим ещё не выбран"
+  );
+
+  setBrainNode(
+    "context",
+    Boolean(contextTrace),
+    false,
+    contextTrace
+      ? `${contextTrace.mode} · ~${contextTrace.estimated_chars || 0} chars`
+      : "контекст ещё не собран"
+  );
+
+  setBrainNode(
+    "causal",
+    Boolean(causal),
+    Boolean(causal?.unresolved?.length),
+    causal
+      ? `${causal.claims?.length || 0} claims · ${causal.unresolved?.length || 0} unresolved`
+      : "причинных claims нет"
   );
 
   const metaStatus = meta?.status || "нет оценки";

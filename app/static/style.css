@@ -667,3 +667,217 @@ h1 {
   .brain-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sensor-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+
+/* Live Technical Brain */
+.brain-flow {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.brain-links {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: visible;
+}
+.brain-node {
+  position: relative;
+  z-index: 2;
+}
+.brain-link-line {
+  stroke: #dedee5;
+  stroke-width: 1.2;
+  fill: none;
+  opacity: .55;
+}
+.brain-link-line.active {
+  stroke: #b25b70;
+  stroke-width: 1.8;
+  opacity: .9;
+  stroke-dasharray: 5 8;
+  animation: neuralFlow 1.15s linear infinite;
+}
+.brain-link-line.attention {
+  stroke: #c48a2d;
+  stroke-width: 2.1;
+}
+.brain-node.active::after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  right: 8px;
+  top: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(167,45,69,.28);
+  animation: neuronPulse 1.6s ease-out infinite;
+}
+.brain-node.attention::after {
+  background: var(--warn);
+}
+@keyframes neuralFlow {
+  to { stroke-dashoffset: -26; }
+}
+@keyframes neuronPulse {
+  0% { box-shadow: 0 0 0 0 rgba(167,45,69,.28); }
+  70% { box-shadow: 0 0 0 9px rgba(167,45,69,0); }
+  100% { box-shadow: 0 0 0 0 rgba(167,45,69,0); }
+}
+
+/* Settings */
+.settings-page {
+  max-width: 980px;
+  display: grid;
+  gap: 16px;
+}
+.settings-header {
+  padding: 4px 2px 8px;
+}
+.settings-header h2 {
+  margin-bottom: 7px;
+  font-size: 24px;
+}
+.settings-header p:last-child {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.settings-card {
+  padding: 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.settings-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+.settings-card-head > div {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.settings-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 18px;
+}
+.settings-card h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.settings-card-head p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+.settings-badge {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #f3f4f5;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+.settings-badge.ok {
+  background: #edf6f0;
+  color: #377452;
+}
+.settings-badge.error {
+  background: #fbefef;
+  color: var(--danger);
+}
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 12px;
+}
+.settings-field,
+.settings-info {
+  display: grid;
+  gap: 6px;
+}
+.settings-field > span,
+.settings-info > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.settings-field input {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  outline: 0;
+  padding: 11px 12px;
+  background: #fafafd;
+}
+.settings-field input:focus {
+  border-color: #c69baa;
+  box-shadow: 0 0 0 4px rgba(167,45,69,.07);
+}
+.settings-field small {
+  color: var(--soft);
+  font-size: 9px;
+}
+.settings-info {
+  align-content: start;
+  padding: 11px 12px;
+  background: #fafafd;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.settings-info strong {
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.settings-actions {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.primary-button {
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: white;
+  padding: 10px 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.settings-message {
+  color: var(--muted);
+  font-size: 10px;
+}
+.settings-note {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.settings-note code,
+.settings-header code {
+  padding: 1px 4px;
+  background: #f1f1f3;
+  border-radius: 5px;
+}
+
+@media (max-width: 900px) {
+  .settings-grid { grid-template-columns: 1fr; }
+}

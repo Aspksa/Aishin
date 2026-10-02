@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from ..db import connect
 from .events import EventBus
+from .learning_quality import LearningQualityGate
 from .state import StateManager
 
 
@@ -48,6 +49,7 @@ class ContinuousLearningEngine:
         self._stop = asyncio.Event()
         self._last_mode: dict[str, str] = {}
         self._last_cycle_recorded_at: dict[str, float] = {}
+        self.quality_gate = LearningQualityGate()
 
     def prepare_start(self) -> None:
         self._stop.clear()
@@ -125,6 +127,10 @@ class ContinuousLearningEngine:
             if decision.mode == "MAINTENANCE":
                 details["maintenance"] = self._maintenance(scope=scope)
                 self._mark_maintenance(scope=scope)
+
+            details["quality_gate"] = self.quality_gate.refresh(
+                scope=scope,
+            )
 
             duration_ms = int((time.perf_counter() - started) * 1000)
             mode_changed = self._last_mode.get(scope) != decision.mode
@@ -306,9 +312,28 @@ class ContinuousLearningEngine:
     def patterns(self, *, scope: str, limit: int = 50) -> list[dict]:
         with connect() as conn:
             rows = conn.execute(
-                """SELECT * FROM learning_patterns
-                   WHERE scope=?
-                   ORDER BY observations DESC, score DESC, id DESC
+                """SELECT
+                       p.*,
+                       q.lifecycle,
+                       q.effective_score,
+                       q.decay_factor,
+                       q.contradiction_rate,
+                       q.age_days,
+                       q.reason AS quality_reason
+                   FROM learning_patterns p
+                   LEFT JOIN learning_pattern_quality q
+                     ON q.pattern_id=p.id
+                   WHERE p.scope=?
+                   ORDER BY
+                     CASE COALESCE(q.lifecycle, 'candidate')
+                       WHEN 'trusted' THEN 0
+                       WHEN 'observed' THEN 1
+                       WHEN 'candidate' THEN 2
+                       ELSE 3
+                     END,
+                     COALESCE(q.effective_score, p.score) DESC,
+                     p.observations DESC,
+                     p.id DESC
                    LIMIT ?""",
                 (scope, limit),
             ).fetchall()
@@ -316,6 +341,12 @@ class ContinuousLearningEngine:
         result = []
         for row in rows:
             item = dict(row)
+            item["lifecycle"] = item.get("lifecycle") or "candidate"
+            item["effective_score"] = float(
+                item.get("effective_score")
+                if item.get("effective_score") is not None
+                else item.get("score", 0.5)
+            )
             item["evidence"] = json.loads(item.pop("evidence_json") or "[]")
             result.append(item)
         return result
@@ -323,9 +354,11 @@ class ContinuousLearningEngine:
     def prompt_block(self, *, scope: str) -> str:
         patterns = [
             item
-            for item in self.patterns(scope=scope, limit=30)
-            if int(item.get("observations", 0)) >= 2
-            and item.get("category") in {
+            for item in self.quality_gate.trusted_patterns(
+                scope=scope,
+                limit=30,
+            )
+            if item.get("category") in {
                 "logic_strategy_feedback",
                 "tool_execution",
                 "performance_bottleneck",
@@ -348,11 +381,49 @@ class ContinuousLearningEngine:
             lines.append(
                 f"- {item['category']}:{item['pattern_key']} "
                 f"observations={item['observations']}, "
-                f"score={float(item['score']):.2f}, "
+                f"effective={float(item['effective_score']):.2f}, "
                 f"successes={item['successes']}, "
                 f"failures={item['failures']}"
             )
         return "\n".join(lines)
+
+    def quality_status(self, *, scope: str) -> dict:
+        refresh = self.quality_gate.refresh(scope=scope)
+        return {
+            **refresh,
+            "trusted_patterns": len(
+                self.quality_gate.trusted_patterns(
+                    scope=scope,
+                    limit=500,
+                )
+            ),
+        }
+
+    def strategy_evolution(
+        self,
+        *,
+        scope: str,
+        mode: str | None = None,
+        limit: int = 50,
+    ) -> list[dict]:
+        self.quality_gate.refresh(scope=scope)
+        return self.quality_gate.strategies(
+            scope=scope,
+            mode=mode,
+            include_deprecated=True,
+            limit=limit,
+        )
+
+    def quality_events(
+        self,
+        *,
+        scope: str,
+        limit: int = 50,
+    ) -> list[dict]:
+        return self.quality_gate.recent_events(
+            scope=scope,
+            limit=limit,
+        )
 
     def queue(self, *, scope: str, limit: int = 50) -> list[dict]:
         with connect() as conn:

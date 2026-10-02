@@ -176,6 +176,10 @@ class AishinEngine:
                     scope=state.current_scope,
                     limit=20,
                 ),
+                "conditions": self.proactive.conditions(
+                    scope=state.current_scope,
+                    limit=50,
+                ),
             },
             "metacognition": self._metacognition_snapshot(
                 scope=state.current_scope,

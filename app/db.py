@@ -149,6 +149,17 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS memory_vectors (
+                memory_id INTEGER PRIMARY KEY,
+                scope TEXT NOT NULL,
+                model TEXT NOT NULL,
+                dimensions INTEGER NOT NULL,
+                vector_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(memory_id) REFERENCES memories(id)
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -597,3 +608,66 @@ def update_relationship_strength(memory_id: int, *, confidence: float, importanc
             (confidence, importance, memory_id),
         )
         conn.commit()
+
+
+def upsert_memory_vector(memory_id: int, scope: str, model: str, vector: list[float], content_hash: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO memory_vectors(memory_id, scope, model, dimensions, vector_json, content_hash, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(memory_id) DO UPDATE SET
+                 scope=excluded.scope,
+                 model=excluded.model,
+                 dimensions=excluded.dimensions,
+                 vector_json=excluded.vector_json,
+                 content_hash=excluded.content_hash,
+                 updated_at=CURRENT_TIMESTAMP""",
+            (memory_id, scope, model, len(vector), json.dumps(vector), content_hash),
+        )
+        conn.commit()
+
+
+def get_memory_vector(memory_id: int) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM memory_vectors WHERE memory_id=?",
+            (memory_id,),
+        ).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["vector"] = json.loads(item.pop("vector_json"))
+    return item
+
+
+def active_memory_vectors(scope: str) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT m.*, v.model AS vector_model, v.dimensions, v.vector_json, v.content_hash
+               FROM memories m
+               JOIN memory_vectors v ON v.memory_id=m.id
+               WHERE m.scope=? AND m.status='active'""",
+            (scope,),
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["tags"] = json.loads(item.pop("tags_json") or "[]")
+        item["vector"] = json.loads(item.pop("vector_json"))
+        result.append(item)
+    return result
+
+
+def active_memories_missing_vector(scope: str, model: str, limit: int = 64) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT m.*
+               FROM memories m
+               LEFT JOIN memory_vectors v ON v.memory_id=m.id
+               WHERE m.scope=? AND m.status='active'
+                 AND (v.memory_id IS NULL OR v.model<>? OR v.content_hash<>COALESCE(m.fingerprint, ''))
+               ORDER BY m.id ASC
+               LIMIT ?""",
+            (scope, model, limit),
+        ).fetchall()
+    return [_memory_row(row) for row in rows]

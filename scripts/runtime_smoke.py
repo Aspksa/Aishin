@@ -61,6 +61,33 @@ def main() -> int:
                 "count": len(tools.json()),
             }
 
+            context_traces = client.get(
+                "/api/assistant/context-traces",
+                params={"scope": "personal", "limit": 1},
+            )
+            if context_traces.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/context-traces returned HTTP "
+                    f"{context_traces.status_code}"
+                )
+            checks["context_orchestrator"] = {
+                "status": "ok",
+                "history_entries": len(context_traces.json()),
+            }
+
+            causal = client.get(
+                "/api/assistant/causal",
+                params={"scope": "personal", "limit": 1},
+            )
+            if causal.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/causal returned HTTP {causal.status_code}"
+                )
+            checks["causal"] = {
+                "status": "ok",
+                "history_entries": len(causal.json()),
+            }
+
             logic = client.get(
                 "/api/assistant/logic",
                 params={"scope": "personal", "limit": 1},

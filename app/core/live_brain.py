@@ -294,6 +294,11 @@ class LiveBrainRuntime:
                 persist=False,
             ),
         )
+        long_term_growth = take(
+            "long_term_growth",
+            {},
+            lambda: self.engine.long_term_growth.summary(scope=scope),
+        )
 
         phase = self._latest_phase(events)
         phase_channel = self.PHASE_TO_CHANNEL.get(phase, "")
@@ -335,6 +340,7 @@ class LiveBrainRuntime:
             learning_plans=learning_plans,
             experiments=experiments,
             learning_quality=learning_quality,
+            long_term_growth=long_term_growth,
             events=events,
             unresolved=unresolved,
         )
@@ -394,6 +400,7 @@ class LiveBrainRuntime:
                 "counters": development.get("counters") or {},
                 "formula_version": development.get("formula_version"),
             },
+            "long_term_growth": long_term_growth,
             "quality": {
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
@@ -410,6 +417,10 @@ class LiveBrainRuntime:
                     "learning quality tables"
                 ),
                 "development": "DevelopmentMetricsEngine persisted evidence",
+                "long_term_growth": (
+                    "growth_skills + knowledge_trust + "
+                    "growth_specializations + long_term_growth_snapshots"
+                ),
             },
         }
 
@@ -421,7 +432,7 @@ class LiveBrainRuntime:
         )
         return {
             "format": "AISHIN_LIVE_BRAIN_EXPORT",
-            "format_version": 2,
+            "format_version": 3,
             "scope": snapshot["scope"],
             "generated_at": snapshot["generated_at"],
             "policy": snapshot["trace_policy"],
@@ -500,8 +511,12 @@ class LiveBrainRuntime:
                 f"{len(data['attempts'])} попыток"
             ),
             "performance": self._performance_detail(data["performance"]),
-            "continuous-learning": str(
-                data["learning_status"].get("mode") or "IDLE"
+            "continuous-learning": (
+                f"{data['learning_status'].get('mode') or 'IDLE'} · "
+                f"{int((data['long_term_growth'].get('skills') or {}).get('durable') or 0)} "
+                f"устойчивых навыков · "
+                f"{int((data['long_term_growth'].get('skills') or {}).get('mastered') or 0)} "
+                "освоено"
             ),
             "metacognition": self._meta_detail(data["metacognition"]),
             "verification": (

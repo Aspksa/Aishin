@@ -426,7 +426,7 @@ Live Brain содержит отдельный узел `Verification`, кото
 SQLite:
 - добавлен `app/migrations.py`;
 - таблица `schema_migrations` хранит применённые миграции;
-- текущая версия схемы: `11`;
+- текущая версия схемы: `12`;
 - `init_db()` автоматически применяет недостающие миграции;
 - self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
 
@@ -1012,3 +1012,87 @@ Self-check во временной директории подтвердил:
 - destructive rollback tool.
 
 Первый runtime smoke ожидал HTTP 400 для нелокального rollback-теста, но local-only guard корректно вернул 403. Тест был исправлен так, чтобы 403 считался правильной защитой.
+
+
+## Continuous Learning Engine
+Aishin получила постоянный фоновый контур самообучения вокруг основной модели.
+
+Worker автоматически стартует вместе с FastAPI lifecycle и корректно останавливается при завершении приложения. Ручного переключателя режимов нет.
+
+Автоматические режимы:
+- `REALTIME` — пользователь активен; обрабатывается только небольшой batch, чтобы обучение не мешало разговору;
+- `BACKGROUND` — есть накопленная очередь и пользователь не активен;
+- `IDLE` — обучающей работы нет;
+- `MAINTENANCE` — длительный простой + пришло время обслуживания.
+
+Текущая политика выбора:
+- активность пользователя за последние ~45 секунд → `REALTIME`;
+- idle >= 30 минут и maintenance overdue → `MAINTENANCE`;
+- есть очередь → `BACKGROUND`;
+- иначе → `IDLE`.
+
+Источники обучения:
+- EventBus events;
+- performance traces;
+- explicit Logic Learning feedback;
+- memory_changes;
+- graph_changes;
+- execution_attempts.
+
+Continuous Learning не использует hidden chain-of-thought и не считает собственные ответы доказательством успеха.
+
+### Что именно изучается
+Локальный Pattern Learner агрегирует:
+- повторяющиеся bottleneck stages;
+- успешность/ошибки Tool Registry;
+- подтверждённые outcomes Logic Learning;
+- частоту типов memory/graph changes;
+- системные event patterns.
+
+Паттерны хранят observations, successes, failures, score и ограниченную evidence history.
+
+В будущий prompt попадают только накопленные operational patterns с достаточным числом наблюдений. Они маркируются как опыт системы, а не как факты о мире, и не имеют права обходить Verification, Permission Gate или текущие evidence.
+
+### 24/7 поведение
+Worker проверяет режим примерно раз в 15 секунд, но не создаёт пустую audit-строку на каждом цикле.
+
+Cycle history пишется только:
+- при смене режима;
+- при наличии/обработке очереди;
+- во время maintenance;
+- либо как редкий heartbeat примерно раз в 5 минут.
+
+Это предотвращает бессмысленный рост SQLite при круглосуточной работе.
+
+Maintenance:
+- возвращает зависшие `processing` items обратно в очередь;
+- удаляет завершённые queue items старше 7 дней;
+- не удаляет пользовательскую память.
+
+Cloud.ru для фонового самообучения v1 не вызывается постоянно: `cloud_used=false`. Основной learning loop локальный, поэтому 24/7 режим не создаёт постоянную стоимость API.
+
+Хранилище:
+- `continuous_learning_state`
+- `continuous_learning_queue`
+- `learning_patterns`
+- `continuous_learning_cycles`
+
+API:
+- `GET /api/assistant/continuous-learning/status`
+- `GET /api/assistant/continuous-learning/cycles`
+- `GET /api/assistant/continuous-learning/patterns`
+- `GET /api/assistant/continuous-learning/queue`
+
+Live Brain содержит узел `Continuous Learning` с текущим mode, pending queue и learned patterns.
+
+Важно: Continuous Learning работает постоянно, пока запущен процесс Aishin. Для работы после перезагрузки Windows нужен отдельный OS autostart/service слой.
+
+Schema migration: `12`.
+Версия приложения остаётся `0.0.3`.
+
+### Подтверждение Continuous Learning runtime
+Функциональный код подтверждён GitHub Actions:
+- run id: `37000341016`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.

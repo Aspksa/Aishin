@@ -66,7 +66,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.9', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.10', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -184,6 +184,12 @@ class ResearchContradictionResolve(BaseModel):
     resolution: str
 
 
+class CommunicationFeedback(BaseModel):
+    scope: str = 'personal'
+    feedback: str
+    reason: str = ''
+
+
 class CloudSettingsUpdate(BaseModel):
     api_key: str
 
@@ -200,7 +206,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.9',
+        'version': '0.0.10',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -576,6 +582,70 @@ def assistant_research_contradiction_resolve(
             contradiction_id,
             scope=payload.scope.strip() or 'personal',
             resolution=payload.resolution,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get('/api/assistant/communication')
+def assistant_communication(
+    scope: str = 'personal',
+    turn_limit: int = 80,
+    event_limit: int = 100,
+) -> dict:
+    return engine.communication.dashboard(
+        scope=scope,
+        turn_limit=max(1, min(turn_limit, 300)),
+        event_limit=max(1, min(event_limit, 500)),
+    )
+
+
+@app.get('/api/assistant/communication/turns')
+def assistant_communication_turns(
+    scope: str = 'personal',
+    limit: int = 100,
+) -> list[dict]:
+    return engine.communication.turns(
+        scope=scope,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/communication/skills')
+def assistant_communication_skills(
+    scope: str = 'personal',
+    limit: int = 50,
+) -> list[dict]:
+    return engine.communication.skills(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
+@app.get('/api/assistant/communication/preferences')
+def assistant_communication_preferences(
+    scope: str = 'personal',
+    limit: int = 50,
+) -> list[dict]:
+    return engine.communication.preferences(
+        scope=scope,
+        limit=max(1, min(limit, 200)),
+    )
+
+
+@app.post('/api/assistant/communication/turns/{turn_id}/feedback')
+def assistant_communication_feedback(
+    turn_id: int,
+    payload: CommunicationFeedback,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.communication.feedback(
+            turn_id,
+            scope=payload.scope.strip() or 'personal',
+            feedback=payload.feedback,
+            reason=payload.reason,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

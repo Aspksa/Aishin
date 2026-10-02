@@ -1348,12 +1348,21 @@ class EvolutionEngine:
                 if comparable_champion == comparable_candidate:
                     continue
 
+            with connect() as conn:
+                variant_count_row = conn.execute(
+                    """SELECT COUNT(*) AS total
+                       FROM evolution_variants
+                       WHERE scope=? AND family=?""",
+                    (scope, family),
+                ).fetchone()
+            attempt = int(variant_count_row["total"] or 0) + 1
             variant_key = (
-                f"{family}:"
+                f"{family}:g{generation}:a{attempt}:"
                 + self._hash_key(
                     family,
                     json.dumps(policy, sort_keys=True),
                     generation,
+                    attempt,
                 )
             )
             baseline = (

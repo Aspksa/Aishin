@@ -1008,19 +1008,35 @@ def list_entities(scope: str, limit: int = 100, entity_type: str | None = None) 
 
 
 def search_entities(scope: str, query: str, limit: int = 20) -> list[dict]:
-    pattern = f"%{query.strip().lower()}%"
+    needle = query.strip().casefold()
+    if not needle:
+        return []
+
     with connect() as conn:
         rows = conn.execute(
             """SELECT * FROM entities
-               WHERE scope=? AND LOWER(canonical_name) LIKE ?
-               ORDER BY updated_at DESC, id DESC LIMIT ?""",
-            (scope, pattern, limit),
+               WHERE scope=?
+               ORDER BY updated_at DESC, id DESC""",
+            (scope,),
         ).fetchall()
-    result = []
+
+    result: list[dict] = []
     for row in rows:
         item = dict(row)
-        item["data"] = json.loads(item.pop("data_json") or "{}")
+        data = json.loads(item.pop("data_json") or "{}")
+        searchable = " ".join(
+            (
+                str(item.get("canonical_name") or ""),
+                json.dumps(data, ensure_ascii=False, sort_keys=True),
+            )
+        ).casefold()
+        if needle not in searchable:
+            continue
+        item["data"] = data
         result.append(item)
+        if len(result) >= limit:
+            break
+
     return result
 
 

@@ -577,6 +577,28 @@ def assistant_proactive_execute(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.get('/api/assistant/context-traces')
+def assistant_context_traces(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.context_orchestrator.recent(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
+@app.get('/api/assistant/causal')
+def assistant_causal(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.causal.recent(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
 @app.get('/api/assistant/logic')
 def assistant_logic(
     scope: str = 'personal',

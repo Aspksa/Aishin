@@ -8,6 +8,8 @@ from ..personality import personality
 from .cognition import Cognition
 from .context_orchestrator import ContextOrchestrator
 from .causal import CausalReasoning
+from .counterfactual import CounterfactualReasoning
+from .decision_quality import DecisionQualityScorer
 from .consolidation import MemoryConsolidator
 from .events import EventBus
 from .graph import KnowledgeGraph
@@ -45,6 +47,8 @@ class AishinEngine:
         self.logic = LogicEngine()
         self.logic_learning = LogicLearning()
         self.hypotheses = HypothesisManager()
+        self.counterfactual = CounterfactualReasoning()
+        self.decision_quality = DecisionQualityScorer()
         self.causal = CausalReasoning()
         self.cognition = Cognition(
             self.memory,
@@ -198,6 +202,18 @@ class AishinEngine:
             },
             "logic_learning": {
                 "events": self.logic_learning.recent_events(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
+            "counterfactual": {
+                "history": self.counterfactual.recent(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
+            "decision_quality": {
+                "history": self.decision_quality.recent(
                     scope=state.current_scope,
                     limit=20,
                 ),
@@ -391,6 +407,34 @@ class AishinEngine:
             limit=3,
         )
 
+        counterfactual_assessment = self.counterfactual.assess(
+            cleaned,
+            scope=scope,
+            mode=logic_trace.mode,
+            alternatives=logic_trace.alternatives,
+            hypotheses=hypothesis_run.to_dict(),
+            causal=causal_assessment.to_dict(),
+            evidence=logic_trace.evidence,
+            contradictions=logic_trace.contradictions,
+        )
+
+        decision_quality = self.decision_quality.score(
+            cleaned,
+            scope=scope,
+            mode=logic_trace.mode,
+            logic_confidence=logic_trace.confidence,
+            evidence=logic_trace.evidence,
+            contradictions=logic_trace.contradictions,
+            unresolved=logic_trace.unresolved,
+            verification=(
+                verification_data
+                if verification_report is not None
+                else None
+            ),
+            hypotheses=hypothesis_run.to_dict(),
+            counterfactual=counterfactual_assessment.to_dict(),
+        )
+
         context.system_prompt, context_trace = self.context_orchestrator.compose(
             cleaned,
             scope=scope,
@@ -419,6 +463,8 @@ class AishinEngine:
                 "feedback": learning_update.to_dict(),
                 "strategies": learned_strategies,
             },
+            "counterfactual": counterfactual_assessment.to_dict(),
+            "decision_quality": decision_quality.to_dict(),
         }
         context.system_prompt += "\n\n" + self.logic.prompt_block(logic_trace)
         context.system_prompt += "\n\n" + self.hypotheses.prompt_block(hypothesis_run)
@@ -495,6 +541,8 @@ class AishinEngine:
                     "feedback": learning_update.to_dict(),
                     "strategies": learned_strategies,
                 },
+                "counterfactual": counterfactual_assessment.to_dict(),
+                "decision_quality": decision_quality.to_dict(),
             },
             importance=0.3,
         )
@@ -527,6 +575,8 @@ class AishinEngine:
                 "feedback": learning_update.to_dict(),
                 "strategies": learned_strategies,
             },
+            "counterfactual": counterfactual_assessment.to_dict(),
+            "decision_quality": decision_quality.to_dict(),
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

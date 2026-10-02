@@ -262,9 +262,12 @@ def init_db() -> None:
                 status TEXT NOT NULL DEFAULT 'pending',
                 execution_json TEXT NOT NULL DEFAULT '{}',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(scope, fingerprint, status)
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_proactive_pending_unique
+            ON proactive_decisions(scope, fingerprint)
+            WHERE status='pending';
 
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,

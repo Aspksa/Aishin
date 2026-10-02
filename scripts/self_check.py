@@ -173,6 +173,15 @@ def main() -> int:
             "engine": engine.proactive.__class__.__name__,
             "pending": engine.proactive.pending(scope="personal", limit=20),
         }
+        checks["proactive_lifecycle"] = {
+            "status": "ok",
+            "manager": engine.proactive.lifecycle.__class__.__name__,
+            "conditions": len(
+                engine.proactive.conditions(scope="personal", limit=20)
+            ),
+            "dedupe_policy": "one_decision_per_active_condition_generation",
+            "acknowledged_status_supported": True,
+        }
         checks["metacognition"] = {
             "status": "ok",
             "engine": engine.metacognition.__class__.__name__,

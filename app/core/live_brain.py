@@ -620,6 +620,13 @@ class LiveBrainRuntime:
         contradictions = logic.get("contradictions") or []
         unresolved = logic.get("unresolved") or []
         verify_unresolved = verification.get("unresolved") or []
+        intelligence = trace.get("cognitive_intelligence") or {}
+        intelligence_route = (
+            intelligence.get("route")
+            or trace.get("cognitive_intelligence_route")
+            or {}
+        )
+        intelligence_outcome = intelligence.get("outcome") or {}
 
         return {
             "available": True,
@@ -647,6 +654,22 @@ class LiveBrainRuntime:
             "total_ms": performance.get("total_ms"),
             "bottleneck": performance.get("bottleneck"),
             "budget_status": performance.get("budget_status"),
+            "task_family": intelligence_route.get("task_family"),
+            "base_mode": intelligence_route.get("base_mode"),
+            "adapted_mode": intelligence_route.get("adapted_mode"),
+            "route_confidence": intelligence_route.get("route_confidence"),
+            "adaptive_skill_count": len(
+                intelligence_route.get("selected_skills") or []
+            ),
+            "adaptive_knowledge_count": len(
+                intelligence_route.get("selected_knowledge") or []
+            ),
+            "transfer_used": bool(
+                intelligence_route.get("transfer_used")
+            ),
+            "intelligence_outcome": intelligence_outcome.get(
+                "outcome_score"
+            ),
         }
 
     @staticmethod

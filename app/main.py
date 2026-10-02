@@ -30,11 +30,12 @@ templates = Environment(
 engine = AishinEngine()
 heartbeat: Heartbeat | None = None
 heartbeat_task: asyncio.Task | None = None
+learning_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global heartbeat, heartbeat_task
+    global heartbeat, heartbeat_task, learning_task
     init_db()
     engine.startup()
     heartbeat = Heartbeat(
@@ -44,13 +45,19 @@ async def lifespan(_: FastAPI):
         proactive=engine.proactive,
     )
     heartbeat_task = asyncio.create_task(heartbeat.run())
+    learning_task = asyncio.create_task(
+        engine.continuous_learning.run()
+    )
     try:
         yield
     finally:
         if heartbeat is not None:
             heartbeat.stop()
+        engine.continuous_learning.stop()
         if heartbeat_task:
             await heartbeat_task
+        if learning_task:
+            await learning_task
 
 
 app = FastAPI(title='Aishin Kitsune', version='0.0.3', lifespan=lifespan)
@@ -609,6 +616,48 @@ def assistant_proactive_execute(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get('/api/assistant/continuous-learning/status')
+def assistant_continuous_learning_status(
+    scope: str = 'personal',
+) -> dict:
+    return engine.continuous_learning.status(
+        scope=scope,
+    )
+
+
+@app.get('/api/assistant/continuous-learning/cycles')
+def assistant_continuous_learning_cycles(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.continuous_learning.recent_cycles(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
+@app.get('/api/assistant/continuous-learning/patterns')
+def assistant_continuous_learning_patterns(
+    scope: str = 'personal',
+    limit: int = 50,
+) -> list[dict]:
+    return engine.continuous_learning.patterns(
+        scope=scope,
+        limit=max(1, min(limit, 200)),
+    )
+
+
+@app.get('/api/assistant/continuous-learning/queue')
+def assistant_continuous_learning_queue(
+    scope: str = 'personal',
+    limit: int = 50,
+) -> list[dict]:
+    return engine.continuous_learning.queue(
+        scope=scope,
+        limit=max(1, min(limit, 200)),
+    )
 
 
 @app.get('/api/assistant/performance')

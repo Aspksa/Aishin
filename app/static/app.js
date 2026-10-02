@@ -198,25 +198,30 @@ function decisionCard(decision, mode) {
   actions.className = "decision-actions";
 
   if (mode === "pending") {
-    actions.append(
-      actionButton("Одобрить", "approve", async () => {
-        await decisionRequest(decision.id, "approve", {execute: false});
-      }),
-      actionButton("Отклонить", "reject", async () => {
-        await decisionRequest(decision.id, "reject", {reason: "Отклонено Господином через Approval Center"});
-      })
-    );
+    if (decision.tool_name) {
+      actions.append(
+        actionButton("Одобрить", "approve", async () => {
+          await decisionRequest(decision.id, "approve", {execute: false});
+        }),
+        actionButton("Отклонить", "reject", async () => {
+          await decisionRequest(decision.id, "reject", {reason: "Отклонено Господином через Approval Center"});
+        })
+      );
+    } else {
+      actions.append(
+        actionButton("Принято", "approve", async () => {
+          await decisionRequest(decision.id, "acknowledge", {reason: "Информационный сигнал принят Господином"});
+        }),
+        actionButton("Отклонить", "reject", async () => {
+          await decisionRequest(decision.id, "reject", {reason: "Информационный сигнал отклонён Господином"});
+        })
+      );
+    }
   } else if (mode === "approved") {
     if (decision.tool_name) {
       actions.append(
         actionButton("Выполнить", "execute", async () => {
           await decisionRequest(decision.id, "execute", {});
-        })
-      );
-    } else {
-      actions.append(
-        actionButton("Закрыть", "reject", async () => {
-          await decisionRequest(decision.id, "reject", {reason: "Информационное решение просмотрено"});
         })
       );
     }
@@ -271,6 +276,8 @@ async function decisionRequest(id, action, extra) {
     } else {
       addMessage(`Решение #${id}: результат — ${status}.`, "aishin");
     }
+  } else if (action === "acknowledge") {
+    addMessage(`Сигнал #${id} принят к сведению. Повторяться не будет, пока условие не исчезнет и не возникнет снова.`, "aishin");
   } else {
     addMessage(`Решение #${id} отклонено.`, "aishin");
   }

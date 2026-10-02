@@ -35,7 +35,7 @@ jobs:
         run: python -m compileall -q app scripts
 
       - name: Check browser JavaScript
-        run: node --check app/static/app.js && node --check app/static/live_brain.js
+        run: node --check app/static/app.js && node --check app/static/live_brain.js && node --check app/static/growth.js
 
       - name: Check updater module
         run: python -m py_compile app/updater.py app/system_settings.py

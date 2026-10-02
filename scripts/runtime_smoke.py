@@ -61,6 +61,28 @@ def main() -> int:
                 "count": len(tools.json()),
             }
 
+            cognitive_traces = client.get(
+                "/api/assistant/cognitive-traces",
+                params={"scope": "personal", "limit": 1},
+            )
+            if cognitive_traces.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/cognitive-traces returned HTTP "
+                    f"{cognitive_traces.status_code}"
+                )
+            checks["cognitive_traces"] = {
+                "status": "ok",
+                "history_entries": len(cognitive_traces.json()),
+            }
+
+            ai_diagnostics = client.get("/api/assistant/ai-diagnostics")
+            if ai_diagnostics.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/ai-diagnostics returned HTTP "
+                    f"{ai_diagnostics.status_code}"
+                )
+            checks["ai_resilience"] = ai_diagnostics.json()
+
             execution_approvals = client.get(
                 "/api/assistant/execution/approvals",
                 params={"scope": "personal", "limit": 1},

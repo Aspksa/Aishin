@@ -9,6 +9,10 @@ const pages = {
     title: "Aishin Kitsune",
     description: "Личная помощница"
   },
+  attention: {
+    title: "Айши заметила",
+    description: "Ситуации, аномалии, сроки и проактивное внимание."
+  },
   account: {
     title: "Личный кабинет",
     description: "Здесь будет профиль владельца, персональные настройки, доступы и параметры Айшин."
@@ -38,6 +42,11 @@ document.querySelectorAll(".nav-item[data-module]").forEach((button) => {
     document.querySelectorAll(".module-page").forEach((page) => page.classList.remove("active"));
     if (code === "assistant") {
       document.getElementById("assistant-module").classList.add("active");
+    } else if (code === "attention") {
+      document.getElementById("attention-module")?.classList.add("active");
+      if (typeof window.AISHIN_PROACTIVE_REFRESH === "function") {
+        window.AISHIN_PROACTIVE_REFRESH();
+      }
     } else if (code === "settings") {
       document.getElementById("settings-module").classList.add("active");
       refreshCloudSettings();

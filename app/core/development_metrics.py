@@ -333,6 +333,56 @@ class DevelopmentMetricsEngine:
                    WHERE scope=? ORDER BY id DESC LIMIT 1""",
                 (scope,),
             )
+            evolution_generation = int(scalar(
+                """SELECT generation FROM evolution_state
+                   WHERE scope=?""",
+                (scope,),
+            ))
+            evolution_score = scalar(
+                """SELECT evolution_score FROM evolution_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            evolution_stability = scalar(
+                """SELECT stability_score FROM evolution_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            evolution_plasticity = scalar(
+                """SELECT plasticity_score FROM evolution_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            evolution_learning_velocity = scalar(
+                """SELECT learning_velocity FROM evolution_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            evolution_champions = int(scalar(
+                """SELECT COUNT(*) FROM evolution_variants
+                   WHERE scope=? AND lifecycle='champion'""",
+                (scope,),
+            ))
+            evolution_challengers = int(scalar(
+                """SELECT COUNT(*) FROM evolution_variants
+                   WHERE scope=? AND lifecycle='challenger'""",
+                (scope,),
+            ))
+            evolution_rollbacks = int(scalar(
+                """SELECT COUNT(*) FROM evolution_events
+                   WHERE scope=? AND event_type='champion_rolled_back'""",
+                (scope,),
+            ))
+            evolution_open_curriculum = int(scalar(
+                """SELECT COUNT(*) FROM evolution_curriculum
+                   WHERE scope=? AND status IN ('open','active')""",
+                (scope,),
+            ))
+            evolution_trusted_transfers = int(scalar(
+                """SELECT COUNT(*) FROM evolution_transfers
+                   WHERE scope=? AND status='trusted'""",
+                (scope,),
+            ))
 
         knowledge_items = memories + entities
         return {
@@ -379,6 +429,19 @@ class DevelopmentMetricsEngine:
             "proactive_feedback_samples": proactive_feedback_samples,
             "proactive_intelligence_runs": proactive_runs,
             "situational_awareness": round(situational_awareness, 1),
+            "evolution_generation": evolution_generation,
+            "evolution_score": round(evolution_score, 1),
+            "evolution_stability": round(evolution_stability, 1),
+            "evolution_plasticity": round(evolution_plasticity, 1),
+            "evolution_learning_velocity": round(
+                evolution_learning_velocity,
+                1,
+            ),
+            "evolution_champions": evolution_champions,
+            "evolution_challengers": evolution_challengers,
+            "evolution_rollbacks": evolution_rollbacks,
+            "evolution_open_curriculum": evolution_open_curriculum,
+            "evolution_trusted_transfers": evolution_trusted_transfers,
         }
 
     def _components(self, c: dict) -> dict:

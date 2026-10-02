@@ -66,8 +66,10 @@ class ProactiveDecisionLoop:
             item["fingerprint"] for item in pending_before
         }
 
+        active_notice_fingerprints: set[str] = set()
         for notice in notices:
             fingerprint = self._notice_fingerprint(notice, scope=scope)
+            active_notice_fingerprints.add(fingerprint)
             if fingerprint in pending_fingerprints:
                 continue
             proposal = self._proposal_for_notice(
@@ -79,6 +81,20 @@ class ProactiveDecisionLoop:
                 continue
             self._store_proposal(scope=scope, **proposal)
             pending_fingerprints.add(fingerprint)
+
+        # Dismiss planner proposals whose underlying condition is already resolved.
+        for item in pending_before:
+            if not str(item.get("source") or "").startswith("planner:"):
+                continue
+            if item["fingerprint"] in active_notice_fingerprints:
+                continue
+            update_proactive_decision(
+                int(item["id"]),
+                scope=scope,
+                status="dismissed",
+                execution={"reason": "underlying_condition_resolved"},
+            )
+            pending_fingerprints.discard(item["fingerprint"])
 
         # Sensor-level attention that is not already represented by planner notices.
         for reading in readings:

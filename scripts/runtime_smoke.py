@@ -255,6 +255,60 @@ def main() -> int:
                 "strategies": len(strategy_evolution.json()),
             }
 
+            reflection_api = client.get(
+                "/api/assistant/self-reflection",
+                params={"scope": "personal", "limit": 2},
+            )
+            if reflection_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/self-reflection returned HTTP "
+                    f"{reflection_api.status_code}"
+                )
+
+            learning_plans_api = client.get(
+                "/api/assistant/learning-plans",
+                params={"scope": "personal", "limit": 2},
+            )
+            if learning_plans_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/learning-plans returned HTTP "
+                    f"{learning_plans_api.status_code}"
+                )
+
+            experiments_api = client.get(
+                "/api/assistant/safe-experiments",
+                params={"scope": "personal", "limit": 2},
+            )
+            if experiments_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/safe-experiments returned HTTP "
+                    f"{experiments_api.status_code}"
+                )
+            for item in experiments_api.json():
+                if item.get("promotion_allowed") is not False:
+                    raise RuntimeError(
+                        "Safe experiment must never expose automatic promotion"
+                    )
+
+            budget_api = client.get(
+                "/api/assistant/context-budget",
+                params={"scope": "personal", "limit": 2},
+            )
+            if budget_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/context-budget returned HTTP "
+                    f"{budget_api.status_code}"
+                )
+
+            checks["reflective_learning_api"] = {
+                "status": "ok",
+                "reflection": bool(reflection_api.json().get("summary")),
+                "plans": len(learning_plans_api.json()),
+                "experiments": len(experiments_api.json()),
+                "budget_reports": len(budget_api.json()),
+                "automatic_promotion": False,
+            }
+
             performance = client.get(
                 "/api/assistant/performance",
                 params={"scope": "personal", "limit": 1},

@@ -61,6 +61,19 @@ def main() -> int:
                 "count": len(tools.json()),
             }
 
+            logic = client.get(
+                "/api/assistant/logic",
+                params={"scope": "personal", "limit": 1},
+            )
+            if logic.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/logic returned HTTP {logic.status_code}"
+                )
+            checks["logic"] = {
+                "status": "ok",
+                "history_entries": len(logic.json()),
+            }
+
             verification = client.get(
                 "/api/assistant/verification",
                 params={"scope": "personal", "limit": 1},

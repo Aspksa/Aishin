@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
 from .core.engine import AishinEngine
 from .core.heartbeat import Heartbeat
@@ -18,6 +19,8 @@ from .personality import personality
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = Path(__file__).resolve().parent
+
+load_dotenv(ROOT / '.env')
 
 templates = Environment(
     loader=FileSystemLoader(APP_DIR / 'templates'),

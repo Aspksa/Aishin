@@ -702,6 +702,56 @@ def assistant_continuous_learning_queue(
     )
 
 
+@app.get('/api/assistant/self-reflection')
+def assistant_self_reflection(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> dict:
+    return {
+        'summary': engine.self_reflection.summary(
+            scope=scope,
+            limit=max(1, min(limit, 200)),
+        ),
+        'recent': engine.self_reflection.recent(
+            scope=scope,
+            limit=max(1, min(limit, 200)),
+        ),
+    }
+
+
+@app.get('/api/assistant/learning-plans')
+def assistant_learning_plans(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.learning_planner.recent(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
+@app.get('/api/assistant/safe-experiments')
+def assistant_safe_experiments(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.experiment_manager.recent(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
+@app.get('/api/assistant/context-budget')
+def assistant_context_budget(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.context_budgeter.recent(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
 @app.get('/api/assistant/performance')
 def assistant_performance(
     scope: str = 'personal',

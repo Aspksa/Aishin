@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from ..ai import AIManager
 from ..db import add_message, recent_messages
 from ..personality import personality
@@ -15,6 +17,8 @@ from .planner import Planner
 from .planner_builder import PlannerBuilder
 from .personal import PersonalAishin
 from .semantic import SemanticMemory
+from .sensors import SensorHub
+from .tools import ToolRegistry
 from .state import StateManager
 
 
@@ -42,6 +46,13 @@ class AishinEngine:
             events=self.events,
         )
         self.permissions = PermissionGate()
+        project_root = Path(__file__).resolve().parents[2]
+        self.sensors = SensorHub(root=project_root, planner=self.planner)
+        self.tools = ToolRegistry(
+            root=project_root,
+            permissions=self.permissions,
+            planner=self.planner,
+        )
         self.observer = Observer(self.state, self.events)
         self.consolidator = MemoryConsolidator(
             ai=self.ai,
@@ -91,6 +102,17 @@ class AishinEngine:
             "permissions": {
                 key: self.permissions.mode(key)
                 for key in self.permissions.SAFE_DEFAULTS
+            },
+            "sensors": self.sensors.scan(
+                scope=state.current_scope,
+                persist=False,
+            ),
+            "tools": {
+                "catalog": self.tools.catalog(),
+                "recent_actions": self.tools.history(
+                    scope=state.current_scope,
+                    limit=10,
+                ),
             },
             "observations": [o.__dict__ for o in self.observer.inspect()],
             "recent_events": self.events.recent(limit=10),

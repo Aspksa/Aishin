@@ -111,6 +111,17 @@ class MemoryConsolidator:
                 scope=scope,
                 outcome=outcome,
             )
+            saved_total = (
+                outcome.created
+                + outcome.reinforced
+                + outcome.superseded
+                + outcome.conflicts
+                + outcome.profile_updates
+                + outcome.relationship_updates
+                + outcome.timeline_updates
+            )
+            if self._is_explicit_memory_request(user_text) and saved_total == 0:
+                self._fallback(user_text, scope=scope, outcome=outcome)
         else:
             self._fallback(user_text, scope=scope, outcome=outcome)
 

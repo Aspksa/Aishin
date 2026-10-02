@@ -1190,3 +1190,23 @@ Schema migration: `13`.
 - Ubuntu / Python 3.11: success;
 - Windows / Python 3.11: success;
 - compileall, self-check и FastAPI runtime smoke: success.
+
+
+## Windows launcher diagnostics
+`Aishin.bat` больше не закрывается молча при ошибке запуска.
+
+Launcher:
+- проверяет Python 3.11+;
+- обнаруживает повреждённую `.venv` и пересоздаёт её;
+- проверяет зависимости;
+- запускает self-check и runtime smoke;
+- проверяет порт `127.0.0.1:8765`;
+- если Айшин уже запущена, открывает существующий экземпляр;
+- если порт занят другим процессом, показывает понятную ошибку;
+- проверяет exit code uvicorn и оставляет окно открытым при сбое;
+- пишет диагностический лог в `logs/launcher.log`.
+
+Для CI поддерживается:
+`Aishin.bat --check-only`
+
+Windows launcher preflight подтверждён GitHub Actions run `37003479979`.

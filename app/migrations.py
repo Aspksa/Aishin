@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 8
+LATEST_SCHEMA_VERSION = 9
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -280,6 +280,29 @@ def _migration_008_execution_coordinator(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_009_cloud_resilience_and_request_traces(
+    conn: sqlite3.Connection,
+) -> None:
+    """Per-request cognitive trace isolation for concurrent requests."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS cognitive_request_traces (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id TEXT NOT NULL UNIQUE,
+            scope TEXT NOT NULL,
+            query TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'completed',
+            trace_json TEXT NOT NULL DEFAULT '{}',
+            provider_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cognitive_traces_scope_created
+        ON cognitive_request_traces(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -289,6 +312,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (6, "counterfactual_and_decision_quality", _migration_006_counterfactual_and_decision_quality),
     (7, "action_selection", _migration_007_action_selection),
     (8, "execution_coordinator", _migration_008_execution_coordinator),
+    (9, "cloud_resilience_and_request_traces", _migration_009_cloud_resilience_and_request_traces),
 )
 
 

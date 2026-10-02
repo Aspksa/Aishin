@@ -328,6 +328,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
   const actionSelection = state.working_memory?.action_selection || null;
   const executionGuard = state.execution_coordinator || {};
   const verification = state.working_memory?.verification || null;
+  const performance = state.working_memory?.performance || (state.performance || [])[0] || null;
 
   setBrainNode(
     "sensors",
@@ -440,6 +441,15 @@ function renderLivingBrain(state, sensors, pending, approved) {
       : latestAttempt
         ? `last: ${latestAttempt.status}`
         : "нет активных разрешений"
+  );
+
+  setBrainNode(
+    "performance",
+    Boolean(performance),
+    performance?.budget_status === "over_budget",
+    performance
+      ? `${performance.total_ms || 0} ms · ${performance.bottleneck || "—"}`
+      : "замеров ещё нет"
   );
 
   const metaStatus = meta?.status || "нет оценки";

@@ -10,6 +10,7 @@ from ..db import (
     update_proactive_decision,
 )
 from .events import EventBus
+from .execution_coordinator import ExecutionCoordinator
 from .permissions import PermissionGate
 from .planner import Planner, PlannerNotice
 from .sensors import SensorHub
@@ -46,12 +47,14 @@ class ProactiveDecisionLoop:
         tools: ToolRegistry,
         permissions: PermissionGate,
         events: EventBus,
+        coordinator: ExecutionCoordinator | None = None,
     ) -> None:
         self.planner = planner
         self.sensors = sensors
         self.tools = tools
         self.permissions = permissions
         self.events = events
+        self.coordinator = coordinator
 
     def evaluate(self, *, scope: str) -> DecisionEvaluation:
         readings = self.sensors.scan(scope=scope, persist=False)
@@ -178,11 +181,22 @@ class ProactiveDecisionLoop:
         if decision["status"] != "pending":
             raise ValueError("only pending decisions can be approved")
 
+        approval = None
+        if decision.get("tool_name"):
+            if self.coordinator is None:
+                raise ValueError("execution coordinator unavailable")
+            approval = self.coordinator.issue_approval(
+                decision_id,
+                scope=scope,
+            )
+
         update_proactive_decision(
             decision_id,
             scope=scope,
             status="approved",
-            execution={},
+            execution={
+                "approval": approval or {},
+            },
         )
         self.events.emit(
             "proactive.decision.approved",
@@ -248,24 +262,20 @@ class ProactiveDecisionLoop:
             result = get_proactive_decision(decision_id, scope)
             return result or {}
 
-        global_mode = self.permissions.mode("execute_planned_action")
-        if global_mode == "deny":
-            raise ValueError("planned action execution is denied")
+        if self.coordinator is None:
+            raise ValueError("execution coordinator unavailable")
 
-        tool_result = self.tools.invoke(
-            tool_name,
+        execution = self.coordinator.execute(
+            decision_id,
             scope=scope,
-            arguments=decision.get("arguments") or {},
-            dry_run=False,
-            approved=True,
         )
-
-        success = tool_result.get("status") == "success"
+        success = execution.get("status") == "success"
+        stale = execution.get("status") == "stale_or_blocked"
         update_proactive_decision(
             decision_id,
             scope=scope,
-            status="executed" if success else "failed",
-            execution=tool_result,
+            status="executed" if success else ("approved" if stale else "failed"),
+            execution=execution,
         )
         self.events.emit(
             "proactive.decision.executed"
@@ -275,7 +285,7 @@ class ProactiveDecisionLoop:
             payload={
                 "decision_id": decision_id,
                 "tool": tool_name,
-                "tool_status": tool_result.get("status"),
+                "tool_status": execution.get("status"),
             },
             importance=0.75 if success else 0.9,
         )

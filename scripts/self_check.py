@@ -118,6 +118,31 @@ def main() -> int:
                 "Фоновая очередь должна включать BACKGROUND или MAINTENANCE"
             )
 
+        quality = engine.continuous_learning.quality_status(
+            scope="personal"
+        )
+        if set(quality["patterns"]["lifecycle"]) != {
+            "candidate", "observed", "trusted", "deprecated"
+        }:
+            raise RuntimeError("Learning Quality Gate lifecycle неполный")
+
+        checks["learning_quality_gate"] = {
+            "status": "ok",
+            "pattern_half_life_days": (
+                engine.continuous_learning.quality_gate.PATTERN_HALF_LIFE_DAYS
+            ),
+            "strategy_half_life_days": (
+                engine.continuous_learning.quality_gate.STRATEGY_HALF_LIFE_DAYS
+            ),
+            "quality": quality,
+            "strategy_count": len(
+                engine.continuous_learning.strategy_evolution(
+                    scope="personal",
+                    limit=20,
+                )
+            ),
+        }
+
         checks["continuous_learning"] = {
             "status": "ok",
             "engine": engine.continuous_learning.__class__.__name__,

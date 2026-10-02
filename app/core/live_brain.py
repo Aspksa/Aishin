@@ -315,14 +315,29 @@ class LiveBrainRuntime:
                 scope=scope,
             ),
         )
+        proactive_intelligence = take(
+            "proactive_intelligence",
+            {},
+            lambda: self.engine.proactive_intelligence.dashboard(
+                scope=scope,
+                incident_limit=30,
+                signal_limit=30,
+                run_limit=10,
+                refresh=False,
+            ),
+        )
 
         phase = self._latest_phase(events)
         phase_channel = self.PHASE_TO_CHANNEL.get(phase, "")
         unresolved = self._unresolved_count(trace, verification)
         warning_events = int(event_stats.get("attention_events_1h") or 0)
+        proactive_summary = proactive_intelligence.get("summary") or {}
+        proactive_attention = int(
+            proactive_summary.get("requires_attention") or 0
+        )
         integrity = (
             "attention"
-            if errors or unresolved or warning_events
+            if errors or unresolved or warning_events or proactive_attention
             else "healthy"
             if events or memories or graph_stats.get("entities")
             else "initializing"
@@ -391,6 +406,9 @@ class LiveBrainRuntime:
                 "attention_channels": attention_channels,
                 "open_tasks": len(planner.get("tasks") or []),
                 "open_goals": len(planner.get("goals") or []),
+                "awareness_score": proactive_summary.get("awareness_score"),
+                "active_incidents": proactive_summary.get("active_incidents"),
+                "attention_incidents": proactive_attention,
             },
             "channels": channels,
             "safe_trace": self._safe_trace(trace),
@@ -421,6 +439,7 @@ class LiveBrainRuntime:
                 "current": cognitive_intelligence,
                 "latest_route": latest_intelligence_route,
             },
+            "proactive_intelligence": proactive_intelligence,
             "quality": {
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
@@ -445,6 +464,11 @@ class LiveBrainRuntime:
                     "cognitive_intelligence_routes + "
                     "cognitive_intelligence_snapshots"
                 ),
+                "proactive_intelligence": (
+                    "situation_snapshots + proactive_signals + "
+                    "proactive_incidents + proactive_expectations + "
+                    "proactive_attention_feedback"
+                ),
             },
         }
 
@@ -456,7 +480,7 @@ class LiveBrainRuntime:
         )
         return {
             "format": "AISHIN_LIVE_BRAIN_EXPORT",
-            "format_version": 4,
+            "format_version": 5,
             "scope": snapshot["scope"],
             "generated_at": snapshot["generated_at"],
             "policy": snapshot["trace_policy"],

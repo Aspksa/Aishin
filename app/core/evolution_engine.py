@@ -1479,10 +1479,83 @@ class EvolutionEngine:
             "verification_bias": verification_bias,
             "context_multiplier": round(context_multiplier, 3),
             "traffic_fraction": 0.25,
-            "min_samples": 6,
+            "min_samples": 8,
             "max_unresolved_rate": 0.12,
             "min_gain": 0.04,
+            "min_gain_lower_bound": 0.01,
+            "min_win_lower_bound": 0.50,
             "rationale": ",".join(reasons),
+        }
+
+    def _challenger_evidence(
+        self,
+        *,
+        scope: str,
+        variant_id: int,
+    ) -> dict:
+        with connect() as conn:
+            rows = conn.execute(
+                """SELECT outcome_score, baseline_fitness, successful,
+                          unresolved_count
+                   FROM evolution_assignments
+                   WHERE scope=? AND variant_id=?
+                     AND assignment_type='challenger'
+                     AND outcome_score IS NOT NULL
+                   ORDER BY id DESC LIMIT 120""",
+                (scope, variant_id),
+            ).fetchall()
+
+        gains = [
+            float(row["outcome_score"] or 0.0)
+            - float(row["baseline_fitness"] or 0.0)
+            for row in rows
+        ]
+        samples = len(rows)
+        mean_gain = self._mean(gains)
+        if samples >= 2:
+            variance = sum(
+                (value - mean_gain) ** 2 for value in gains
+            ) / (samples - 1)
+            standard_error = math.sqrt(variance) / math.sqrt(samples)
+        else:
+            standard_error = 1.0
+
+        # Conservative one-sided confidence bound. This is a promotion guard,
+        # not a claim of scientific significance or causal proof.
+        z = 1.645
+        gain_lower_bound = mean_gain - z * standard_error
+
+        wins = sum(int(row["successful"] or 0) for row in rows)
+        p = wins / samples if samples else 0.0
+        if samples:
+            denominator = 1.0 + (z * z) / samples
+            center = p + (z * z) / (2.0 * samples)
+            radius = z * math.sqrt(
+                (p * (1.0 - p) / samples)
+                + (z * z) / (4.0 * samples * samples)
+            )
+            win_lower_bound = (center - radius) / denominator
+        else:
+            win_lower_bound = 0.0
+
+        unresolved_rate = (
+            sum(
+                1
+                for row in rows
+                if int(row["unresolved_count"] or 0) > 0
+            )
+            / samples
+            if samples
+            else 1.0
+        )
+        return {
+            "samples": samples,
+            "mean_gain": round(mean_gain, 5),
+            "gain_standard_error": round(standard_error, 5),
+            "gain_lower_bound": round(gain_lower_bound, 5),
+            "win_rate": round(p, 5),
+            "win_lower_bound": round(win_lower_bound, 5),
+            "unresolved_rate": round(unresolved_rate, 5),
         }
 
     def _evaluate_variants(
@@ -1500,17 +1573,26 @@ class EvolutionEngine:
             evidence = int(item["evidence_count"] or 0)
             if lifecycle == "challenger":
                 policy = item.get("policy") or {}
-                min_samples = max(5, int(policy.get("min_samples") or 6))
+                min_samples = max(8, int(policy.get("min_samples") or 8))
                 if evidence < min_samples:
                     continue
                 observed = float(item["observed_fitness"] or 0.0)
-                baseline = float(item["baseline_fitness"] or 0.0)
-                wins = int(item["wins"] or 0)
-                unresolved_total = int(item["unresolved_total"] or 0)
-                win_rate = wins / max(1, evidence)
-                unresolved_rate = unresolved_total / max(1, evidence)
-                gain = observed - baseline
+                stats = self._challenger_evidence(
+                    scope=scope,
+                    variant_id=int(item["id"]),
+                )
+                gain = float(stats["mean_gain"])
+                win_rate = float(stats["win_rate"])
+                unresolved_rate = float(stats["unresolved_rate"])
+                gain_lcb = float(stats["gain_lower_bound"])
+                win_lcb = float(stats["win_lower_bound"])
                 min_gain = float(policy.get("min_gain") or 0.04)
+                min_gain_lcb = float(
+                    policy.get("min_gain_lower_bound") or 0.01
+                )
+                min_win_lcb = float(
+                    policy.get("min_win_lower_bound") or 0.50
+                )
                 max_unresolved = float(
                     policy.get("max_unresolved_rate") or 0.12
                 )
@@ -1518,15 +1600,15 @@ class EvolutionEngine:
                 if (
                     bool(item["auto_promotable"])
                     and gain >= min_gain
+                    and gain_lcb >= min_gain_lcb
                     and win_rate >= 0.65
+                    and win_lcb >= min_win_lcb
                     and unresolved_rate <= max_unresolved
                 ):
                     self._promote_variant(
                         scope=scope,
                         variant=item,
-                        gain=gain,
-                        win_rate=win_rate,
-                        unresolved_rate=unresolved_rate,
+                        stats=stats,
                     )
                     promoted += 1
                 elif (
@@ -1562,9 +1644,7 @@ class EvolutionEngine:
         *,
         scope: str,
         variant: dict,
-        gain: float,
-        win_rate: float,
-        unresolved_rate: float,
+        stats: dict,
     ) -> None:
         family = str(variant["family"])
         with connect() as conn:
@@ -1595,9 +1675,13 @@ class EvolutionEngine:
             score=float(variant["observed_fitness"] or 0.0),
             details={
                 "family": family,
-                "gain": round(gain, 5),
-                "win_rate": round(win_rate, 5),
-                "unresolved_rate": round(unresolved_rate, 5),
+                "gain": stats["mean_gain"],
+                "gain_lower_bound": stats["gain_lower_bound"],
+                "win_rate": stats["win_rate"],
+                "win_lower_bound": stats["win_lower_bound"],
+                "unresolved_rate": stats["unresolved_rate"],
+                "samples": stats["samples"],
+                "evidence_gate": "conservative_one_sided_v1",
             },
         )
 

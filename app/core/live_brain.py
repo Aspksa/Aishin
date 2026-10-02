@@ -25,6 +25,7 @@ class LiveBrainRuntime:
         "planner": "planner",
         "context": "context",
         "logic": "logic",
+        "adaptation": "logic",
         "decision": "decision",
         "provider": "tool",
         "reflection": "reflection",
@@ -299,6 +300,21 @@ class LiveBrainRuntime:
             {},
             lambda: self.engine.long_term_growth.summary(scope=scope),
         )
+        cognitive_intelligence = take(
+            "cognitive_intelligence",
+            {},
+            lambda: self.engine.cognitive_intelligence.current(
+                scope=scope,
+                persist=False,
+            ),
+        )
+        latest_intelligence_route = take(
+            "cognitive_intelligence_route",
+            {},
+            lambda: self.engine.cognitive_intelligence.latest_route(
+                scope=scope,
+            ),
+        )
 
         phase = self._latest_phase(events)
         phase_channel = self.PHASE_TO_CHANNEL.get(phase, "")
@@ -401,6 +417,10 @@ class LiveBrainRuntime:
                 "formula_version": development.get("formula_version"),
             },
             "long_term_growth": long_term_growth,
+            "cognitive_intelligence": {
+                "current": cognitive_intelligence,
+                "latest_route": latest_intelligence_route,
+            },
             "quality": {
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
@@ -421,6 +441,10 @@ class LiveBrainRuntime:
                     "growth_skills + knowledge_trust + "
                     "growth_specializations + long_term_growth_snapshots"
                 ),
+                "cognitive_intelligence": (
+                    "cognitive_intelligence_routes + "
+                    "cognitive_intelligence_snapshots"
+                ),
             },
         }
 
@@ -432,7 +456,7 @@ class LiveBrainRuntime:
         )
         return {
             "format": "AISHIN_LIVE_BRAIN_EXPORT",
-            "format_version": 3,
+            "format_version": 4,
             "scope": snapshot["scope"],
             "generated_at": snapshot["generated_at"],
             "policy": snapshot["trace_policy"],

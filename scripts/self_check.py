@@ -495,6 +495,42 @@ def main() -> int:
                 "quality": weighted_quality,
                 "shadow_self_confirmation": False,
             }
+
+            development = engine.development.current(
+                scope=test_scope,
+                persist=True,
+            )
+            if round(sum(development["weights"].values()), 1) != 100.0:
+                raise RuntimeError(
+                    "Development Metrics weights должны давать ровно 100%"
+                )
+            if development["formula_version"] != "aishin-development-v1":
+                raise RuntimeError("Development Metrics formula version mismatch")
+            if development["counters"].get("confirmed_hypotheses") != 0:
+                raise RuntimeError(
+                    "Нельзя считать гипотезу подтверждённой без отдельного evidence"
+                )
+            if not (0.0 <= float(development["overall_score"]) <= 100.0):
+                raise RuntimeError("Development Metrics вышел за диапазон 0..100")
+            if len(development["components"]) != 8:
+                raise RuntimeError("Development Metrics должен иметь 8 направлений")
+            development_history = engine.development.history(
+                scope=test_scope,
+                days=30,
+            )
+            if not development_history:
+                raise RuntimeError("Development Metrics не сохранил историю")
+
+            checks["development_metrics"] = {
+                "status": "ok",
+                "formula": development["formula_version"],
+                "overall_score": development["overall_score"],
+                "components": len(development["components"]),
+                "weight_total": sum(development["weights"].values()),
+                "confirmed_hypotheses_are_evidence_only": True,
+                "cloud_provider_contributes_score": False,
+                "history_entries": len(development_history),
+            }
         finally:
             with connect() as conn:
                 conn.execute(
@@ -538,6 +574,10 @@ def main() -> int:
                 )
                 conn.execute(
                     "DELETE FROM learning_patterns WHERE scope=?",
+                    (test_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM development_snapshots WHERE scope=?",
                     (test_scope,),
                 )
                 conn.commit()

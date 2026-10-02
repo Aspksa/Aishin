@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from ..ai import AIManager
 from ..db import log_memory_change
 from .events import EventBus
-from .memory import MemoryCandidate, MemorySystem
+from .memory import MemoryCandidate, MemorySystem, normalize_memory_text
 from .personal import PersonalAishin
 
 _SECRET_RE = re.compile(
@@ -264,6 +264,62 @@ class MemoryConsolidator:
                 if not memory_key:
                     outcome.ignored += 1
                     continue
+
+                existing = self.personal.profile().get(memory_key)
+                if existing:
+                    previous_value = str(existing.get("value", ""))
+                    if normalize_memory_text(previous_value) == normalize_memory_text(content):
+                        outcome.reinforced += 1
+                        log_memory_change(
+                            "personal",
+                            None,
+                            "master_profile_reinforced",
+                            "same_profile_value",
+                            before=existing,
+                            after={
+                                "key": memory_key,
+                                "content": content,
+                                "confidence": max(
+                                    float(existing.get("confidence", 0.0)),
+                                    confidence,
+                                ),
+                            },
+                        )
+                        continue
+
+                    if not supersedes:
+                        outcome.conflicts += 1
+                        self.memory.consolidate(
+                            MemoryCandidate(
+                                content=(
+                                    f"В профиле '{memory_key}' есть противоречие: "
+                                    f"старое значение '{previous_value}', "
+                                    f"новое утверждение '{content}'."
+                                ),
+                                kind="contradictory_information",
+                                scope="personal",
+                                confidence=confidence,
+                                importance=max(importance, 0.75),
+                                tags=("profile_conflict", f"profile_key:{memory_key}"),
+                                memory_key=f"profile_conflict:{memory_key}",
+                            ),
+                            source="conversation_consolidation",
+                        )
+                        log_memory_change(
+                            "personal",
+                            None,
+                            "master_profile_conflict",
+                            "new_value_without_supersedes",
+                            before=existing,
+                            after={
+                                "key": memory_key,
+                                "content": content,
+                                "evidence": evidence,
+                                "confidence": confidence,
+                            },
+                        )
+                        continue
+
                 self.personal.set_profile_value(
                     memory_key,
                     content,
@@ -282,11 +338,13 @@ class MemoryConsolidator:
                     None,
                     "master_profile_update",
                     "grounded_conversation_fact",
+                    before=existing,
                     after={
                         "key": memory_key,
                         "content": content,
                         "evidence": evidence,
                         "confidence": confidence,
+                        "supersedes": supersedes,
                     },
                 )
                 outcome.profile_updates += 1

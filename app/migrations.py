@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 19
+LATEST_SCHEMA_VERSION = 20
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -964,6 +964,187 @@ def _migration_019_proactive_intelligence(
     )
 
 
+def _migration_020_evolution_engine(
+    conn: sqlite3.Connection,
+) -> None:
+    """Bounded meta-learning, curriculum, transfer and policy evolution."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS evolution_state (
+            scope TEXT PRIMARY KEY,
+            generation INTEGER NOT NULL DEFAULT 1,
+            evolution_score REAL NOT NULL DEFAULT 0.0,
+            stability_score REAL NOT NULL DEFAULT 1.0,
+            plasticity_score REAL NOT NULL DEFAULT 0.0,
+            learning_velocity REAL NOT NULL DEFAULT 0.0,
+            active_policy_count INTEGER NOT NULL DEFAULT 0,
+            challenger_count INTEGER NOT NULL DEFAULT 0,
+            rollback_count INTEGER NOT NULL DEFAULT 0,
+            last_cycle_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS evolution_capabilities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            capability_key TEXT NOT NULL,
+            label TEXT NOT NULL,
+            family TEXT NOT NULL DEFAULT 'general',
+            sample_count INTEGER NOT NULL DEFAULT 0,
+            success_rate REAL NOT NULL DEFAULT 0.0,
+            unresolved_rate REAL NOT NULL DEFAULT 0.0,
+            average_outcome REAL NOT NULL DEFAULT 0.0,
+            recent_outcome REAL NOT NULL DEFAULT 0.0,
+            baseline_outcome REAL NOT NULL DEFAULT 0.0,
+            trend REAL NOT NULL DEFAULT 0.0,
+            confidence REAL NOT NULL DEFAULT 0.0,
+            learning_gap REAL NOT NULL DEFAULT 1.0,
+            fitness REAL NOT NULL DEFAULT 0.0,
+            last_evidence_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, capability_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS evolution_variants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            family TEXT NOT NULL,
+            variant_key TEXT NOT NULL,
+            generation INTEGER NOT NULL DEFAULT 1,
+            parent_variant_id INTEGER,
+            lifecycle TEXT NOT NULL DEFAULT 'shadow',
+            policy_json TEXT NOT NULL DEFAULT '{}',
+            rationale TEXT NOT NULL DEFAULT '',
+            baseline_fitness REAL NOT NULL DEFAULT 0.0,
+            observed_fitness REAL NOT NULL DEFAULT 0.0,
+            evidence_count INTEGER NOT NULL DEFAULT 0,
+            wins INTEGER NOT NULL DEFAULT 0,
+            losses INTEGER NOT NULL DEFAULT 0,
+            unresolved_total INTEGER NOT NULL DEFAULT 0,
+            risk_delta REAL NOT NULL DEFAULT 0.0,
+            auto_promotable INTEGER NOT NULL DEFAULT 0,
+            promoted_at TEXT,
+            retired_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, variant_key),
+            FOREIGN KEY(parent_variant_id) REFERENCES evolution_variants(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS evolution_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            family TEXT NOT NULL,
+            variant_id INTEGER,
+            assignment_type TEXT NOT NULL DEFAULT 'baseline',
+            policy_json TEXT NOT NULL DEFAULT '{}',
+            baseline_fitness REAL NOT NULL DEFAULT 0.0,
+            outcome_score REAL,
+            successful INTEGER,
+            unresolved_count INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT,
+            UNIQUE(scope, request_id),
+            FOREIGN KEY(variant_id) REFERENCES evolution_variants(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS evolution_curriculum (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            item_key TEXT NOT NULL,
+            target_type TEXT NOT NULL,
+            target_key TEXT NOT NULL,
+            title TEXT NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            priority REAL NOT NULL DEFAULT 0.5,
+            gap_score REAL NOT NULL DEFAULT 0.0,
+            expected_metric TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'open',
+            plan_json TEXT NOT NULL DEFAULT '{}',
+            progress REAL NOT NULL DEFAULT 0.0,
+            evidence_count INTEGER NOT NULL DEFAULT 0,
+            first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT,
+            UNIQUE(scope, item_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS evolution_transfers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            transfer_key TEXT NOT NULL,
+            source_family TEXT NOT NULL,
+            target_family TEXT NOT NULL,
+            skill_id INTEGER,
+            confidence REAL NOT NULL DEFAULT 0.0,
+            evidence_count INTEGER NOT NULL DEFAULT 0,
+            successes INTEGER NOT NULL DEFAULT 0,
+            failures INTEGER NOT NULL DEFAULT 0,
+            success_rate REAL NOT NULL DEFAULT 0.0,
+            status TEXT NOT NULL DEFAULT 'observed',
+            evidence_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, transfer_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS evolution_cycles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            trigger TEXT NOT NULL,
+            generation INTEGER NOT NULL DEFAULT 1,
+            evolution_score REAL NOT NULL DEFAULT 0.0,
+            stability_score REAL NOT NULL DEFAULT 0.0,
+            plasticity_score REAL NOT NULL DEFAULT 0.0,
+            learning_velocity REAL NOT NULL DEFAULT 0.0,
+            variants_created INTEGER NOT NULL DEFAULT 0,
+            variants_promoted INTEGER NOT NULL DEFAULT 0,
+            variants_retired INTEGER NOT NULL DEFAULT 0,
+            variants_rolled_back INTEGER NOT NULL DEFAULT 0,
+            curriculum_created INTEGER NOT NULL DEFAULT 0,
+            transfers_updated INTEGER NOT NULL DEFAULT 0,
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            summary_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS evolution_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            subject_type TEXT NOT NULL DEFAULT '',
+            subject_key TEXT NOT NULL DEFAULT '',
+            generation INTEGER NOT NULL DEFAULT 1,
+            score REAL,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_evolution_capabilities_scope_fitness
+        ON evolution_capabilities(scope, fitness DESC, learning_gap DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_evolution_variants_scope_lifecycle
+        ON evolution_variants(scope, lifecycle, family, updated_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_evolution_assignments_scope_completed
+        ON evolution_assignments(scope, completed_at DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_evolution_curriculum_scope_status
+        ON evolution_curriculum(scope, status, priority DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_evolution_transfers_scope_status
+        ON evolution_transfers(scope, status, success_rate DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_evolution_cycles_scope_created
+        ON evolution_cycles(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_evolution_events_scope_created
+        ON evolution_events(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -984,6 +1165,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (17, "long_term_growth", _migration_017_long_term_growth),
     (18, "cognitive_intelligence", _migration_018_cognitive_intelligence),
     (19, "proactive_intelligence", _migration_019_proactive_intelligence),
+    (20, "evolution_engine", _migration_020_evolution_engine),
 )
 
 

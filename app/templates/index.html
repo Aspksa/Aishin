@@ -221,6 +221,11 @@
               <div class="brain-node" data-brain-node="verification"><small>17</small><strong>Перепроверка</strong><em id="brain-verification-detail">ожидание</em></div>
               <div class="brain-node decision-node" data-brain-node="decision"><small>18</small><strong>Решение</strong><em id="brain-decision-detail">ожидание</em></div>
               <div class="brain-node" data-brain-node="tool"><small>19</small><strong>Действие</strong><em id="brain-tool-detail">ожидание</em></div>
+              <div class="brain-node learning-loop-node" data-brain-node="reflection"><small>20</small><strong>Самоанализ</strong><em id="brain-reflection-detail">ожидание</em></div>
+              <div class="brain-node learning-loop-node" data-brain-node="learning-plan"><small>21</small><strong>План обучения</strong><em id="brain-learning-plan-detail">ожидание</em></div>
+              <div class="brain-node learning-loop-node" data-brain-node="experiment"><small>22</small><strong>Эксперимент</strong><em id="brain-experiment-detail">ожидание</em></div>
+              <div class="brain-node learning-loop-node" data-brain-node="learning-check"><small>23</small><strong>Проверка</strong><em id="brain-learning-check-detail">ожидание</em></div>
+              <div class="brain-node learning-loop-node" data-brain-node="consolidation"><small>24</small><strong>Закрепление</strong><em id="brain-consolidation-detail">ожидание</em></div>
             </div>
 
             <div class="brain-detail-grid">
@@ -236,6 +241,33 @@
                 <div class="brain-detail-title"><span>Последние события</span><b id="brain-event-count">0</b></div>
                 <div id="brain-event-stream" class="brain-stream"><p class="brain-empty">Событий пока нет.</p></div>
               </article>
+            </div>
+
+            <div class="learning-loop-panel">
+              <div class="section-heading compact">
+                <div>
+                  <p class="overline">ЦИКЛ РАЗВИТИЯ</p>
+                  <h3>Самоанализ → обучение → безопасная проверка</h3>
+                </div>
+              </div>
+              <div class="learning-loop-grid">
+                <article class="brain-detail-card learning-metric-card">
+                  <div class="brain-detail-title"><span>Качество ответа</span><b id="reflection-quality">—</b></div>
+                  <div id="reflection-weak-spots" class="brain-stream"><p class="brain-empty">Метрик пока нет.</p></div>
+                </article>
+                <article class="brain-detail-card learning-metric-card">
+                  <div class="brain-detail-title"><span>Цели обучения</span><b id="learning-plan-count">0</b></div>
+                  <div id="learning-plan-stream" class="brain-stream"><p class="brain-empty">Активных целей нет.</p></div>
+                </article>
+                <article class="brain-detail-card learning-metric-card">
+                  <div class="brain-detail-title"><span>Безопасные эксперименты</span><b id="experiment-count">0</b></div>
+                  <div id="experiment-stream" class="brain-stream"><p class="brain-empty">Экспериментов пока нет.</p></div>
+                </article>
+                <article class="brain-detail-card learning-metric-card">
+                  <div class="brain-detail-title"><span>Контекст Cloud.ru</span><b id="context-budget-value">—</b></div>
+                  <div id="context-budget-detail" class="brain-reasoning">Budgeter ещё не выполнялся.</div>
+                </article>
+              </div>
             </div>
 
             <div class="sensor-section">

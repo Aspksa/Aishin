@@ -31,6 +31,7 @@ Aishin — проект личной AI-помощницы Айшин (Айши)
 - **Internal Planner** — цели, задачи, зависимости, приоритеты, сроки, блокировки, журнал изменений и автоматическое выделение явных задач из разговора;
 - **Sensor Hub** — безопасные read-only сенсоры runtime, модулей, планировщика и файловой структуры проекта;
 - **Tool Registry** — контролируемые инструменты с permission gate, dry-run, явным approval и журналом действий;
+- **Proactive Decision Loop** — сенсоры → оценка → предложение → approval/reject → контролируемое выполнение;
 - permission gate для будущих автономных действий;
 - пассивное самонаблюдение runtime;
 - независимый слой AI Provider;
@@ -85,7 +86,7 @@ AISHIN_CLOUDRU_URL=https://foundation-models.api.cloud.ru/v1
 Будущие действия проходят через централизованный permission gate. Чтение локального контекста и собственная память разрешены по умолчанию, а отправка сообщений, изменение файлов, установка программ и системные команды требуют разрешения. Удаление данных по умолчанию запрещено.
 
 ## Следующий слой
-Проактивный контур принятия решений: оценка сигналов сенсоров, предложения действий, approval queue и контролируемое выполнение разрешённых инструментов.
+Расширение набора безопасных инструментов, умная приоритизация решений и интерфейс очереди approval; затем подключение модулей рабочего пространства к сенсорам.
 
 
 ## Личная Айшин
@@ -244,5 +245,45 @@ API:
 - `POST /api/assistant/tools/{tool_name}`
 - `GET /api/assistant/tools/history`
 - `POST /api/assistant/permissions/{capability}`
+
+Это развитие текущей версии `0.0.3`; номер версии не меняется.
+
+
+## Proactive Decision Loop
+Проактивный контур связывает Sensor Hub, Internal Planner, Permission Gate и Tool Registry.
+
+Поток:
+`observe → evaluate → propose → pending → approve/reject → execute → audit`
+
+Ключевые правила:
+- обнаруженный сигнал не считается действием;
+- предложение не считается выполненным действием;
+- каждое предложение имеет source, rationale, priority, confidence, capability, tool и dry-run preview;
+- одинаковые pending-решения дедуплицируются;
+- если причина исчезла, planner-решение автоматически переводится в `dismissed` с причиной `underlying_condition_resolved`;
+- информационные решения могут не иметь инструмента;
+- решение с инструментом нельзя выполнить, пока оно не имеет status=`approved`;
+- `execute_planned_action=deny` блокирует выполнение даже после approval;
+- конкретный Tool Registry повторно проверяет собственную capability;
+- approve/reject/execute и ручная evaluation доступны только локальному HTTP-клиенту;
+- результат исполнения сохраняется в решении и в журнале Tool Registry.
+
+Сейчас Decision Loop детерминированно реагирует на:
+- просроченные задачи;
+- заблокированные задачи;
+- незакрытые зависимости;
+- некорректные сроки;
+- активные цели без открытых задач;
+- sensor attention.
+
+Для цели без задач Айшин может предложить создать внутреннюю задачу «Определить следующий шаг...», но она не создаётся до одобрения.
+
+API:
+- `POST /api/assistant/proactive/evaluate`
+- `GET /api/assistant/proactive/pending`
+- `GET /api/assistant/proactive/history`
+- `POST /api/assistant/proactive/{decision_id}/approve`
+- `POST /api/assistant/proactive/{decision_id}/reject`
+- `POST /api/assistant/proactive/{decision_id}/execute`
 
 Это развитие текущей версии `0.0.3`; номер версии не меняется.

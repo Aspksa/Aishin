@@ -1233,3 +1233,68 @@ CI теперь дополнительно выполняет:
 Подтверждено GitHub Actions run `37004855074`:
 - Ubuntu / Python 3.11: success;
 - Windows / Python 3.11: success.
+
+
+## Cloud.ru settings + Live Technical Brain + ZIP updater
+Добавлен полноценный локальный раздел `Настройки → Cloud.ru`.
+
+Cloud.ru settings:
+- API-ключ вводится в password-поле;
+- сохраняется только в локальный `.env`;
+- `.env` остаётся исключённым из Git;
+- API никогда не возвращает значение ключа обратно в браузер;
+- после сохранения поле очищается;
+- AIManager и связанные cognitive компоненты перезагружают provider settings без ручного редактирования файла;
+- кнопка «Проверить подключение» выполняет реальный health-check Cloud.ru.
+
+API:
+- `GET /api/settings/cloudru`
+- `POST /api/settings/cloudru`
+- `POST /api/settings/cloudru/test`
+
+### Live Technical Brain
+Сворачиваемый «Технический мозг Айшин» сохранён.
+
+Внутри добавлена живая SVG-сеть:
+- линии связывают cognitive nodes;
+- активные связи анимируются как поток сигнала;
+- attention paths визуально выделяются;
+- активные узлы пульсируют;
+- при открытом Technical Brain dashboard обновляется примерно каждые 3 секунды;
+- при закрытом блоке polling снижается примерно до 20 секунд;
+- блок по-прежнему можно открыть и закрыть обычным `details/summary`.
+
+Визуализация основана на фактическом runtime state, а не является декоративной имитацией скрытого chain-of-thought.
+
+### ZIP-safe updater
+Исправлена ошибка:
+`git fetch origin main returned non-zero exit status 128`
+
+Updater теперь сам выбирает режим:
+- если проект является Git checkout → `git fetch + git pull --ff-only`;
+- если проект скачан ZIP и папки `.git` нет → безопасное обновление из GitHub main ZIP.
+
+ZIP mode сохраняет локальные данные:
+- `.env`;
+- `.git`;
+- `.venv`;
+- `.aishin_backups`;
+- `data/`;
+- `logs/`.
+
+API:
+- `GET /api/system/update/status`
+- `POST /api/system/update`
+
+После обновления UI сообщает, нужен ли перезапуск Aishin.bat.
+
+CI дополнительно проверяет:
+- отсутствие API key в Cloud settings response;
+- updater mode `git|zip`;
+- JavaScript syntax;
+- Windows launcher;
+- Cloud settings/updater modules.
+
+Подтверждено GitHub Actions run `37006308613`:
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success.

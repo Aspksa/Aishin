@@ -577,6 +577,28 @@ def assistant_proactive_execute(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.get('/api/assistant/hypotheses')
+def assistant_hypotheses(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.hypotheses.recent(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
+@app.get('/api/assistant/logic-learning')
+def assistant_logic_learning(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.logic_learning.recent_events(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
 @app.get('/api/assistant/context-traces')
 def assistant_context_traces(
     scope: str = 'personal',

@@ -14,6 +14,8 @@ from .graph import KnowledgeGraph
 from .graph_builder import GraphBuilder
 from .memory import MemorySystem
 from .logic import LogicEngine
+from .logic_learning import LogicLearning
+from .hypotheses import HypothesisManager
 from .metacognition import Metacognition
 from .observer import Observer
 from .permissions import PermissionGate
@@ -41,6 +43,8 @@ class AishinEngine:
         self.planner = Planner()
         self.metacognition = Metacognition()
         self.logic = LogicEngine()
+        self.logic_learning = LogicLearning()
+        self.hypotheses = HypothesisManager()
         self.causal = CausalReasoning()
         self.cognition = Cognition(
             self.memory,
@@ -186,6 +190,18 @@ class AishinEngine:
                     limit=20,
                 ),
             },
+            "hypotheses": {
+                "history": self.hypotheses.recent(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
+            "logic_learning": {
+                "events": self.logic_learning.recent_events(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
             "observations": [o.__dict__ for o in self.observer.inspect()],
             "recent_events": self.events.recent(limit=10),
             "recent_memories": self.memory.recent(
@@ -222,6 +238,11 @@ class AishinEngine:
     def respond(self, message: str, *, scope: str = "personal") -> dict:
         cleaned = message.strip()
         intent = self.cognition.classify(cleaned)
+
+        learning_update = self.logic_learning.ingest_feedback(
+            cleaned,
+            scope=scope,
+        )
 
         state = self.state.interaction(intent)
         state.current_scope = scope
@@ -351,6 +372,25 @@ class AishinEngine:
             contradictions=logic_trace.contradictions,
         )
 
+        hypothesis_run = self.hypotheses.evaluate(
+            cleaned,
+            scope=scope,
+            mode=logic_trace.mode,
+            evidence=logic_trace.evidence,
+            contradictions=logic_trace.contradictions,
+            verification=(
+                verification_data
+                if verification_report is not None
+                else None
+            ),
+            causal=causal_assessment.to_dict(),
+        )
+        learned_strategies = self.logic_learning.recommend(
+            scope=scope,
+            mode=logic_trace.mode,
+            limit=3,
+        )
+
         context.system_prompt, context_trace = self.context_orchestrator.compose(
             cleaned,
             scope=scope,
@@ -374,8 +414,15 @@ class AishinEngine:
             "logic": logic_trace.to_dict(),
             "context_orchestrator": context_trace.to_dict(),
             "causal": causal_assessment.to_dict(),
+            "hypotheses": hypothesis_run.to_dict(),
+            "logic_learning": {
+                "feedback": learning_update.to_dict(),
+                "strategies": learned_strategies,
+            },
         }
         context.system_prompt += "\n\n" + self.logic.prompt_block(logic_trace)
+        context.system_prompt += "\n\n" + self.hypotheses.prompt_block(hypothesis_run)
+        context.system_prompt += "\n\n" + self.logic_learning.prompt_block(learned_strategies)
         context.system_prompt += "\n\n" + self.causal.prompt_block(causal_assessment)
         context.system_prompt += "\n\n" + self.metacognition.prompt_block(meta)
         if verification_report is not None:
@@ -443,6 +490,11 @@ class AishinEngine:
                 "logic": logic_trace.to_dict(),
                 "context_orchestrator": context_trace.to_dict(),
                 "causal": causal_assessment.to_dict(),
+                "hypotheses": hypothesis_run.to_dict(),
+                "logic_learning": {
+                    "feedback": learning_update.to_dict(),
+                    "strategies": learned_strategies,
+                },
             },
             importance=0.3,
         )
@@ -470,6 +522,11 @@ class AishinEngine:
             "logic": logic_trace.to_dict(),
             "context_orchestrator": context_trace.to_dict(),
             "causal": causal_assessment.to_dict(),
+            "hypotheses": hypothesis_run.to_dict(),
+            "logic_learning": {
+                "feedback": learning_update.to_dict(),
+                "strategies": learned_strategies,
+            },
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

@@ -577,6 +577,28 @@ def assistant_proactive_execute(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.get('/api/assistant/execution/approvals')
+def assistant_execution_approvals(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.execution_coordinator.recent_approvals(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
+@app.get('/api/assistant/execution/attempts')
+def assistant_execution_attempts(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.execution_coordinator.recent_attempts(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
 @app.get('/api/assistant/action-selection')
 def assistant_action_selection(
     scope: str = 'personal',

@@ -19,6 +19,7 @@ _configure_utf8_output()
 
 from fastapi.testclient import TestClient
 
+from app.db import connect
 from app.main import app, engine
 
 
@@ -67,6 +68,13 @@ def main() -> int:
                 'id="proactive-awareness-score"',
                 'id="proactive-incidents"',
                 'id="proactive-calibration"',
+                '/static/evolution.css',
+                '/static/evolution.js',
+                'id="evolution-module"',
+                'id="evolution-score"',
+                'id="evolution-capabilities"',
+                'id="evolution-variants"',
+                'id="evolution-curriculum"',
             )
             missing_ui = [
                 marker for marker in required_ui
@@ -720,6 +728,284 @@ def main() -> int:
                 "auto_execution": False,
             }
 
+            evolution_scope = "__evolution_smoke__"
+            with connect() as conn:
+                for table in (
+                    "evolution_assignments",
+                    "evolution_variants",
+                    "evolution_curriculum",
+                    "evolution_transfers",
+                    "evolution_cycles",
+                    "evolution_events",
+                    "evolution_capabilities",
+                    "evolution_state",
+                    "cognitive_intelligence_routes",
+                ):
+                    conn.execute(
+                        f"DELETE FROM {table} WHERE scope=?",
+                        (evolution_scope,),
+                    )
+                conn.execute(
+                    """DELETE FROM learning_plans
+                       WHERE scope=? AND target_metric LIKE 'evolution:%'""",
+                    (evolution_scope,),
+                )
+                for index in range(12):
+                    outcome = 0.54 + (index % 3) * 0.015
+                    conn.execute(
+                        """INSERT INTO cognitive_intelligence_routes(
+                               request_id, scope, task_family, intent,
+                               base_mode, adapted_mode, outcome_score,
+                               successful, unresolved_count, completed_at
+                           ) VALUES (?, ?, 'software', 'analysis',
+                                     'FAST', 'FAST', ?, 0, 0,
+                                     CURRENT_TIMESTAMP)""",
+                        (
+                            f"evolution-seed-{index}",
+                            evolution_scope,
+                            outcome,
+                        ),
+                    )
+                conn.commit()
+
+            first_evolution_cycle = engine.evolution.run_cycle(
+                scope=evolution_scope,
+                trigger="runtime_smoke_seed",
+            )
+            if not 0.0 <= float(first_evolution_cycle.evolution_score) <= 100.0:
+                raise RuntimeError(
+                    "Evolution score должен оставаться в диапазоне 0..100"
+                )
+            if not 0.0 <= float(first_evolution_cycle.stability_score) <= 100.0:
+                raise RuntimeError(
+                    "Evolution stability должен оставаться в диапазоне 0..100"
+                )
+            if not 0.0 <= float(first_evolution_cycle.plasticity_score) <= 100.0:
+                raise RuntimeError(
+                    "Evolution plasticity должен оставаться в диапазоне 0..100"
+                )
+
+            evolution_api = client.get(
+                "/api/assistant/evolution",
+                params={
+                    "scope": evolution_scope,
+                    "capability_limit": 40,
+                    "variant_limit": 80,
+                    "curriculum_limit": 80,
+                    "transfer_limit": 80,
+                    "cycle_limit": 80,
+                },
+            )
+            if evolution_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/evolution returned HTTP "
+                    f"{evolution_api.status_code}: "
+                    f"{evolution_api.text[:300]}"
+                )
+            evolution_data = evolution_api.json()
+            if evolution_data.get("version") != "aishin-evolution-engine-v1":
+                raise RuntimeError(
+                    "Evolution Engine вернул несовместимую версию"
+                )
+            if evolution_data.get("formula_version") != "bounded-meta-learning-v1":
+                raise RuntimeError(
+                    "Evolution Engine вернул несовместимую формулу"
+                )
+            if not isinstance(evolution_data.get("capabilities"), list):
+                raise RuntimeError(
+                    "Evolution capabilities должен быть списком"
+                )
+            if not isinstance(evolution_data.get("curriculum"), list):
+                raise RuntimeError(
+                    "Evolution curriculum должен быть списком"
+                )
+            if not any(
+                item.get("family") == "software"
+                and int(item.get("sample_count") or 0) >= 12
+                for item in evolution_data.get("capabilities") or []
+            ):
+                raise RuntimeError(
+                    "Evolution Engine не построил capability из route outcomes"
+                )
+
+            challengers = [
+                item
+                for item in evolution_data.get("variants") or []
+                if item.get("family") == "software"
+                and item.get("lifecycle") == "challenger"
+            ]
+            if not challengers:
+                raise RuntimeError(
+                    "Evolution Engine не создал challenger для слабой family"
+                )
+            challenger = challengers[0]
+            challenger_id = int(challenger["id"])
+            baseline = float(challenger.get("baseline_fitness") or 0.0)
+
+            verify_hint = engine.evolution.routing_hint(
+                scope=evolution_scope,
+                family="software",
+                base_mode="VERIFY",
+                request_id="evolution-safety-verify",
+                base_complexity=0.9,
+            )
+            if verify_hint.get("preferred_mode") != "VERIFY":
+                raise RuntimeError(
+                    "Evolution Engine не имеет права понижать VERIFY"
+                )
+            diagnose_hint = engine.evolution.routing_hint(
+                scope=evolution_scope,
+                family="software",
+                base_mode="DIAGNOSE",
+                request_id="evolution-safety-diagnose",
+                base_complexity=0.9,
+            )
+            if diagnose_hint.get("preferred_mode") != "DIAGNOSE":
+                raise RuntimeError(
+                    "Evolution Engine не имеет права понижать DIAGNOSE"
+                )
+            for hint in (verify_hint, diagnose_hint):
+                multiplier = float(hint.get("context_multiplier") or 1.0)
+                if not 0.90 <= multiplier <= 1.20:
+                    raise RuntimeError(
+                        "Evolution context policy вышла за safe bounds"
+                    )
+
+            with connect() as conn:
+                conn.execute(
+                    """DELETE FROM evolution_assignments
+                       WHERE scope=? AND variant_id=?""",
+                    (evolution_scope, challenger_id),
+                )
+                high_outcome = min(0.98, baseline + 0.18)
+                for index in range(10):
+                    conn.execute(
+                        """INSERT INTO evolution_assignments(
+                               request_id, scope, family, variant_id,
+                               assignment_type, policy_json,
+                               baseline_fitness, outcome_score, successful,
+                               unresolved_count, completed_at
+                           ) VALUES (?, ?, 'software', ?, 'challenger',
+                                     '{}', ?, ?, 1, 0,
+                                     CURRENT_TIMESTAMP)""",
+                        (
+                            f"evolution-promote-{index}",
+                            evolution_scope,
+                            challenger_id,
+                            baseline,
+                            high_outcome,
+                        ),
+                    )
+                conn.execute(
+                    """UPDATE evolution_variants
+                       SET evidence_count=10, wins=10, losses=0,
+                           unresolved_total=0, observed_fitness=?
+                       WHERE id=?""",
+                    (high_outcome, challenger_id),
+                )
+                conn.commit()
+
+            promote_cycle = engine.evolution.run_cycle(
+                scope=evolution_scope,
+                trigger="runtime_smoke_promote",
+            )
+            promoted = engine.evolution.variants(
+                scope=evolution_scope,
+                lifecycle="champion",
+                limit=10,
+            )
+            champion = next(
+                (
+                    item for item in promoted
+                    if int(item["id"]) == challenger_id
+                ),
+                None,
+            )
+            if champion is None or promote_cycle.variants_promoted < 1:
+                raise RuntimeError(
+                    "Conservative Evolution evidence gate не promoted challenger"
+                )
+
+            with connect() as conn:
+                for index in range(5):
+                    conn.execute(
+                        """INSERT INTO evolution_assignments(
+                               request_id, scope, family, variant_id,
+                               assignment_type, policy_json,
+                               baseline_fitness, outcome_score, successful,
+                               unresolved_count, completed_at
+                           ) VALUES (?, ?, 'software', ?, 'champion',
+                                     '{}', ?, 0.28, 0, 1,
+                                     CURRENT_TIMESTAMP)""",
+                        (
+                            f"evolution-regression-{index}",
+                            evolution_scope,
+                            challenger_id,
+                            baseline,
+                        ),
+                    )
+                conn.execute(
+                    """UPDATE evolution_variants
+                       SET evidence_count=15, losses=losses+5,
+                           unresolved_total=unresolved_total+5
+                       WHERE id=?""",
+                    (challenger_id,),
+                )
+                conn.commit()
+
+            rollback_cycle = engine.evolution.run_cycle(
+                scope=evolution_scope,
+                trigger="runtime_smoke_rollback",
+            )
+            after_rollback = next(
+                (
+                    item
+                    for item in engine.evolution.variants(
+                        scope=evolution_scope,
+                        limit=100,
+                    )
+                    if int(item["id"]) == challenger_id
+                ),
+                {},
+            )
+            if (
+                after_rollback.get("lifecycle") != "rolled_back"
+                or rollback_cycle.variants_rolled_back < 1
+            ):
+                raise RuntimeError(
+                    "Evolution Engine не откатил деградировавший champion"
+                )
+
+            evolution_state = engine.evolution.state(scope=evolution_scope)
+            if int(evolution_state.get("generation") or 0) < 3:
+                raise RuntimeError(
+                    "Evolution generation не изменилась после promotion/rollback"
+                )
+            principles = evolution_data.get("principles") or []
+            if not any("исходный код" in str(item) for item in principles):
+                raise RuntimeError(
+                    "Evolution должен явно запрещать self-modifying source code"
+                )
+
+            checks["evolution_engine"] = {
+                "status": "ok",
+                "version": evolution_data.get("version"),
+                "generation": evolution_state.get("generation"),
+                "score": evolution_state.get("evolution_score"),
+                "capabilities": len(
+                    evolution_data.get("capabilities") or []
+                ),
+                "curriculum": len(
+                    evolution_data.get("curriculum") or []
+                ),
+                "challenger_created": True,
+                "conservative_promotion": True,
+                "verify_preserved": True,
+                "diagnose_preserved": True,
+                "rollback_verified": True,
+                "self_modifying_code": False,
+            }
+
             live_brain = client.get(
                 "/api/assistant/live-brain",
                 params={
@@ -765,9 +1051,9 @@ def main() -> int:
             export_data = live_brain_export.json()
             if export_data.get("format") != "AISHIN_LIVE_BRAIN_EXPORT":
                 raise RuntimeError("Live Brain export format несовместим")
-            if int(export_data.get("format_version") or 0) != 5:
+            if int(export_data.get("format_version") or 0) != 6:
                 raise RuntimeError(
-                    "Live Brain export format должен быть version 5"
+                    "Live Brain export format должен быть version 6"
                 )
             if not isinstance(
                 live_brain_data.get("cognitive_intelligence"),
@@ -782,6 +1068,13 @@ def main() -> int:
             ):
                 raise RuntimeError(
                     "Live Brain должен включать Proactive Intelligence"
+                )
+            if not isinstance(
+                live_brain_data.get("evolution"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Live Brain должен включать Evolution Engine"
                 )
 
             checks["live_brain_runtime"] = {

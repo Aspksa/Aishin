@@ -1396,17 +1396,15 @@ def main() -> int:
                     "предыдущий turn как clarification_needed"
                 )
 
-            feedback_1 = client.post(
-                f"/api/assistant/communication/turns/{first_turn['id']}/feedback",
-                json={
-                    "scope": communication_scope,
-                    "feedback": "useful",
-                    "reason": "smoke override",
-                },
+            feedback_1 = engine.communication.feedback(
+                int(first_turn["id"]),
+                scope=communication_scope,
+                feedback="useful",
+                reason="smoke override",
             )
-            if feedback_1.status_code != 200:
+            if feedback_1.get("turn", {}).get("outcome") != "useful":
                 raise RuntimeError(
-                    "Communication feedback API не принял useful feedback"
+                    "Communication feedback engine не применил useful feedback"
                 )
             skills_after_first_feedback = engine.communication.skills(
                 scope=communication_scope,
@@ -1418,17 +1416,17 @@ def main() -> int:
             )
             sample_count_1 = int(complex_skill_1["sample_count"] or 0)
 
-            feedback_2 = client.post(
-                f"/api/assistant/communication/turns/{first_turn['id']}/feedback",
-                json={
-                    "scope": communication_scope,
-                    "feedback": "wrong",
-                    "reason": "smoke override second time",
-                },
+            feedback_2 = engine.communication.feedback(
+                int(first_turn["id"]),
+                scope=communication_scope,
+                feedback="wrong",
+                reason="smoke override second time",
             )
-            if feedback_2.status_code != 200:
+            if feedback_2.get("turn", {}).get("outcome") != (
+                "correction_needed"
+            ):
                 raise RuntimeError(
-                    "Communication feedback API не принял override feedback"
+                    "Communication feedback engine не применил override"
                 )
             skills_after_second_feedback = engine.communication.skills(
                 scope=communication_scope,

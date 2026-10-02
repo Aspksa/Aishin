@@ -856,7 +856,18 @@ class AishinEngine:
             "decision_quality": decision_quality.to_dict(),
             "action_selection": action_selection.to_dict(),
             "cognitive_intelligence_route": cognitive_route.to_dict(),
+            "research": research_run or {"status": "not_triggered"},
         }
+        if research_run and research_run.get("session_id"):
+            context.system_prompt += (
+                "\n\n"
+                + self.research.prompt_block(
+                    scope=scope,
+                    session_id=int(research_run["session_id"]),
+                    question=cleaned,
+                    limit=8,
+                )
+            )
         context.system_prompt += "\n\n" + self.logic.prompt_block(logic_trace)
         context.system_prompt += (
             "\n\n"
@@ -992,6 +1003,7 @@ class AishinEngine:
             persist=True,
         )
         evolution_state = self.evolution.state(scope=scope)
+        research_state = self.research.state(scope=scope)
         self.events.emit(
             "cognition.phase",
             scope=scope,
@@ -1026,6 +1038,7 @@ class AishinEngine:
             "outcome": intelligence_outcome,
             "current": cognitive_intelligence,
         }
+        request_trace["research_state"] = research_state
 
         trace_id = self.cognitive_traces.record(
             request_id=request_id,
@@ -1110,6 +1123,17 @@ class AishinEngine:
                         "assignment_type"
                     ),
                 },
+                "research": {
+                    "run": research_run,
+                    "research_score": research_state.get("research_score"),
+                    "open_gaps": research_state.get("open_gap_count"),
+                    "trusted_claims": research_state.get(
+                        "trusted_claim_count"
+                    ),
+                    "conflicted_claims": research_state.get(
+                        "conflicted_claim_count"
+                    ),
+                },
             },
             importance=0.3,
         )
@@ -1167,6 +1191,10 @@ class AishinEngine:
                 "state": evolution_state,
                 "policy": cognitive_route.evolution_policy,
                 "outcome_observation": intelligence_outcome.get("evolution"),
+            },
+            "research": {
+                "run": research_run,
+                "state": research_state,
             },
             "proactive_intelligence": proactive_intelligence_report.to_dict(),
             "planner_notices": [

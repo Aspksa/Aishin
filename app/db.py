@@ -282,6 +282,18 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS verification_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL,
+                query TEXT NOT NULL,
+                initial_status TEXT NOT NULL,
+                final_status TEXT NOT NULL,
+                checks_json TEXT NOT NULL DEFAULT '[]',
+                findings_json TEXT NOT NULL DEFAULT '[]',
+                unresolved_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -1394,5 +1406,55 @@ def recent_metacognitive_assessments(
         item = dict(row)
         item["missing_data"] = json.loads(item.pop("missing_data_json") or "[]")
         item["reasons"] = json.loads(item.pop("reasons_json") or "[]")
+        result.append(item)
+    return result
+
+
+def add_verification_run(
+    *,
+    scope: str,
+    query: str,
+    initial_status: str,
+    final_status: str,
+    checks: list[dict],
+    findings: list[str],
+    unresolved: list[str],
+) -> int:
+    with connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO verification_runs(
+                   scope, query, initial_status, final_status,
+                   checks_json, findings_json, unresolved_json
+               ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                scope,
+                query,
+                initial_status,
+                final_status,
+                json.dumps(checks, ensure_ascii=False),
+                json.dumps(findings, ensure_ascii=False),
+                json.dumps(unresolved, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def recent_verification_runs(
+    scope: str,
+    limit: int = 30,
+) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT * FROM verification_runs
+               WHERE scope=? ORDER BY id DESC LIMIT ?""",
+            (scope, limit),
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["checks"] = json.loads(item.pop("checks_json") or "[]")
+        item["findings"] = json.loads(item.pop("findings_json") or "[]")
+        item["unresolved"] = json.loads(item.pop("unresolved_json") or "[]")
         result.append(item)
     return result

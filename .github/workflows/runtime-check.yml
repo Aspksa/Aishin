@@ -37,6 +37,9 @@ jobs:
       - name: Check browser JavaScript
         run: node --check app/static/app.js
 
+      - name: Check updater module
+        run: python -m py_compile app/updater.py app/system_settings.py
+
       - name: Core self-check
         run: python scripts/self_check.py
 

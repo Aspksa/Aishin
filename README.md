@@ -900,3 +900,50 @@ Schema migration: `11`.
 - Ubuntu / Python 3.11: success;
 - Windows / Python 3.11: success;
 - compileall, self-check и FastAPI runtime smoke: success.
+
+
+## Knowledge Graph Merge / Audit Suppression
+Knowledge Graph upsert теперь сохраняет накопленные свойства сущности вместо полной замены `data_json`.
+
+Merge policy:
+- вложенные object/dict объединяются рекурсивно;
+- list объединяются без дублей;
+- новые непустые scalar-значения обновляют соответствующее поле;
+- `null` не стирает существующее значение;
+- пустая строка не стирает существующее непустое значение;
+- удаление знания не происходит неявно через обычный upsert.
+
+Audit policy:
+- `graph_changes` создаётся только если entity/relation действительно создана или изменилась;
+- повторный startup seed с теми же сущностями и связями не создаёт ложные audit-события;
+- неизменившийся entity не получает искусственный `updated_at`;
+- relation audit также подавляется, если confidence/evidence не изменились.
+
+Действия audit теперь различаются:
+- `entity_create`
+- `entity_update`
+- `relation_create`
+- `relation_update`
+
+Поиск Knowledge Graph исправлен для Unicode/кириллицы:
+SQLite `LOWER()` не обеспечивал корректный case-insensitive поиск русского текста. Поиск теперь использует Python `casefold()` и проверяет canonical name + сериализованные data.
+
+Это исправило случай, когда существующая сущность `Айшин` не находилась запросом после нормализации регистра.
+
+Verification-compatible shape подтверждён:
+- `canonical_name`
+- `entity_type`
+- `data` как dict
+
+Новых таблиц для этого этапа не потребовалось.
+Schema остаётся `11`.
+Версия приложения остаётся `0.0.3`.
+
+### Подтверждение Knowledge Graph runtime
+Функциональный код подтверждён GitHub Actions:
+- run id: `36996825381`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.
+
+Первый усиленный self-check обнаружил старую Unicode-проблему поиска кириллицы. После замены SQLite LOWER-поиска на Unicode-safe casefold повторный run прошёл полностью.

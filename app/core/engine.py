@@ -8,6 +8,7 @@ from ..personality import personality
 from .cognition import Cognition
 from .cognitive_trace import CognitiveTraceStore
 from .context_orchestrator import ContextOrchestrator
+from .continuous_learning import ContinuousLearningEngine
 from .causal import CausalReasoning
 from .counterfactual import CounterfactualReasoning
 from .action_selection import ActionSelector
@@ -112,6 +113,10 @@ class AishinEngine:
         )
         self.cognitive_traces = CognitiveTraceStore()
         self.performance = PerformanceHistory()
+        self.continuous_learning = ContinuousLearningEngine(
+            state=self.state,
+            events=self.events,
+        )
 
     def startup(self) -> None:
         self.permissions.bootstrap()
@@ -265,6 +270,19 @@ class AishinEngine:
                 scope=state.current_scope,
                 limit=20,
             ),
+            "continuous_learning": {
+                "status": self.continuous_learning.status(
+                    scope=state.current_scope,
+                ),
+                "cycles": self.continuous_learning.recent_cycles(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+                "patterns": self.continuous_learning.patterns(
+                    scope=state.current_scope,
+                    limit=20,
+                ),
+            },
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(
                 limit=10,

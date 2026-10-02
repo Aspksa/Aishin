@@ -458,12 +458,6 @@ class DevelopmentMetricsEngine:
                    ORDER BY id DESC LIMIT 1""",
                 (scope, target.isoformat()),
             ).fetchone()
-            if row is None:
-                row = conn.execute(
-                    """SELECT * FROM development_snapshots
-                       WHERE scope=? ORDER BY id ASC LIMIT 1""",
-                    (scope,),
-                ).fetchone()
         if row is None:
             return None
         item = dict(row)

@@ -13,6 +13,7 @@ from .continuous_learning import ContinuousLearningEngine
 from .development_metrics import DevelopmentMetricsEngine
 from .live_brain import LiveBrainRuntime
 from .long_term_growth import LongTermGrowthEngine
+from .cognitive_intelligence import CognitiveIntelligenceEngine
 from .self_reflection import SelfReflectionMetrics
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
@@ -130,6 +131,10 @@ class AishinEngine:
         )
         self.development = DevelopmentMetricsEngine()
         self.long_term_growth = LongTermGrowthEngine(events=self.events)
+        self.cognitive_intelligence = CognitiveIntelligenceEngine(
+            growth=self.long_term_growth,
+            events=self.events,
+        )
         self.live_brain = LiveBrainRuntime(self)
 
     def reload_ai(self) -> dict:
@@ -159,6 +164,10 @@ class AishinEngine:
             scope=state.current_scope,
             persist_snapshot=True,
         )
+        intelligence = self.cognitive_intelligence.current(
+            scope=state.current_scope,
+            persist=True,
+        )
         self.events.emit(
             "aishin.started",
             scope=state.current_scope,
@@ -169,6 +178,10 @@ class AishinEngine:
                     "overall_score": growth.get("overall_score"),
                     "durable_skills": growth.get("skills", {}).get("durable"),
                     "mastered_skills": growth.get("skills", {}).get("mastered"),
+                },
+                "cognitive_intelligence": {
+                    "overall_score": intelligence.get("overall_score"),
+                    "formula_version": intelligence.get("formula_version"),
                 },
             },
             importance=0.6,
@@ -358,6 +371,12 @@ class AishinEngine:
             ),
             "long_term_growth": self.long_term_growth.summary(
                 scope=state.current_scope,
+            ),
+            "cognitive_intelligence": self.cognitive_intelligence.dashboard(
+                scope=state.current_scope,
+                history_limit=30,
+                route_limit=20,
+                persist=True,
             ),
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(

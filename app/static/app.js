@@ -323,6 +323,8 @@ function renderLivingBrain(state, sensors, pending, approved) {
   const causal = state.working_memory?.causal || null;
   const hypotheses = state.working_memory?.hypotheses || null;
   const learning = state.working_memory?.logic_learning || null;
+  const counterfactual = state.working_memory?.counterfactual || null;
+  const quality = state.working_memory?.decision_quality || null;
   const verification = state.working_memory?.verification || null;
 
   setBrainNode(
@@ -394,6 +396,24 @@ function renderLivingBrain(state, sensors, pending, approved) {
     learning?.feedback?.applied
       ? `${learning.feedback.outcome} · reliability ${Math.round(Number(learning.feedback.reliability || 0) * 100)}%`
       : `${learning?.strategies?.length || 0} learned strategies`
+  );
+
+  setBrainNode(
+    "counterfactual",
+    Boolean(counterfactual),
+    Boolean(counterfactual?.unresolved?.length),
+    counterfactual
+      ? `${counterfactual.scenarios?.length || 0} scenarios · ${counterfactual.unresolved?.length || 0} unresolved`
+      : "what-if ещё не выполнялся"
+  );
+
+  setBrainNode(
+    "quality",
+    Boolean(quality),
+    Number(quality?.overall || 0) < 0.58,
+    quality
+      ? `${Math.round(Number(quality.overall || 0) * 100)}% · ${quality.recommendation || "нет оценки"}`
+      : "качество ещё не рассчитано"
   );
 
   const metaStatus = meta?.status || "нет оценки";

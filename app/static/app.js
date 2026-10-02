@@ -9,6 +9,10 @@ const pages = {
     title: "Aishin Kitsune",
     description: "Личная помощница"
   },
+  communication: {
+    title: "Общение Айшин",
+    description: "Понимание, стиль, адаптация объяснений и навыки диалога."
+  },
   attention: {
     title: "Айши заметила",
     description: "Ситуации, аномалии, сроки и проактивное внимание."
@@ -50,6 +54,11 @@ document.querySelectorAll(".nav-item[data-module]").forEach((button) => {
     document.querySelectorAll(".module-page").forEach((page) => page.classList.remove("active"));
     if (code === "assistant") {
       document.getElementById("assistant-module").classList.add("active");
+    } else if (code === "communication") {
+      document.getElementById("communication-module")?.classList.add("active");
+      if (typeof window.AISHIN_COMMUNICATION_REFRESH === "function") {
+        window.AISHIN_COMMUNICATION_REFRESH();
+      }
     } else if (code === "attention") {
       document.getElementById("attention-module")?.classList.add("active");
       if (typeof window.AISHIN_PROACTIVE_REFRESH === "function") {

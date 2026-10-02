@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/static/proactive_intelligence.css">
   <link rel="stylesheet" href="/static/evolution.css">
   <link rel="stylesheet" href="/static/research.css">
+  <link rel="stylesheet" href="/static/communication.css">
 </head>
 <body>
   <div class="app-shell">
@@ -44,7 +45,7 @@
           <span class="nav-copy"><strong>Обновление</strong></span>
         </button>
         <div id="update-status" class="status-line">Система готова</div>
-        <div class="version-line">Aishin Core · 0.0.9</div>
+        <div class="version-line">Aishin Core · 0.0.10</div>
       </div>
     </aside>
 
@@ -404,6 +405,71 @@
             </div>
             <p class="development-honesty">Если показатель ещё не подтверждён данными, он остаётся нулевым — Айшин не дорисовывает опыт.</p>
           </section>
+        </div>
+      </section>
+
+      <section id="communication-module" class="module-page">
+        <div class="communication-page">
+          <div class="communication-head">
+            <div>
+              <p class="overline">AISHIN 00.00.10 · COMMUNICATION INTELLIGENCE</p>
+              <h2>Общение Айшин</h2>
+              <p>Понимание намерения, адаптация объяснений, Persona Runtime, анти-повторы и обучение на реальной реакции пользователя — без выдуманных эмоций и без самооценки модели.</p>
+            </div>
+            <span id="communication-persona-source" class="settings-badge">canonical persona</span>
+          </div>
+
+          <section class="communication-hero">
+            <div id="communication-score-ring" class="communication-ring">
+              <strong id="communication-score">0.0%</strong>
+              <small>communication intelligence</small>
+            </div>
+            <div class="communication-copy">
+              <p class="overline">ADAPTIVE DIALOGUE</p>
+              <h3>Айши учится не только отвечать, но и объяснять именно Вам</h3>
+              <p>Каждый ответ получает наблюдаемый communication trace: intent, need, strategy, depth, tone и persona quality. Следующая реплика или явный feedback подтверждает, сработало ли объяснение.</p>
+              <div class="communication-stats">
+                <article class="communication-stat"><span>Понимание</span><strong id="communication-understanding">0.0%</strong><small>по outcomes</small></article>
+                <article class="communication-stat"><span>Адаптация</span><strong id="communication-adaptation">0.0%</strong><small>после уточнений</small></article>
+                <article class="communication-stat"><span>Persona</span><strong id="communication-persona">0.0%</strong><small>стабильность характера</small></article>
+                <article class="communication-stat"><span>Разнообразие</span><strong id="communication-diversity">0.0%</strong><small>начала ответов</small></article>
+                <article class="communication-stat"><span>Объяснения</span><strong id="communication-explanation">0.0%</strong><small>успешность</small></article>
+                <article class="communication-stat"><span>Evidence</span><strong id="communication-evaluated">0</strong><small>оценённых turn</small></article>
+              </div>
+            </div>
+          </section>
+
+          <div class="communication-grid">
+            <section class="communication-panel wide">
+              <div class="communication-panel-head"><div><p class="overline">DIALOGUE TRACE</p><h3>Последние ответы и реальные outcomes</h3></div><span>feedback меняет skills</span></div>
+              <div id="communication-turns" class="communication-turns"></div>
+            </section>
+
+            <section class="communication-panel">
+              <div class="communication-panel-head"><div><p class="overline">COMMUNICATION SKILLS</p><h3>Карта навыков общения</h3></div><span>mastery · trend · evidence</span></div>
+              <div id="communication-skills" class="communication-skills"></div>
+            </section>
+
+            <section class="communication-panel">
+              <div class="communication-panel-head"><div><p class="overline">PERSONA RUNTIME</p><h3>Как строится текущая форма ответа</h3></div><span>без hidden CoT</span></div>
+              <div id="communication-runtime" class="communication-runtime"></div>
+            </section>
+
+            <section class="communication-panel">
+              <div class="communication-panel-head"><div><p class="overline">PREFERENCES</p><h3>Что Айши узнала о формате общения</h3></div><span>только observed/explicit</span></div>
+              <div id="communication-prefs" class="communication-prefs"></div>
+            </section>
+
+            <section class="communication-panel">
+              <div class="communication-panel-head"><div><p class="overline">LEARNING EVENTS</p><h3>Как меняется качество общения</h3></div><span>outcome audit</span></div>
+              <div id="communication-events" class="communication-events"></div>
+            </section>
+
+            <section class="communication-panel wide">
+              <div class="communication-panel-head"><div><p class="overline">SAFETY & CHARACTER</p><h3>Правила живого, но честного общения</h3></div></div>
+              <div id="communication-principles" class="communication-principles"></div>
+            </section>
+          </div>
         </div>
       </section>
 
@@ -777,5 +843,6 @@
   <script src="/static/proactive_intelligence.js"></script>
   <script src="/static/evolution.js"></script>
   <script src="/static/research.js"></script>
+  <script src="/static/communication.js"></script>
 </body>
 </html>

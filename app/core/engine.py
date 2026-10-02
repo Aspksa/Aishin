@@ -908,6 +908,29 @@ class AishinEngine:
             sensor_readings=sensor_readings,
         )
 
+        document_context = self.documents.search(
+            cleaned,
+            scope=scope,
+            limit=6,
+        )
+        if document_context:
+            lines = [
+                "Document Intelligence evidence.",
+                "Используй эти фрагменты только как документальные источники.",
+                "Сохраняй provenance и не утверждай больше, чем написано в фрагменте.",
+            ]
+            for item in document_context:
+                prov = item.get("provenance") or {}
+                lines.append(
+                    f"- D{item['document_id']}/C{item['chunk_id']} "
+                    f"[{item['filename']}; page={prov.get('page')}; "
+                    f"score={float(item['score']):.2f}; "
+                    f"quality={float(item['document_quality']):.2f}] "
+                    f"{item['text'][:900]}"
+                )
+            context.system_prompt += "\n\n" + "\n".join(lines)
+        perf.checkpoint("document_retrieval")
+
         request_trace = {
             "scope": scope,
             "query": cleaned[:500],
@@ -930,6 +953,7 @@ class AishinEngine:
             "cognitive_intelligence_route": cognitive_route.to_dict(),
             "research": research_run or {"status": "not_triggered"},
             "communication": communication_plan.to_dict(),
+            "document_context": document_context,
         }
         context.system_prompt += (
             "\n\n"
@@ -1088,6 +1112,7 @@ class AishinEngine:
         evolution_state = self.evolution.state(scope=scope)
         research_state = self.research.state(scope=scope)
         communication_state = self.communication.state(scope=scope)
+        document_state = self.documents.state(scope=scope)
         self.events.emit(
             "cognition.phase",
             scope=scope,
@@ -1124,6 +1149,7 @@ class AishinEngine:
         }
         request_trace["research_state"] = research_state
         request_trace["communication_state"] = communication_state
+        request_trace["document_state"] = document_state
         request_trace["communication_turn"] = {
             "id": communication_turn.get("id"),
             "strategy": communication_turn.get("strategy"),

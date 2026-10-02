@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T20:00:00+10:00",
+  "generated_at": "2026-10-02T20:15:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 8,
+      "latest_schema_version": 9,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -146,8 +146,8 @@
         "scripts/self_check.py",
         "scripts/runtime_smoke.py"
       ],
-      "latest_confirmed_run_id": 36992853640,
-      "latest_confirmed_head_sha": "e292c420425c5b1903473261f412b27e7f632e4c"
+      "latest_confirmed_run_id": 36994225453,
+      "latest_confirmed_head_sha": "c6df75ea77c3e8902d5ad63158e9e5a09c2a8ebd"
     }
   },
   "implemented_architecture": [
@@ -404,10 +404,32 @@
         "app/main.py"
       ],
       "details": "One-shot 15-minute approvals bound to decision/tool/capability/arguments/preview hashes. Pre-execution revalidation checks TTL, permissions and underlying state. Stale approvals invalidate and return decisions to pending. File writes produce backup/rollback metadata."
+    },
+    {
+      "layer": "Cloud.ru Resilience",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/ai/cloudru.py",
+        "app/ai/provider.py",
+        "app/ai/manager.py",
+        ".env.example"
+      ],
+      "details": "Bounded retry/backoff for transient HTTP/network failures, health cache with lock, bounded timeout/retry configuration, safe error surface, attempts/latency/error_code diagnostics."
+    },
+    {
+      "layer": "Per-request Cognitive Trace Isolation",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/cognitive_trace.py",
+        "app/core/engine.py",
+        "app/migrations.py",
+        "app/main.py"
+      ],
+      "details": "Removed global last_cognitive_context. Every respond() gets a unique request_id and persists an isolated trace row with provider runtime metadata; snapshot reads latest completed trace per scope."
     }
   ],
   "current_cognitive_flow": [
-    "Input",
+    "Input creates unique request_id",
     "Logic Learning checks explicit feedback about previous strategy",
     "Memory Consolidation",
     "Graph Builder",
@@ -422,14 +444,13 @@
     "Hypothesis Manager in VERIFY/DIAGNOSE",
     "Counterfactual Reasoning in DEEP/PLAN/VERIFY/DIAGNOSE",
     "Decision Quality Scoring",
-    "Action Selection / Expected Utility ranks candidate actions",
-    "Context Orchestrator rebuilds final prompt according to Logic Mode budget",
-    "Cloud.ru response",
-    "Proactive proposal may be approved by user",
-    "Execution Coordinator issues one-shot approval",
-    "Immediate pre-execution revalidation",
-    "Tool Registry executes only if still valid and permitted",
-    "Approval consumed; execution/rollback metadata audited",
+    "Action Selection / Expected Utility",
+    "Context Orchestrator rebuilds final prompt",
+    "Cloud.ru request through bounded retry/backoff policy",
+    "Provider attempts/latency/error_code captured",
+    "Per-request cognitive trace persisted by request_id",
+    "Cloud response or safe fallback",
+    "Proactive/Execution lifecycle remains behind Permission Gate",
     "Event + State update"
   ],
   "metacognition": {
@@ -523,7 +544,8 @@
     "decision_quality_scores",
     "action_selections",
     "execution_approvals",
-    "execution_attempts"
+    "execution_attempts",
+    "cognitive_request_traces"
   ],
   "important_api": [
     "GET /health",
@@ -573,7 +595,9 @@
     "GET /api/assistant/decision-quality",
     "GET /api/assistant/action-selection",
     "GET /api/assistant/execution/approvals",
-    "GET /api/assistant/execution/attempts"
+    "GET /api/assistant/execution/attempts",
+    "GET /api/assistant/cognitive-traces",
+    "GET /api/assistant/ai-diagnostics"
   ],
   "key_fixed_bugs_and_safety_changes": [
     "Исправлена SQL-ошибка кавычек в запросе active memories.",
@@ -616,7 +640,14 @@
     "project.write_text now records existing-file SHA-256 in preview and creates local rollback backup before overwrite.",
     ".aishin_backups/ is excluded from Git and protected from project file tools.",
     "Integration bug that accidentally passed coordinator into PlannerBuilder before initialization was detected and fixed before final CI.",
-    "Approval / Execution Coordinator validated on Windows and Ubuntu in GitHub Actions run 36992853640."
+    "Approval / Execution Coordinator validated on Windows and Ubuntu in GitHub Actions run 36992853640.",
+    "Removed global last_cognitive_context concurrency race; working traces are persisted per request_id.",
+    "Cloud.ru retries are bounded and limited to transient HTTP/network conditions.",
+    "Cloud.ru health calls are cached with a lock to avoid repeated /models requests from UI/health polling.",
+    "Provider errors no longer expose HTTP response bodies or authorization data.",
+    "AIReply/EmbeddingReply now carry bounded attempts, latency_ms and error_code diagnostics.",
+    "Initial resilience self-check ordering bug (engine referenced before creation) was found by CI and fixed.",
+    "Cloud resilience + request trace isolation validated on Windows and Ubuntu in GitHub Actions run 36994225453."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -657,20 +688,18 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Approval / Execution Coordinator completed, history saved, cross-platform runtime validated.",
-    "last_implemented_feature": "One-shot stale-safe approvals, pre-execution revalidation, execution audit and file rollback/backup metadata.",
-    "next_recommended_step": "Reliability/performance hardening: Cloud.ru resilience (health cache, bounded retry/backoff, timeout/error policy) plus per-request cognitive trace isolation to remove global last_cognitive_context concurrency risk.",
+    "milestone": "Cloud.ru Resilience + per-request Cognitive Trace Isolation completed, history saved, cross-platform runtime validated.",
+    "last_implemented_feature": "Bounded Cloud retry/cache/error policy plus persistent request-scoped cognitive traces replacing global last_cognitive_context.",
+    "next_recommended_step": "Performance observability and latency budget: persist stage timings for memory, graph, planner, verification, logic, context, Cloud and total response; then optimize the slowest measured stages. Also review Verification auto-trigger policy for ordinary no-memory conversation to avoid unnecessary extra Cloud calls.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
-      "Не превращать Aishin в multi-user SaaS.",
       "Не смешивать память Aishin с TooruDragon.",
-      "Не сохранять и не экспонировать private chain-of-thought.",
-      "Не считать approval выполнением.",
-      "Не переиспользовать consumed/stale approval.",
-      "Не выполнять action без свежей pre-execution revalidation.",
-      "Не обходить Permission Gate и Tool Registry.",
-      "Не коммитить .aishin_backups или Cloud.ru API key."
+      "Не возвращать global last_cognitive_context.",
+      "Не делать бесконечные retries Cloud.ru.",
+      "Не логировать API key/Authorization или raw HTTP error body.",
+      "Не считать request_id между запросами общим контекстом.",
+      "Не обходить Permission Gate / Execution Coordinator."
     ]
   },
   "development_sequence_current_chat": [
@@ -749,6 +778,10 @@
     {
       "user_prompt": "Делай",
       "result": "Добавлен Approval / Execution Coordinator. Schema migration 8, execution_approvals, execution_attempts, one-shot 15-minute approvals, arguments/preview hashes, stale invalidation, pre-execution permission/state revalidation, project.write_text backup + SHA-256 rollback metadata, APIs and Live Brain Execution Guard. Stale action returns to pending. GitHub Actions run 36992853640 прошёл Windows + Ubuntu. История сохранена в handoff."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлены Cloud.ru Resilience и per-request Cognitive Trace Isolation. Schema migration 9, cognitive_request_traces, request_id/trace_id, удалён global last_cognitive_context, bounded transient retries/backoff, health cache, safe errors, provider attempts/latency/error_code, APIs /cognitive-traces и /ai-diagnostics. Первый итоговый CI нашёл self-check ordering bug; исправлен. GitHub Actions run 36994225453 прошёл Windows + Ubuntu. История сохранена."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -765,9 +798,9 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать Approval / Execution Coordinator schema 8 реализованным.",
-      "Не возвращаться к прямому approved=True без one-shot coordinator revalidation.",
-      "Следующий рекомендуемый этап: Cloud.ru resilience + per-request cognitive trace isolation."
+      "Считать schema 9 Cloud.ru Resilience + per-request Cognitive Trace Isolation реализованными.",
+      "Не возвращать last_cognitive_context; использовать CognitiveTraceStore.",
+      "Следующий рекомендуемый этап: performance stage timings/latency budget и исправление избыточного Verification trigger для обычных conversation-запросов."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -1585,5 +1618,77 @@
     ],
     "live_brain_node": "Execution Guard",
     "safety_rule": "Approval is not execution. Revalidation happens immediately before Tool Registry invoke; stale or denied state blocks execution."
+  },
+  "cloudru_resilience": {
+    "provider_path": "app/ai/cloudru.py",
+    "retryable_http": [
+      408,
+      429,
+      500,
+      502,
+      503,
+      504
+    ],
+    "defaults": {
+      "timeout_seconds": 120,
+      "max_retries": 2,
+      "backoff_base_seconds": 0.5,
+      "max_backoff_seconds": 4,
+      "health_ttl_seconds": 30
+    },
+    "hard_bounds": {
+      "timeout_seconds": [
+        5,
+        300
+      ],
+      "max_retries": [
+        0,
+        4
+      ],
+      "backoff_base_seconds": [
+        0.1,
+        5
+      ],
+      "max_backoff_seconds": [
+        0.2,
+        20
+      ],
+      "health_ttl_seconds": [
+        5,
+        300
+      ]
+    },
+    "health_cache": "thread-safe in-process cache for /models",
+    "diagnostics": [
+      "attempts",
+      "latency_ms",
+      "error_code",
+      "safe error",
+      "retry metadata"
+    ],
+    "api": "GET /api/assistant/ai-diagnostics",
+    "safety_rule": "No Authorization header or API key is returned in errors/diagnostics; HTTP response body is not exposed."
+  },
+  "cognitive_trace_isolation": {
+    "repository_path": "app/core/cognitive_trace.py",
+    "removed": "AishinEngine.last_cognitive_context global mutable dict",
+    "request_identity": "uuid4 hex request_id generated at respond() start",
+    "table": "cognitive_request_traces",
+    "fields": [
+      "request_id",
+      "scope",
+      "query",
+      "status",
+      "trace_json",
+      "provider_json",
+      "created_at"
+    ],
+    "response_fields": [
+      "request_id",
+      "trace_id"
+    ],
+    "snapshot_rule": "working_memory = latest persisted trace for current scope",
+    "api": "GET /api/assistant/cognitive-traces",
+    "concurrency_rule": "Concurrent requests write separate rows; one request cannot overwrite another request's in-process working trace."
   }
 }

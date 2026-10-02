@@ -468,6 +468,15 @@ def touch_memory(memory_id: int) -> None:
 def _merge_graph_data(existing: dict, incoming: dict) -> dict:
     result = dict(existing)
     for key, value in incoming.items():
+        if value is None:
+            continue
+        if (
+            isinstance(value, str)
+            and not value.strip()
+            and key in result
+            and result[key] not in {"", None}
+        ):
+            continue
         if (
             key in result
             and isinstance(result[key], dict)

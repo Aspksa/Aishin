@@ -105,9 +105,7 @@ class ContextOrchestrator:
 
         if selected_memories:
             blocks.append(
-                "Working Memory:
-"
-                + self.memory.context_block(selected_memories)
+                "Working Memory:\\n"\n                + self.memory.context_block(selected_memories)
             )
 
         if graph_entities:
@@ -118,8 +116,7 @@ class ContextOrchestrator:
                     f"{item.get('canonical_name')} "
                     f"data={json.dumps(item.get('data') or {}, ensure_ascii=False)}"
                 )
-            blocks.append("
-".join(lines))
+            blocks.append("\\n".join(lines))
 
         if planner_items:
             lines = ["Relevant Planner items:"]
@@ -128,8 +125,7 @@ class ContextOrchestrator:
                     f"- {item['kind']} #{item['id']}: "
                     f"{item['title']} status={item['status']}"
                 )
-            blocks.append("
-".join(lines))
+            blocks.append("\\n".join(lines))
 
         if verification_items:
             lines = ["Verification evidence:"]
@@ -147,9 +143,7 @@ class ContextOrchestrator:
             blocks.append("
 ".join(lines))
 
-        prompt = "
-
-".join(block for block in blocks if block)
+        prompt = "\\n\\n".join(block for block in blocks if block)
         selected = {
             "memory_ids": [item.get("id") for item in selected_memories],
             "graph_entity_ids": [item.get("id") for item in graph_entities],

@@ -351,6 +351,15 @@ class LiveBrainRuntime:
                 cycle_limit=12,
             ),
         )
+        communication = take(
+            "communication",
+            {},
+            lambda: self.engine.communication.dashboard(
+                scope=scope,
+                turn_limit=24,
+                event_limit=30,
+            ),
+        )
 
         phase = self._latest_phase(events)
         phase_channel = self.PHASE_TO_CHANNEL.get(phase, "")
@@ -368,6 +377,20 @@ class LiveBrainRuntime:
         research_conflicts = int(
             research_summary.get("open_contradictions") or 0
         )
+        communication_summary = communication.get("summary") or {}
+        communication_turns = communication.get("turns") or []
+        latest_communication = (
+            communication_turns[0] if communication_turns else {}
+        )
+        communication_attention = bool(
+            latest_communication.get("outcome") == "correction_needed"
+            or (
+                int(communication_summary.get("evaluated_turns") or 0) >= 5
+                and float(
+                    communication_summary.get("persona_stability") or 100.0
+                ) < 60.0
+            )
+        )
         integrity = (
             "attention"
             if (
@@ -377,6 +400,7 @@ class LiveBrainRuntime:
                 or proactive_attention
                 or evolution_regressions
                 or research_conflicts
+                or communication_attention
             )
             else "healthy"
             if events or memories or graph_stats.get("entities")
@@ -466,6 +490,22 @@ class LiveBrainRuntime:
                     "conflicted_claims"
                 ),
                 "research_open_contradictions": research_conflicts,
+                "communication_score": communication_summary.get(
+                    "communication_score"
+                ),
+                "communication_understanding": communication_summary.get(
+                    "understanding_score"
+                ),
+                "communication_adaptation": communication_summary.get(
+                    "adaptation_score"
+                ),
+                "communication_persona_stability": (
+                    communication_summary.get("persona_stability")
+                ),
+                "communication_explanation_success": (
+                    communication_summary.get("explanation_success")
+                ),
+                "communication_attention": communication_attention,
             },
             "channels": channels,
             "safe_trace": self._safe_trace(trace),
@@ -499,6 +539,7 @@ class LiveBrainRuntime:
             "proactive_intelligence": proactive_intelligence,
             "evolution": evolution,
             "research": research,
+            "communication": communication,
             "quality": {
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
@@ -540,6 +581,11 @@ class LiveBrainRuntime:
                     "research_claims + research_contradictions + "
                     "research_cycles"
                 ),
+                "communication": (
+                    "communication_state + communication_turns + "
+                    "communication_preferences + communication_skills + "
+                    "communication_feedback + communication_events"
+                ),
             },
         }
 
@@ -551,7 +597,7 @@ class LiveBrainRuntime:
         )
         return {
             "format": "AISHIN_LIVE_BRAIN_EXPORT",
-            "format_version": 7,
+            "format_version": 8,
             "scope": snapshot["scope"],
             "generated_at": snapshot["generated_at"],
             "policy": snapshot["trace_policy"],

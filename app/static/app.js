@@ -325,6 +325,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
   const learning = state.working_memory?.logic_learning || null;
   const counterfactual = state.working_memory?.counterfactual || null;
   const quality = state.working_memory?.decision_quality || null;
+  const actionSelection = state.working_memory?.action_selection || null;
   const verification = state.working_memory?.verification || null;
 
   setBrainNode(
@@ -414,6 +415,15 @@ function renderLivingBrain(state, sensors, pending, approved) {
     quality
       ? `${Math.round(Number(quality.overall || 0) * 100)}% · ${quality.recommendation || "нет оценки"}`
       : "качество ещё не рассчитано"
+  );
+
+  setBrainNode(
+    "action",
+    Boolean(actionSelection?.selected && Object.keys(actionSelection.selected).length),
+    ["approval_required", "blocked_by_permission"].includes(actionSelection?.selection_state),
+    actionSelection?.selected
+      ? `${Math.round(Number(actionSelection.selected.utility || 0) * 100)}% · ${actionSelection.selection_state}`
+      : "кандидат ещё не выбран"
   );
 
   const metaStatus = meta?.status || "нет оценки";

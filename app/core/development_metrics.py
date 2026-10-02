@@ -295,6 +295,44 @@ class DevelopmentMetricsEngine:
                 "SELECT AVG(trust_score) FROM knowledge_trust WHERE scope=?",
                 (scope,),
             )
+            proactive_active_incidents = int(scalar(
+                """SELECT COUNT(*) FROM proactive_incidents
+                   WHERE scope=? AND status='active'""",
+                (scope,),
+            ))
+            proactive_attention_incidents = int(scalar(
+                """SELECT COUNT(*) FROM proactive_incidents
+                   WHERE scope=? AND status='active'
+                     AND attention_score >= COALESCE(
+                       (SELECT calibrated_threshold
+                        FROM proactive_attention_profile
+                        WHERE scope=?),
+                       0.48
+                     )""",
+                (scope, scope),
+            ))
+            proactive_critical_incidents = int(scalar(
+                """SELECT COUNT(*) FROM proactive_incidents
+                   WHERE scope=? AND status='active'
+                     AND risk_score >= 0.84""",
+                (scope,),
+            ))
+            proactive_feedback_samples = int(scalar(
+                """SELECT COUNT(*) FROM proactive_attention_feedback
+                   WHERE scope=?""",
+                (scope,),
+            ))
+            proactive_runs = int(scalar(
+                """SELECT COUNT(*) FROM proactive_intelligence_runs
+                   WHERE scope=?""",
+                (scope,),
+            ))
+            situational_awareness = scalar(
+                """SELECT awareness_score
+                   FROM situation_snapshots
+                   WHERE scope=? ORDER BY id DESC LIMIT 1""",
+                (scope,),
+            )
 
         knowledge_items = memories + entities
         return {
@@ -335,6 +373,12 @@ class DevelopmentMetricsEngine:
             "trusted_knowledge": trusted_knowledge,
             "stale_knowledge": stale_knowledge,
             "average_knowledge_trust": round(average_knowledge_trust, 4),
+            "proactive_active_incidents": proactive_active_incidents,
+            "proactive_attention_incidents": proactive_attention_incidents,
+            "proactive_critical_incidents": proactive_critical_incidents,
+            "proactive_feedback_samples": proactive_feedback_samples,
+            "proactive_intelligence_runs": proactive_runs,
+            "situational_awareness": round(situational_awareness, 1),
         }
 
     def _components(self, c: dict) -> dict:

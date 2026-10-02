@@ -61,6 +61,12 @@ def main() -> int:
                 'id="dev-count-knowledge"',
                 '/static/intelligence.css',
                 '/static/intelligence.js',
+                '/static/proactive_intelligence.css',
+                '/static/proactive_intelligence.js',
+                'id="attention-module"',
+                'id="proactive-awareness-score"',
+                'id="proactive-incidents"',
+                'id="proactive-calibration"',
             )
             missing_ui = [
                 marker for marker in required_ui
@@ -530,6 +536,208 @@ def main() -> int:
                 "diagnose_preserved": True,
             }
 
+            proactive_task = client.post(
+                "/api/assistant/planner/tasks",
+                json={
+                    "title": "Runtime Smoke — просроченная задача",
+                    "description": "Проверка Proactive Intelligence lifecycle",
+                    "scope": "personal",
+                    "priority": 0.9,
+                    "due_at": "2020-01-01T00:00:00+00:00",
+                },
+            )
+            if proactive_task.status_code != 200:
+                raise RuntimeError(
+                    "Не удалось создать deterministic overdue task для "
+                    "Proactive Intelligence smoke"
+                )
+            proactive_task_id = int(proactive_task.json()["id"])
+
+            proactive_scan = client.post(
+                "/api/assistant/proactive-intelligence/scan",
+                params={"scope": "personal"},
+            )
+            if proactive_scan.status_code != 200:
+                raise RuntimeError(
+                    f"Proactive Intelligence scan returned HTTP "
+                    f"{proactive_scan.status_code}: {proactive_scan.text[:300]}"
+                )
+            proactive_scan_data = proactive_scan.json()
+            if not 0.0 <= float(
+                proactive_scan_data.get("awareness_score") or 0.0
+            ) <= 100.0:
+                raise RuntimeError(
+                    "Situation Awareness должен оставаться в диапазоне 0..100"
+                )
+
+            proactive_api = client.get(
+                "/api/assistant/proactive-intelligence",
+                params={
+                    "scope": "personal",
+                    "incident_limit": 100,
+                    "signal_limit": 100,
+                    "run_limit": 30,
+                },
+            )
+            if proactive_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/proactive-intelligence returned HTTP "
+                    f"{proactive_api.status_code}: {proactive_api.text[:300]}"
+                )
+            proactive_data = proactive_api.json()
+            if proactive_data.get("version") != (
+                "aishin-proactive-intelligence-v1"
+            ):
+                raise RuntimeError(
+                    "Proactive Intelligence вернул несовместимую версию"
+                )
+            summary = proactive_data.get("summary") or {}
+            threshold = float(summary.get("attention_threshold") or 0.0)
+            if not 0.36 <= threshold <= 0.70:
+                raise RuntimeError(
+                    "Attention threshold вышел за безопасный диапазон"
+                )
+            if not isinstance(proactive_data.get("incidents"), list):
+                raise RuntimeError(
+                    "Proactive Intelligence incidents должен быть списком"
+                )
+            if not isinstance(proactive_data.get("expectations"), list):
+                raise RuntimeError(
+                    "Proactive Intelligence expectations должен быть списком"
+                )
+            if not isinstance(proactive_data.get("signals"), list):
+                raise RuntimeError(
+                    "Proactive Intelligence signals должен быть списком"
+                )
+
+            active_incidents = [
+                item
+                for item in proactive_data.get("incidents") or []
+                if item.get("status") == "active"
+            ]
+            overdue_incident = next(
+                (
+                    item
+                    for item in active_incidents
+                    if item.get("subject_type") == "task"
+                    and str(item.get("subject_id")) == str(proactive_task_id)
+                    and item.get("incident_type") == "task_overdue"
+                ),
+                None,
+            )
+            if overdue_incident is None:
+                raise RuntimeError(
+                    "Proactive Intelligence не обнаружил deterministic overdue task"
+                )
+
+            for key in (
+                "severity",
+                "confidence",
+                "impact",
+                "urgency",
+                "risk_score",
+                "attention_score",
+            ):
+                value = float(overdue_incident.get(key) or 0.0)
+                if not 0.0 <= value <= 1.0:
+                    raise RuntimeError(
+                        f"Proactive incident {key} вышел за диапазон 0..1"
+                    )
+            if not isinstance(overdue_incident.get("evidence"), list):
+                raise RuntimeError(
+                    "Proactive incident должен хранить evidence"
+                )
+            decision_id = overdue_incident.get("decision_id")
+            if decision_id:
+                decision = next(
+                    (
+                        item
+                        for item in engine.proactive.history(
+                            scope="personal",
+                            limit=300,
+                        )
+                        if int(item["id"]) == int(decision_id)
+                    ),
+                    None,
+                )
+                if decision and decision.get("tool_name"):
+                    raise RuntimeError(
+                        "00.00.07 не должен автоматически создавать "
+                        "исполняемый tool proposal"
+                    )
+
+            proactive_feedback = client.post(
+                "/api/assistant/proactive-intelligence/incidents/"
+                f"{int(overdue_incident['id'])}/feedback",
+                json={
+                    "scope": "personal",
+                    "feedback": "noisy",
+                    "reason": "runtime smoke suppression check",
+                },
+            )
+            if proactive_feedback.status_code != 200:
+                raise RuntimeError(
+                    f"Proactive feedback returned HTTP "
+                    f"{proactive_feedback.status_code}"
+                )
+            feedback_incident = (
+                proactive_feedback.json().get("incident") or {}
+            )
+            if feedback_incident.get("status") != "snoozed":
+                raise RuntimeError(
+                    "Noisy feedback должен временно подавлять incident"
+                )
+            if not feedback_incident.get("snoozed_until"):
+                raise RuntimeError(
+                    "Noisy feedback должен сохранять snoozed_until"
+                )
+
+            proactive_rescan = client.post(
+                "/api/assistant/proactive-intelligence/scan",
+                params={"scope": "personal"},
+            )
+            if proactive_rescan.status_code != 200:
+                raise RuntimeError("Повторный proactive scan завершился ошибкой")
+            incident_after_rescan = engine.proactive_intelligence.incident(
+                int(overdue_incident["id"]),
+                scope="personal",
+            ) or {}
+            if incident_after_rescan.get("status") != "snoozed":
+                raise RuntimeError(
+                    "Suppressed incident не должен немедленно возвращаться active"
+                )
+
+            close_proactive_task = client.post(
+                f"/api/assistant/planner/tasks/{proactive_task_id}/status",
+                json={
+                    "scope": "personal",
+                    "status": "completed",
+                    "blocked_reason": "",
+                },
+            )
+            if close_proactive_task.status_code != 200:
+                raise RuntimeError(
+                    "Не удалось завершить proactive smoke task"
+                )
+            client.post(
+                "/api/assistant/proactive-intelligence/scan",
+                params={"scope": "personal"},
+            )
+
+            checks["proactive_intelligence"] = {
+                "status": "ok",
+                "version": proactive_data.get("version"),
+                "awareness": summary.get("awareness_score"),
+                "incidents": len(proactive_data.get("incidents") or []),
+                "signals": len(proactive_data.get("signals") or []),
+                "expectations": len(
+                    proactive_data.get("expectations") or []
+                ),
+                "threshold": threshold,
+                "feedback_suppression": True,
+                "auto_execution": False,
+            }
+
             live_brain = client.get(
                 "/api/assistant/live-brain",
                 params={
@@ -575,9 +783,9 @@ def main() -> int:
             export_data = live_brain_export.json()
             if export_data.get("format") != "AISHIN_LIVE_BRAIN_EXPORT":
                 raise RuntimeError("Live Brain export format несовместим")
-            if int(export_data.get("format_version") or 0) != 4:
+            if int(export_data.get("format_version") or 0) != 5:
                 raise RuntimeError(
-                    "Live Brain export format должен быть version 4"
+                    "Live Brain export format должен быть version 5"
                 )
             if not isinstance(
                 live_brain_data.get("cognitive_intelligence"),
@@ -585,6 +793,13 @@ def main() -> int:
             ):
                 raise RuntimeError(
                     "Live Brain должен включать Cognitive Intelligence"
+                )
+            if not isinstance(
+                live_brain_data.get("proactive_intelligence"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Live Brain должен включать Proactive Intelligence"
                 )
 
             checks["live_brain_runtime"] = {

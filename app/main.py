@@ -43,7 +43,7 @@ async def lifespan(_: FastAPI):
             await heartbeat_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.3', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.4', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -64,7 +64,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.3',
+        'version': '0.0.4',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
     }

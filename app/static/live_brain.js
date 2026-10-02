@@ -61,7 +61,7 @@
         '<div class="live-brain-title">',
           '<div id="live-brain-orb" class="live-brain-orb" aria-hidden="true"></div>',
           '<div>',
-            '<p class="overline">AISHIN 00.00.07 · LIVE BRAIN</p>',
+            '<p class="overline">AISHIN 00.00.08 · LIVE BRAIN</p>',
             '<h3>Нейронная обсерватория Айшин</h3>',
             '<p>Живые события, память, связи, проверки, качество и безопасная техническая трасса.</p>',
           '</div>',
@@ -80,6 +80,7 @@
         '<article class="live-brain-metric"><span>Развитие</span><strong id="lb-development-score">—</strong><small id="lb-development-delta">история накапливается</small></article>',
         '<article class="live-brain-metric"><span>Интеллект</span><strong id="lb-intelligence-score">—</strong><small id="lb-intelligence-route">router ещё не работал</small></article>',
         '<article class="live-brain-metric"><span>Осведомлённость</span><strong id="lb-awareness-score">—</strong><small id="lb-awareness-incidents">0 ситуаций</small></article>',
+        '<article class="live-brain-metric"><span>Эволюция</span><strong id="lb-evolution-score">—</strong><small id="lb-evolution-generation">G1 · 0 champions</small></article>',
       '</div>',
       '<div class="live-brain-columns">',
         '<article class="live-brain-panel">',
@@ -360,6 +361,8 @@
     var intelligenceRoute = intelligence.latest_route || {};
     var proactive = data.proactive_intelligence || {};
     var proactiveSummary = proactive.summary || {};
+    var evolution = data.evolution || {};
+    var evolutionSummary = evolution.summary || {};
 
     setText("#live-brain-runtime", data.runtime_version || "runtime");
     setText("#live-brain-status", integrity.status || "—");
@@ -376,6 +379,8 @@
     setText("#lb-intelligence-route", intelligenceRoute.id ? ((intelligenceRoute.task_family || "general") + " · " + (intelligenceRoute.adapted_mode || intelligenceRoute.base_mode || "—")) : "router ещё не работал");
     setText("#lb-awareness-score", proactiveSummary.awareness_score == null ? "—" : n(proactiveSummary.awareness_score).toFixed(1) + "%");
     setText("#lb-awareness-incidents", n(proactiveSummary.active_incidents) + " ситуаций · " + n(proactiveSummary.requires_attention) + " внимание");
+    setText("#lb-evolution-score", evolutionSummary.evolution_score == null ? "—" : n(evolutionSummary.evolution_score).toFixed(1) + "%");
+    setText("#lb-evolution-generation", "G" + Math.max(1, n(evolutionSummary.generation)) + " · " + n(evolutionSummary.champions) + " champions · " + n(evolutionSummary.challengers) + " challengers");
     setText("#lb-current-phase", "фаза: " + (pulse.phase || "idle"));
     setText("#lb-event-total", compact(pulse.events_total) + " всего");
 

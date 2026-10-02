@@ -543,6 +543,24 @@ class LongTermGrowthEngine:
     def _refresh_knowledge_trust(self, *, scope: str) -> int:
         changed = 0
         with connect() as conn:
+            conn.execute(
+                """DELETE FROM knowledge_trust
+                   WHERE scope=? AND subject_type='memory'
+                     AND subject_id NOT IN (
+                       SELECT id FROM memories
+                       WHERE scope=? AND status='active'
+                     )""",
+                (scope, scope),
+            )
+            conn.execute(
+                """DELETE FROM knowledge_trust
+                   WHERE scope=? AND subject_type='relation'
+                     AND subject_id NOT IN (
+                       SELECT id FROM relations WHERE scope=?
+                     )""",
+                (scope, scope),
+            )
+            conn.commit()
             memory_rows = conn.execute(
                 """SELECT id, kind, content, confidence, importance, source,
                           fingerprint, memory_key, created_at, updated_at,

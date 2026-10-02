@@ -426,7 +426,7 @@ Live Brain содержит отдельный узел `Verification`, кото
 SQLite:
 - добавлен `app/migrations.py`;
 - таблица `schema_migrations` хранит применённые миграции;
-- текущая версия схемы: `6`;
+- текущая версия схемы: `7`;
 - `init_db()` автоматически применяет недостающие миграции;
 - self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
 
@@ -641,3 +641,34 @@ Counterfactual Reasoning и Decision Quality Scoring подтверждены Gi
 - Ubuntu / Python 3.11: success;
 - Windows / Python 3.11: success;
 - compileall, self-check и FastAPI runtime smoke: success.
+
+
+## Action Selection / Expected Utility
+Action Selector сравнивает безопасные кандидатные действия после Counterfactual Reasoning и Decision Quality Scoring.
+
+Utility учитывает:
+- ожидаемую пользу = scenario confidence × decision quality;
+- risk penalty;
+- reversibility penalty;
+- permission penalty;
+- unresolved/uncertainty penalty.
+
+Action Selector сопоставляет понятный кандидат с Tool Registry, если это возможно, и читает актуальный Permission Gate:
+- `allow` → кандидат может быть передан Tool Registry;
+- `ask` → `approval_required`;
+- `deny` → `blocked_by_permission`.
+
+Критическое правило:
+**Action Selection никогда сам не вызывает инструмент.**
+Выбор кандидата не считается выполнением. Реальное действие возможно только через Tool Registry, который повторно проверяет permission и approval.
+
+Хранилище:
+- `action_selections`
+
+API:
+- `GET /api/assistant/action-selection`
+
+Live Brain показывает отдельный узел Action Selection с utility и execution state.
+
+Schema migration: `7`.
+Версия приложения остаётся `0.0.3`.

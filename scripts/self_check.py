@@ -44,6 +44,10 @@ def main() -> int:
             "consolidator": engine.consolidator.__class__.__name__,
             "audit_entries": len(engine.memory.recent_changes(limit=10)),
         }
+        checks["semantic_memory"] = {
+            "status": "ok",
+            "health": engine.semantic.health(),
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

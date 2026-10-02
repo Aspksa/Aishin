@@ -7,6 +7,7 @@ from .cognition import Cognition
 from .consolidation import MemoryConsolidator
 from .events import EventBus
 from .graph import KnowledgeGraph
+from .graph_builder import GraphBuilder
 from .memory import MemorySystem
 from .observer import Observer
 from .permissions import PermissionGate
@@ -27,6 +28,7 @@ class AishinEngine:
         self.semantic = SemanticMemory(self.ai)
         self.cognition = Cognition(self.memory, semantic=self.semantic)
         self.graph = KnowledgeGraph()
+        self.graph_builder = GraphBuilder(ai=self.ai, graph=self.graph, events=self.events)
         self.permissions = PermissionGate()
         self.observer = Observer(self.state, self.events)
         self.consolidator = MemoryConsolidator(
@@ -38,6 +40,7 @@ class AishinEngine:
 
     def startup(self) -> None:
         self.permissions.bootstrap()
+        self.graph.seed_personal_foundation()
         state = self.state.load()
         state.status = "awake"
         state.activity = "startup"
@@ -58,6 +61,10 @@ class AishinEngine:
             "state": state.to_dict(),
             "ai": self.ai.health(),
             "semantic_memory": self.semantic.health(),
+            "knowledge_graph": {
+                "personal": self.graph.stats(scope="personal"),
+                "relationship": self.graph.stats(scope="relationship"),
+            },
             "permissions": {
                 key: self.permissions.mode(key)
                 for key in self.permissions.SAFE_DEFAULTS
@@ -101,6 +108,7 @@ class AishinEngine:
             cleaned,
             scope=scope,
         )
+        graph_update = self.graph_builder.ingest(cleaned, scope=scope)
 
         context = self.cognition.build_context(cleaned, scope=scope)
 
@@ -139,6 +147,7 @@ class AishinEngine:
                 "model": ai_reply.model,
                 "llm_connected": ai_reply.available,
                 "consolidation": consolidation.to_dict(),
+                "knowledge_graph": graph_update.to_dict(),
             },
             importance=0.3,
         )
@@ -155,6 +164,7 @@ class AishinEngine:
             "memory_recalled": len(context.recalled_memories),
             "semantic_used": context.semantic_used,
             "memory_consolidation": consolidation.to_dict(),
+            "knowledge_graph": graph_update.to_dict(),
             "phase": "living-core",
             "llm_connected": ai_reply.available,
             "provider": ai_reply.provider,

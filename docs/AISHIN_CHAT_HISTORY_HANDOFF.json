@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T21:38:00+10:00",
+  "generated_at": "2026-10-02T21:55:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -144,10 +144,11 @@
       "checks": [
         "python compileall",
         "scripts/self_check.py",
-        "scripts/runtime_smoke.py"
+        "scripts/runtime_smoke.py",
+        "Aishin.bat --check-only on Windows"
       ],
-      "latest_confirmed_run_id": 37001952014,
-      "latest_confirmed_head_sha": "eb54fae4d1d9f013fce741917f19401e4bfaecea"
+      "latest_confirmed_run_id": 37003479979,
+      "latest_confirmed_head_sha": "fbd6ecab07cccde5464a7bff5eb434959cf3166b"
     }
   },
   "implemented_architecture": [
@@ -775,7 +776,10 @@
     "Logic strategies are lifecycle-managed and deprecated strategies are excluded from recommendations.",
     "Recent explicit-feedback deterioration raises strategy drift_score and can demote a previously trusted strategy.",
     "Quality refresh avoids continuous SQLite writes when nothing materially changed.",
-    "Learning Quality Gate / Strategy Evolution / Drift & Decay validated on Windows and Ubuntu in GitHub Actions run 37001952014."
+    "Learning Quality Gate / Strategy Evolution / Drift & Decay validated on Windows and Ubuntu in GitHub Actions run 37001952014.",
+    "Aishin.bat no longer exits silently after uvicorn failure; server exit code is checked and errors keep the window open.",
+    "Launcher now detects and recreates a broken .venv, probes port 8765, detects an already-running Aishin instance, and records logs/launcher.log.",
+    "Windows CI now executes Aishin.bat --check-only; GitHub Actions run 37003479979 passed."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -816,18 +820,14 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Learning Quality Gate + Strategy Evolution + Drift/Decay completed, history saved, cross-platform runtime validated.",
-    "last_implemented_feature": "Lifecycle promotion/deprecation for learned patterns and logic strategies, age-based decay, recent-feedback drift and trusted-only cognition feedback.",
-    "next_recommended_step": "Self-Reflection Metrics + Learning Planner: detect recurring weak areas from verification errors, decision quality, performance, tool failures and user corrections; create internal improvement goals and safe experiments without changing real files/settings automatically.",
+    "milestone": "Windows launcher silent-close bug fixed and directly validated in Windows CI.",
+    "last_implemented_feature": "Resilient Aishin.bat with persistent diagnostics, broken-venv recovery, port probe, server exit handling, and launcher check-only CI.",
+    "next_recommended_step": "User should update/pull latest main and run Aishin.bat. If launch still fails, inspect logs/launcher.log; the window will now remain open and show the exact failing stage.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не смешивать память Aishin с TooruDragon.",
-      "Не подавать candidate/observed/deprecated pattern как подтверждённый опыт.",
-      "Не оставлять старую strategy вечным лидером без decay.",
-      "Не считать собственный ответ success feedback.",
-      "Не позволять Strategy Evolution обходить Verification, Permission Gate или Execution Coordinator.",
-      "Не переписывать личность через Continuous Learning."
+      "Не закрывать launcher молча при uvicorn failure."
     ]
   },
   "development_sequence_current_chat": [
@@ -934,6 +934,10 @@
     {
       "user_prompt": "Делай Learning Quality Gate + Strategy Evolution + Drift/Decay",
       "result": "Реализован Learning Quality Gate. Schema migration 13: learning_pattern_quality, strategy_quality_state, learning_quality_events. Patterns и strategies проходят candidate→observed→trusted→deprecated. Pattern half-life 30d, strategy half-life 45d, stale deprecation 120d. Effective score/reliability decay к neutral 0.5. Strategy drift сравнивает recent explicit feedback failures с историей. LogicLearning исключает deprecated и приоритизирует trusted по effective reliability. Continuous Learning prompt получает только trusted operational patterns. No-op quality refresh не пишет БД постоянно. Добавлены quality/strategies/quality-events APIs и Live Brain trusted count. GitHub Actions run 37001952014 успешно прошёл Windows + Ubuntu. История сохранена."
+    },
+    {
+      "user_prompt": "Aishin.bat не запускается открылся и закрылся",
+      "result": "Найдена ошибка launcher: после uvicorn Aishin.bat безусловно делал exit /b 0, поэтому быстрый server failure закрывал окно. Добавлены launcher_probe.py, persistent logs/launcher.log, broken .venv recovery, Python 3.11 detection, port 8765 diagnostics, existing-instance detection, explicit uvicorn exit-code handling, pause on failures, --check-only mode и Windows CI step. GitHub Actions run 37003479979 прошёл Windows + Ubuntu, Windows launcher preflight успешно выполнен."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [

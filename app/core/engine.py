@@ -68,6 +68,12 @@ class AishinEngine:
             personal=self.personal,
             events=self.events,
         )
+        self.last_cognitive_context: dict = {
+            "scope": "personal",
+            "query": "",
+            "semantic_used": False,
+            "memories": [],
+        }
 
     def startup(self) -> None:
         self.permissions.bootstrap()
@@ -138,6 +144,16 @@ class AishinEngine:
                 scope=state.current_scope,
                 limit=8,
             ),
+            "working_memory": (
+                self.last_cognitive_context
+                if self.last_cognitive_context.get("scope") == state.current_scope
+                else {
+                    "scope": state.current_scope,
+                    "query": "",
+                    "semantic_used": False,
+                    "memories": [],
+                }
+            ),
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(
                 limit=10,
@@ -175,6 +191,12 @@ class AishinEngine:
         planning_update = self.planner_builder.ingest(cleaned, scope=scope)
 
         context = self.cognition.build_context(cleaned, scope=scope)
+        self.last_cognitive_context = {
+            "scope": scope,
+            "query": cleaned[:500],
+            "semantic_used": context.semantic_used,
+            "memories": context.recalled_memories[:10],
+        }
         context.system_prompt += "\n\n" + self.sensors.prompt_block(scope=scope)
         context.system_prompt += "\n\n" + self.proactive.prompt_block(scope=scope)
         context.system_prompt += (

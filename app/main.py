@@ -628,7 +628,7 @@ def assistant_documents_list(
     )
 
 
-@app.get('/api/assistant/documents/{document_id}')
+@app.get('/api/assistant/documents/detail/{document_id}')
 def assistant_document_detail(
     document_id: int,
     scope: str = 'personal',

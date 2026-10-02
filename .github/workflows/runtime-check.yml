@@ -2,7 +2,7 @@ name: Aishin Runtime Check
 
 on:
   push:
-    branches: [main, release/00.00.04-live-brain]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

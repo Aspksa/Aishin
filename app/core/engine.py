@@ -16,6 +16,7 @@ from .long_term_growth import LongTermGrowthEngine
 from .cognitive_intelligence import CognitiveIntelligenceEngine
 from .evolution_engine import EvolutionEngine
 from .research_intelligence import AutonomousResearchEngine
+from .communication_intelligence import CommunicationIntelligenceEngine
 from .self_reflection import SelfReflectionMetrics
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
@@ -158,6 +159,9 @@ class AishinEngine:
             tools=self.tools,
             events=self.events,
         )
+        self.communication = CommunicationIntelligenceEngine(
+            events=self.events,
+        )
         self.live_brain = LiveBrainRuntime(self)
 
     def reload_ai(self) -> dict:
@@ -203,6 +207,9 @@ class AishinEngine:
         research = self.research.bootstrap(
             scope=state.current_scope,
         )
+        communication = self.communication.bootstrap(
+            scope=state.current_scope,
+        )
         self.events.emit(
             "aishin.started",
             scope=state.current_scope,
@@ -225,6 +232,14 @@ class AishinEngine:
                     "research_score": (
                         research.get("state") or {}
                     ).get("research_score"),
+                },
+                "communication": {
+                    "communication_score": communication.get(
+                        "communication_score"
+                    ),
+                    "persona_stability": communication.get(
+                        "persona_stability"
+                    ),
                 },
             },
             importance=0.6,
@@ -445,6 +460,11 @@ class AishinEngine:
                 evidence_limit=60,
                 cycle_limit=30,
             ),
+            "communication": self.communication.dashboard(
+                scope=state.current_scope,
+                turn_limit=40,
+                event_limit=50,
+            ),
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(
                 limit=10,
@@ -600,6 +620,30 @@ class AishinEngine:
                 "route_confidence": cognitive_route.route_confidence,
             },
             importance=0.2,
+        )
+
+        communication_plan = self.communication.prepare(
+            scope=scope,
+            request_id=request_id,
+            user_message=cleaned,
+            base_intent=intent,
+            logic_mode=logic_plan.mode,
+        )
+        perf.checkpoint("communication_plan")
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "phase": "communication",
+                "communication_intent": (
+                    communication_plan.communication_intent
+                ),
+                "strategy": communication_plan.strategy,
+                "depth": communication_plan.depth,
+                "tone": communication_plan.tone,
+            },
+            importance=0.14,
         )
 
         verification_report = None
@@ -857,7 +901,12 @@ class AishinEngine:
             "action_selection": action_selection.to_dict(),
             "cognitive_intelligence_route": cognitive_route.to_dict(),
             "research": research_run or {"status": "not_triggered"},
+            "communication": communication_plan.to_dict(),
         }
+        context.system_prompt += (
+            "\n\n"
+            + self.communication.prompt_block(communication_plan)
+        )
         if research_run and research_run.get("session_id"):
             context.system_prompt += (
                 "\n\n"
@@ -963,6 +1012,12 @@ class AishinEngine:
                 consolidation.to_dict(),
             )
 
+        communication_turn = self.communication.record_response(
+            scope=scope,
+            request_id=request_id,
+            assistant_message=reply,
+        )
+        perf.checkpoint("communication_response")
         perf.checkpoint("postprocess")
         performance = perf.finish(mode=logic_trace.mode)
         reflection = self.self_reflection.assess(
@@ -1004,6 +1059,7 @@ class AishinEngine:
         )
         evolution_state = self.evolution.state(scope=scope)
         research_state = self.research.state(scope=scope)
+        communication_state = self.communication.state(scope=scope)
         self.events.emit(
             "cognition.phase",
             scope=scope,
@@ -1039,6 +1095,18 @@ class AishinEngine:
             "current": cognitive_intelligence,
         }
         request_trace["research_state"] = research_state
+        request_trace["communication_state"] = communication_state
+        request_trace["communication_turn"] = {
+            "id": communication_turn.get("id"),
+            "strategy": communication_turn.get("strategy"),
+            "depth": communication_turn.get("depth"),
+            "tone": communication_turn.get("tone"),
+            "repetition_score": communication_turn.get(
+                "repetition_score"
+            ),
+            "persona_score": communication_turn.get("persona_score"),
+            "outcome": communication_turn.get("outcome"),
+        }
 
         trace_id = self.cognitive_traces.record(
             request_id=request_id,
@@ -1134,6 +1202,18 @@ class AishinEngine:
                         "conflicted_claim_count"
                     ),
                 },
+                "communication": {
+                    "turn_id": communication_turn.get("id"),
+                    "strategy": communication_turn.get("strategy"),
+                    "depth": communication_turn.get("depth"),
+                    "tone": communication_turn.get("tone"),
+                    "persona_score": communication_turn.get(
+                        "persona_score"
+                    ),
+                    "communication_score": communication_state.get(
+                        "communication_score"
+                    ),
+                },
             },
             importance=0.3,
         )
@@ -1195,6 +1275,11 @@ class AishinEngine:
             "research": {
                 "run": research_run,
                 "state": research_state,
+            },
+            "communication": {
+                "plan": communication_plan.to_dict(),
+                "turn": communication_turn,
+                "state": communication_state,
             },
             "proactive_intelligence": proactive_intelligence_report.to_dict(),
             "planner_notices": [

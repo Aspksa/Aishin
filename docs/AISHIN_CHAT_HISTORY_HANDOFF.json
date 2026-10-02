@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T20:42:00+10:00",
+  "generated_at": "2026-10-02T20:59:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -144,10 +144,14 @@
       "checks": [
         "python compileall",
         "scripts/self_check.py",
-        "scripts/runtime_smoke.py"
+        "scripts/runtime_smoke.py",
+        "atomic write temp+fsync+replace",
+        "expected SHA guard",
+        "backup integrity",
+        "rollback restore"
       ],
-      "latest_confirmed_run_id": 36996825381,
-      "latest_confirmed_head_sha": "7316f3bbb5562cc594652ce2bdec851cc0ca56e5"
+      "latest_confirmed_run_id": 36998386131,
+      "latest_confirmed_head_sha": "648ecf89c638dc5e2c69715558d2057002eeabf1"
     }
   },
   "implemented_architecture": [
@@ -470,6 +474,18 @@
         "scripts/runtime_smoke.py"
       ],
       "details": "Entity upsert now deep-merges data instead of replacing data_json. Null/blank incoming values cannot erase established facts. Lists are deduplicated. Entity/relation audit is emitted only on real changes. Repeated startup seed is audit-idempotent. Search is Unicode-safe via Python casefold and Verification graph shape is runtime-tested."
+    },
+    {
+      "layer": "Tool Registry Atomic Write / Rollback Hardening",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/tools.py",
+        "app/core/execution_coordinator.py",
+        "app/main.py",
+        "scripts/self_check.py",
+        "scripts/runtime_smoke.py"
+      ],
+      "details": "project.write_text now uses same-directory temp file, fsync and os.replace with expected-before SHA precondition. Backups are atomically written and hash-verified. project.rollback_write is destructive, verifies target/backup hashes and always requires fresh explicit approval."
     }
   ],
   "current_cognitive_flow": [
@@ -640,7 +656,8 @@
     "GET /api/assistant/ai-diagnostics",
     "GET /api/assistant/performance",
     "GET /api/assistant/proactive/conditions",
-    "POST /api/assistant/proactive/{decision_id}/acknowledge"
+    "POST /api/assistant/proactive/{decision_id}/acknowledge",
+    "POST /api/assistant/execution/attempts/{attempt_id}/rollback"
   ],
   "key_fixed_bugs_and_safety_changes": [
     "Исправлена SQL-ошибка кавычек в запросе active memories.",
@@ -707,7 +724,15 @@
     "Repeated startup seed is audit-idempotent.",
     "Knowledge Graph search now uses Unicode-safe Python casefold instead of SQLite LOWER(), fixing Cyrillic lookup such as Айшин.",
     "Verification-compatible graph result shape canonical_name + data dict is enforced by self-check/runtime smoke.",
-    "Knowledge Graph merge/audit suppression validated on Windows and Ubuntu in GitHub Actions run 36996825381."
+    "Knowledge Graph merge/audit suppression validated on Windows and Ubuntu in GitHub Actions run 36996825381.",
+    "project.write_text no longer writes directly to target; it uses same-directory temp + fsync + os.replace.",
+    "ExecutionCoordinator now injects a fresh expected-before SHA-256 into real file writes to prevent TOCTOU overwrite after approval.",
+    "Existing-file backup is itself atomically written and hash-verified before target replacement.",
+    "Rollback is a separate destructive Tool Registry operation and never reuses the original execution approval.",
+    "Rollback refuses to overwrite/remove a target that changed after the original write.",
+    "Rollback backup path is restricted to .aishin_backups and its hash is verified before restore.",
+    "Runtime smoke correctly recognizes local-only HTTP 403 as protection for nonlocal rollback calls.",
+    "Atomic write / rollback hardening validated on Windows and Ubuntu in GitHub Actions run 36998386131."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -748,18 +773,18 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Knowledge Graph merge/audit suppression completed, history saved, cross-platform runtime validated.",
-    "last_implemented_feature": "Deep merge entity data, no-op audit suppression, idempotent startup graph seed and Unicode-safe graph search.",
-    "next_recommended_step": "Tool Registry atomic write hardening: write-to-temp + fsync + atomic replace, expected-before hash validation, backup integrity verification and rollback executor behind a fresh Permission Gate approval.",
+    "milestone": "Tool Registry atomic write / rollback hardening completed, history saved, cross-platform runtime validated.",
+    "last_implemented_feature": "Atomic fsync+replace writes, expected-before SHA precondition, verified backups and separately-approved guarded rollback executor.",
+    "next_recommended_step": "Security and data-integrity hardening of audit payloads and filesystem sensors: recursive secret redaction for nested audit objects, bounded filesystem traversal/cache, and cleanup/retention policy for .aishin_backups plus old runtime audit rows.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не смешивать память Aishin с TooruDragon.",
-      "Не заменять entity data_json целиком при обычном upsert.",
-      "Не стирать известные graph fields через null/blank extraction.",
-      "Не писать graph_changes для no-op seed/upsert.",
-      "Не возвращать SQLite LOWER-only поиск для Unicode-имён.",
-      "Не обходить Permission Gate / Execution Coordinator."
+      "Не писать project files напрямую без atomic replace.",
+      "Не игнорировать expected-before SHA при coordinator write.",
+      "Не восстанавливать backup без проверки target after_sha256 и backup_sha256.",
+      "Не использовать старое execution approval для rollback.",
+      "Не обходить Permission Gate / local-only API guard."
     ]
   },
   "development_sequence_current_chat": [
@@ -854,6 +879,10 @@
     {
       "user_prompt": "Делай",
       "result": "Закрыт Knowledge Graph merge/audit suppression. Entity data теперь deep-merge вместо overwrite; null/blank не стирают факты; list dedupe; graph_changes только на реальные create/update; startup seed идемпотентен по audit. Усиленный CI выявил старый баг SQLite LOWER для кириллицы: существующая Айшин не находилась поиском. Поиск переведён на Unicode-safe Python casefold по canonical_name + data. Verification shape проверяется self-check/runtime smoke. Финальный GitHub Actions run 36996825381 прошёл Windows + Ubuntu. Schema остаётся 11. История сохранена."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Закрыт Tool Registry atomic write hardening. project.write_text переведён на same-directory temp + flush/fsync + os.replace + final SHA verification; добавлен expected_sha256/__missing__ precondition; Coordinator передаёт свежий expected SHA после revalidation; backup пишется атомарно и проверяется по hash. Добавлен destructive project.rollback_write и POST /execution/attempts/{attempt_id}/rollback с отдельным свежим approval; rollback проверяет target after_sha256 и backup integrity. Self-check использует TemporaryDirectory. Первый smoke-тест встретил корректный local-only 403 вместо ожидаемого 400; ожидание исправлено. Финальный GitHub Actions run 36998386131 прошёл Windows + Ubuntu. Schema остаётся 11. История сохранена."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -870,9 +899,10 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать Knowledge Graph merge/audit suppression реализованным; schema остаётся 11.",
-      "Не возвращать overwrite entity data_json и SQLite LOWER-only search.",
-      "Следующий этап: atomic Tool Registry writes + expected hash validation + rollback hardening."
+      "Считать atomic Tool Registry write + guarded rollback реализованными; schema остаётся 11.",
+      "Не возвращать direct path.write_bytes для project.write_text.",
+      "Не выполнять rollback старым approval исходной операции.",
+      "Следующий этап: recursive audit secret redaction + bounded filesystem sensor traversal + backup/audit retention."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -1877,6 +1907,38 @@
         "startup seed audit idempotence",
         "verification-compatible graph search shape"
       ]
+    }
+  },
+  "tool_registry_atomic_write": {
+    "schema_version_change": "none; remains 11",
+    "repository_path": "app/core/tools.py",
+    "write_pipeline": [
+      "safe path resolution",
+      "current file SHA-256",
+      "expected SHA-256 or __missing__ precondition",
+      "atomic/hash-verified backup for existing file",
+      "same-directory temporary file",
+      "flush",
+      "fsync(temp)",
+      "os.replace(temp,target)",
+      "fsync(parent directory where supported)",
+      "verify final SHA-256"
+    ],
+    "coordinator_toctou_guard": "ExecutionCoordinator derives expected_sha256 from fresh pre-execution preview and injects it into the real write, closing the preview→write race window.",
+    "rollback": {
+      "tool": "project.rollback_write",
+      "destructive": true,
+      "fresh_approval_required": true,
+      "target_guard": "current target SHA must equal original operation after_sha256",
+      "backup_guard": "backup path must resolve under .aishin_backups and backup SHA must match metadata",
+      "existing_file": "atomic restore from verified backup",
+      "created_file": "remove only if file still has original after_sha256"
+    },
+    "api": "POST /api/assistant/execution/attempts/{attempt_id}/rollback",
+    "validation": {
+      "run_id": 36998386131,
+      "windows": "success",
+      "ubuntu": "success"
     }
   }
 }

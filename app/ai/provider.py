@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 
@@ -10,6 +10,11 @@ class AIReply:
     provider: str
     model: str
     available: bool = True
+    error: str = ""
+    error_code: str = ""
+    attempts: int = 1
+    latency_ms: int = 0
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -20,6 +25,10 @@ class EmbeddingReply:
     dimensions: int
     available: bool = True
     error: str = ""
+    error_code: str = ""
+    attempts: int = 1
+    latency_ms: int = 0
+    metadata: dict = field(default_factory=dict)
 
 
 class AIProvider(Protocol):

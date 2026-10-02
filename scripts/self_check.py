@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -18,6 +19,7 @@ def _configure_utf8_output() -> None:
 _configure_utf8_output()
 
 from app.core.engine import AishinEngine
+from app.core.tools import ToolRegistry
 from app.db import _merge_graph_data, connect, database_schema_status, init_db
 from app.personality import personality
 

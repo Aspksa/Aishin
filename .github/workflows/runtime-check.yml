@@ -34,6 +34,9 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q app scripts
 
+      - name: Check browser JavaScript
+        run: node --check app/static/app.js
+
       - name: Core self-check
         run: python scripts/self_check.py
 

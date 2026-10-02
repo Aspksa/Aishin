@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ..db import (
-    add_relation,
+    add_relation_with_change,
     graph_neighborhood,
     graph_stats,
     list_entities,
@@ -9,7 +9,7 @@ from ..db import (
     log_graph_change,
     recent_graph_changes,
     search_entities,
-    upsert_entity,
+    upsert_entity_with_change,
 )
 
 
@@ -25,22 +25,26 @@ class KnowledgeGraph:
         data: dict | None = None,
         evidence: str = "",
     ) -> int:
-        entity_id = upsert_entity(
+        result = upsert_entity_with_change(
             scope,
             entity_type,
             name.strip(),
             data or {},
         )
-        log_graph_change(
-            scope,
-            "entity_upsert",
-            entity_id=entity_id,
-            details={
-                "entity_type": entity_type,
-                "name": name.strip(),
-                "evidence": evidence,
-            },
-        )
+        entity_id = int(result["id"])
+        if result["changed"]:
+            log_graph_change(
+                scope,
+                "entity_create" if result["created"] else "entity_update",
+                entity_id=entity_id,
+                details={
+                    "entity_type": entity_type,
+                    "name": name.strip(),
+                    "evidence": evidence,
+                    "before": result["before"],
+                    "after": result["data"],
+                },
+            )
         return entity_id
 
     def relate(
@@ -53,7 +57,7 @@ class KnowledgeGraph:
         confidence: float = 1.0,
         evidence: str = "",
     ) -> int:
-        relation_id = add_relation(
+        result = add_relation_with_change(
             scope,
             source_id,
             relation_type,
@@ -61,18 +65,21 @@ class KnowledgeGraph:
             confidence,
             evidence,
         )
-        log_graph_change(
-            scope,
-            "relation_upsert",
-            relation_id=relation_id,
-            details={
-                "source_id": source_id,
-                "relation_type": relation_type,
-                "target_id": target_id,
-                "confidence": confidence,
-                "evidence": evidence,
-            },
-        )
+        relation_id = int(result["id"])
+        if result["changed"]:
+            log_graph_change(
+                scope,
+                "relation_create" if result["created"] else "relation_update",
+                relation_id=relation_id,
+                details={
+                    "source_id": source_id,
+                    "relation_type": relation_type,
+                    "target_id": target_id,
+                    "confidence": confidence,
+                    "evidence": evidence,
+                    "before": result["before"],
+                },
+            )
         return relation_id
 
     def neighborhood(self, entity_id: int, *, scope: str) -> list[dict]:

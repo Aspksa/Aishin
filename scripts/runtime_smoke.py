@@ -172,6 +172,32 @@ def main() -> int:
                 "patterns": len(learning_patterns.json()),
             }
 
+            learning_quality = client.get(
+                "/api/assistant/continuous-learning/quality",
+                params={"scope": "personal"},
+            )
+            if learning_quality.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/continuous-learning/quality returned HTTP "
+                    f"{learning_quality.status_code}"
+                )
+
+            strategy_evolution = client.get(
+                "/api/assistant/continuous-learning/strategies",
+                params={"scope": "personal", "limit": 3},
+            )
+            if strategy_evolution.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/continuous-learning/strategies returned HTTP "
+                    f"{strategy_evolution.status_code}"
+                )
+
+            checks["learning_quality"] = {
+                "status": "ok",
+                "quality": learning_quality.json(),
+                "strategies": len(strategy_evolution.json()),
+            }
+
             performance = client.get(
                 "/api/assistant/performance",
                 params={"scope": "personal", "limit": 1},

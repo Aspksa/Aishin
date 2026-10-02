@@ -64,7 +64,7 @@ class CloudSettingsService:
                 str(self.env_path),
                 name,
                 value,
-                quote_mode="never",
+                quote_mode="always",
             )
             os.environ[name] = value
 
@@ -75,6 +75,10 @@ class CloudSettingsService:
             quote_mode="never",
         )
         os.environ["AISHIN_CLOUDRU_API_KEY"] = key
+        try:
+            self.env_path.chmod(0o600)
+        except OSError:
+            pass
         return self.public_status()
 
     def test(self) -> dict:

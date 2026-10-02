@@ -65,7 +65,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.8', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.9', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -152,6 +152,37 @@ class ProactiveFeedback(BaseModel):
     reason: str = ''
 
 
+class ResearchQueryRequest(BaseModel):
+    scope: str = 'personal'
+    question: str
+    synthesize: bool = True
+    gap_id: int | None = None
+
+
+class ResearchCycleRequest(BaseModel):
+    scope: str = 'personal'
+    max_sessions: int = 2
+    synthesize: bool = False
+
+
+class ResearchSourceCreate(BaseModel):
+    scope: str = 'personal'
+    source_key: str
+    source_type: str
+    label: str
+    locator: str = ''
+    independent_group: str = ''
+    trust_prior: float = 0.7
+    enabled: bool = True
+    auto_read: bool = False
+    metadata: dict = Field(default_factory=dict)
+
+
+class ResearchContradictionResolve(BaseModel):
+    scope: str = 'personal'
+    resolution: str
+
+
 class CloudSettingsUpdate(BaseModel):
     api_key: str
 
@@ -168,7 +199,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.8',
+        'version': '0.0.9',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -353,6 +384,200 @@ def assistant_evolution_cycles(
         scope=scope,
         limit=max(1, min(limit, 500)),
     )
+
+
+@app.get('/api/assistant/research')
+def assistant_research(
+    scope: str = 'personal',
+    gap_limit: int = 60,
+    session_limit: int = 40,
+    claim_limit: int = 80,
+    evidence_limit: int = 100,
+    cycle_limit: int = 40,
+) -> dict:
+    return engine.research.dashboard(
+        scope=scope,
+        gap_limit=max(1, min(gap_limit, 300)),
+        session_limit=max(1, min(session_limit, 300)),
+        claim_limit=max(1, min(claim_limit, 500)),
+        evidence_limit=max(1, min(evidence_limit, 500)),
+        cycle_limit=max(1, min(cycle_limit, 300)),
+    )
+
+
+@app.post('/api/assistant/research/query')
+def assistant_research_query(
+    payload: ResearchQueryRequest,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    question = payload.question.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail='Research question is empty')
+    try:
+        run = engine.research.research_query(
+            scope=payload.scope.strip() or 'personal',
+            question=question,
+            trigger='manual_query',
+            gap_id=payload.gap_id,
+            synthesize=payload.synthesize,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {
+        'run': run.to_dict(),
+        'evidence': engine.research.evidence(
+            scope=run.scope,
+            session_id=run.session_id,
+            limit=120,
+        ),
+        'claims': engine.research.claims(
+            scope=run.scope,
+            session_id=run.session_id,
+            limit=80,
+        ),
+        'contradictions': engine.research.contradictions(
+            scope=run.scope,
+            session_id=run.session_id,
+            status=None,
+            limit=80,
+        ),
+    }
+
+
+@app.post('/api/assistant/research/cycle')
+def assistant_research_cycle(
+    payload: ResearchCycleRequest,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    return engine.research.run_cycle(
+        scope=payload.scope.strip() or 'personal',
+        trigger='manual',
+        max_sessions=max(0, min(payload.max_sessions, 5)),
+        synthesize=payload.synthesize,
+    )
+
+
+@app.get('/api/assistant/research/gaps')
+def assistant_research_gaps(
+    scope: str = 'personal',
+    status: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.research.gaps(
+        scope=scope,
+        status=status,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/research/sessions')
+def assistant_research_sessions(
+    scope: str = 'personal',
+    limit: int = 80,
+) -> list[dict]:
+    return engine.research.sessions(
+        scope=scope,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/research/claims')
+def assistant_research_claims(
+    scope: str = 'personal',
+    session_id: int | None = None,
+    status: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.research.claims(
+        scope=scope,
+        session_id=session_id,
+        status=status,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/research/evidence')
+def assistant_research_evidence(
+    scope: str = 'personal',
+    session_id: int | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    if session_id is not None:
+        return engine.research.evidence(
+            scope=scope,
+            session_id=session_id,
+            limit=max(1, min(limit, 500)),
+        )
+    return engine.research.recent_evidence(
+        scope=scope,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/research/sources')
+def assistant_research_sources(
+    scope: str = 'personal',
+    limit: int = 100,
+) -> list[dict]:
+    return engine.research.sources(
+        scope=scope,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.post('/api/assistant/research/sources')
+def assistant_research_source_create(
+    payload: ResearchSourceCreate,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.research.register_source(
+            scope=payload.scope.strip() or 'personal',
+            source_key=payload.source_key,
+            source_type=payload.source_type,
+            label=payload.label,
+            locator=payload.locator,
+            independent_group=payload.independent_group,
+            trust_prior=payload.trust_prior,
+            enabled=payload.enabled,
+            auto_read=payload.auto_read,
+            metadata=payload.metadata,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get('/api/assistant/research/contradictions')
+def assistant_research_contradictions(
+    scope: str = 'personal',
+    status: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.research.contradictions(
+        scope=scope,
+        status=status,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.post('/api/assistant/research/contradictions/{contradiction_id}/resolve')
+def assistant_research_contradiction_resolve(
+    contradiction_id: int,
+    payload: ResearchContradictionResolve,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.research.resolve_contradiction(
+            contradiction_id,
+            scope=payload.scope.strip() or 'personal',
+            resolution=payload.resolution,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get('/api/assistant/growth')

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import sys
 from pathlib import Path
@@ -92,6 +93,14 @@ def main() -> int:
                 'id="communication-runtime"',
                 'id="communication-prefs"',
                 'id="communication-events"',
+                '/static/documents.css',
+                '/static/documents.js',
+                'id="documents-module"',
+                'id="documents-score"',
+                'id="documents-list"',
+                'id="documents-facts"',
+                'id="documents-conflicts"',
+                'id="documents-upload-btn"',
             )
             missing_ui = [
                 marker for marker in required_ui
@@ -139,18 +148,18 @@ def main() -> int:
                     f"/health returned HTTP {health.status_code}: {health.text[:300]}"
                 )
             health_data = health.json()
-            if health_data.get("version") != "0.0.10":
+            if health_data.get("version") != "0.0.11":
                 raise RuntimeError(
-                    "Health должен сообщать Aishin Core 0.0.10"
+                    "Health должен сообщать Aishin Core 0.0.11"
                 )
             with connect() as conn:
                 schema_row = conn.execute(
                     "SELECT MAX(version) AS version FROM schema_migrations"
                 ).fetchone()
             schema_version = int(schema_row["version"] or 0)
-            if schema_version != 22:
+            if schema_version != 23:
                 raise RuntimeError(
-                    f"Ожидалась database schema 22, получено {schema_version}"
+                    f"Ожидалась database schema 23, получено {schema_version}"
                 )
             checks["health"] = {
                 **health_data,
@@ -1485,6 +1494,331 @@ def main() -> int:
                 "phrase_library_version": "2.2.0",
             }
 
+            document_scope = "smoke:documents-v1"
+            with connect() as conn:
+                conn.execute(
+                    "DELETE FROM research_contradictions WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_claims WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_evidence WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_sessions WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_gaps WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_cycles WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_events WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_sources WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_state WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    """DELETE FROM document_chunk_vectors
+                       WHERE scope=?""",
+                    (document_scope,),
+                )
+                conn.execute(
+                    """DELETE FROM document_contradictions
+                       WHERE scope=?""",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_facts WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_chunks WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_sections WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_pages WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    """DELETE FROM document_ingestion_runs
+                       WHERE scope=?""",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_events WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM documents WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_state WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM relations WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM entities WHERE scope=?",
+                    (document_scope,),
+                )
+                conn.commit()
+
+            document_body = (
+                "РЕГЛАМЕНТ ГСМ\n"
+                "Норма расхода: 12 литров на 100 км\n"
+                "Ответственный: Отдел эксплуатации\n"
+                "Дата утверждения: 01.01.2025\n"
+                "Настоящий регламент определяет порядок контроля "
+                "расхода топлива и проверки путевых листов. "
+                "Каждое значение должно сверяться с первичным "
+                "документом и карточкой автомобиля.\n"
+                + "\n".join(
+                    f"Контрольный пункт {i}: проверка пробега, топлива "
+                    "и подтверждающих документов выполняется до "
+                    "закрытия отчётного периода."
+                    for i in range(1, 18)
+                )
+            ).encode("utf-8")
+            document_v1 = engine.documents.ingest_bytes(
+                scope=document_scope,
+                filename="Регламент ГСМ 2025.txt",
+                data=document_body,
+                media_type="text/plain",
+                trigger="runtime_smoke",
+                enrich_with_ai=False,
+                build_semantic_index=False,
+            )
+            if document_v1.status != "studied":
+                raise RuntimeError(
+                    "Качественный TXT должен пройти Document Quality Gate"
+                )
+            if document_v1.quality_score < 0.70:
+                raise RuntimeError(
+                    "Document quality unexpectedly below gate"
+                )
+            detail_v1 = engine.documents.document_detail(
+                document_v1.document_id,
+                scope=document_scope,
+            )
+            chunks_v1 = detail_v1.get("chunks") or []
+            if not chunks_v1:
+                raise RuntimeError(
+                    "Document Intelligence не создал chunks"
+                )
+            if not all(
+                isinstance(item.get("provenance"), dict)
+                and item.get("provenance", {}).get("document_id")
+                == document_v1.document_id
+                for item in chunks_v1
+            ):
+                raise RuntimeError(
+                    "Каждый document chunk должен иметь provenance"
+                )
+            if not any(
+                item.get("status") == "grounded"
+                and item.get("fact_type") == "key_value"
+                for item in detail_v1.get("facts") or []
+            ):
+                raise RuntimeError(
+                    "Quality Gate не создал grounded key/value facts"
+                )
+
+            exact_duplicate = engine.documents.ingest_bytes(
+                scope=document_scope,
+                filename="Регламент ГСМ 2025 copy.txt",
+                data=document_body,
+                media_type="text/plain",
+                trigger="runtime_smoke_duplicate",
+                enrich_with_ai=False,
+                build_semantic_index=False,
+            )
+            if (
+                not exact_duplicate.duplicate
+                or exact_duplicate.document_id
+                != document_v1.document_id
+            ):
+                raise RuntimeError(
+                    "SHA-256 duplicate должен переиспользовать document_id"
+                )
+
+            document_body_v2 = document_body.decode("utf-8").replace(
+                "12 литров на 100 км",
+                "13 литров на 100 км",
+            ).replace(
+                "01.01.2025",
+                "01.01.2026",
+            ).encode("utf-8")
+            document_v2 = engine.documents.ingest_bytes(
+                scope=document_scope,
+                filename="Регламент ГСМ 2026.txt",
+                data=document_body_v2,
+                media_type="text/plain",
+                trigger="runtime_smoke_version",
+                enrich_with_ai=False,
+                build_semantic_index=False,
+            )
+            detail_v2 = engine.documents.document_detail(
+                document_v2.document_id,
+                scope=document_scope,
+            )
+            if (
+                detail_v2.get("document", {}).get("previous_version_id")
+                != document_v1.document_id
+            ):
+                raise RuntimeError(
+                    "Version Intelligence не связал новую редакцию "
+                    "с предыдущей"
+                )
+            document_conflicts = engine.documents.contradictions(
+                scope=document_scope,
+                status="open",
+                limit=50,
+            )
+            if not document_conflicts:
+                raise RuntimeError(
+                    "Разные grounded значения двух версий должны "
+                    "создать document contradiction"
+                )
+
+            document_search = engine.documents.search(
+                "норма расхода топлива",
+                scope=document_scope,
+                limit=10,
+            )
+            if not document_search:
+                raise RuntimeError(
+                    "Lexical document retrieval не нашёл изученный регламент"
+                )
+            if not isinstance(
+                document_search[0].get("provenance"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Document retrieval должен сохранять provenance"
+                )
+
+            document_research = engine.research.research_query(
+                scope=document_scope,
+                question="норма расхода топлива",
+                trigger="runtime_smoke_document",
+                synthesize=False,
+                offline_only=True,
+            )
+            document_evidence = engine.research.evidence(
+                scope=document_scope,
+                session_id=document_research.session_id,
+                limit=50,
+            )
+            if not any(
+                item.get("source_type") == "document"
+                and isinstance(
+                    item.get("metadata", {}).get("provenance"),
+                    dict,
+                )
+                for item in document_evidence
+            ):
+                raise RuntimeError(
+                    "Research Intelligence не получил document evidence "
+                    "с provenance"
+                )
+
+            png_1x1 = base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
+                "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+            )
+            scan_result = engine.documents.ingest_bytes(
+                scope=document_scope,
+                filename="Скан без OCR.png",
+                data=png_1x1,
+                media_type="image/png",
+                trigger="runtime_smoke_ocr",
+                enrich_with_ai=False,
+                build_semantic_index=False,
+            )
+            if (
+                scan_result.status != "needs_ocr"
+                or not scan_result.ocr_required
+                or scan_result.quality_score > 0.28
+            ):
+                raise RuntimeError(
+                    "Image без OCR adapter должен оставаться needs_ocr"
+                )
+            scan_detail = engine.documents.document_detail(
+                scan_result.document_id,
+                scope=document_scope,
+            )
+            if any(
+                item.get("status") == "grounded"
+                for item in scan_detail.get("facts") or []
+            ):
+                raise RuntimeError(
+                    "OCR-required image не должен создавать grounded facts"
+                )
+
+            documents_api = client.get(
+                "/api/assistant/documents",
+                params={"scope": document_scope},
+            )
+            if documents_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/documents returned HTTP "
+                    f"{documents_api.status_code}"
+                )
+            document_dashboard = documents_api.json()
+            if document_dashboard.get("version") != (
+                "aishin-document-intelligence-v1"
+            ):
+                raise RuntimeError(
+                    "Document Intelligence API вернул несовместимую версию"
+                )
+            document_detail_api = client.get(
+                f"/api/assistant/documents/detail/"
+                f"{document_v1.document_id}",
+                params={"scope": document_scope},
+            )
+            if document_detail_api.status_code != 200:
+                raise RuntimeError(
+                    "Document detail API недоступен"
+                )
+
+            checks["document_intelligence"] = {
+                "status": "ok",
+                "version": document_dashboard.get("version"),
+                "quality_gate": True,
+                "provenance": True,
+                "exact_duplicate": True,
+                "version_link": True,
+                "contradiction_detection": True,
+                "lexical_retrieval": True,
+                "research_evidence": True,
+                "ocr_honesty": True,
+                "documents": len(
+                    document_dashboard.get("documents") or []
+                ),
+            }
+
             live_brain = client.get(
                 "/api/assistant/live-brain",
                 params={
@@ -1530,9 +1864,9 @@ def main() -> int:
             export_data = live_brain_export.json()
             if export_data.get("format") != "AISHIN_LIVE_BRAIN_EXPORT":
                 raise RuntimeError("Live Brain export format несовместим")
-            if int(export_data.get("format_version") or 0) != 8:
+            if int(export_data.get("format_version") or 0) != 9:
                 raise RuntimeError(
-                    "Live Brain export format должен быть version 8"
+                    "Live Brain export format должен быть version 9"
                 )
             if not isinstance(
                 live_brain_data.get("cognitive_intelligence"),
@@ -1568,6 +1902,13 @@ def main() -> int:
             ):
                 raise RuntimeError(
                     "Live Brain должен включать Communication Intelligence"
+                )
+            if not isinstance(
+                live_brain_data.get("documents"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Live Brain должен включать Document Intelligence"
                 )
 
             checks["live_brain_runtime"] = {

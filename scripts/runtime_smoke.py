@@ -553,16 +553,10 @@ def main() -> int:
                 )
             proactive_task_id = int(proactive_task.json()["id"])
 
-            proactive_scan = client.post(
-                "/api/assistant/proactive-intelligence/scan",
-                params={"scope": "personal"},
-            )
-            if proactive_scan.status_code != 200:
-                raise RuntimeError(
-                    f"Proactive Intelligence scan returned HTTP "
-                    f"{proactive_scan.status_code}: {proactive_scan.text[:300]}"
-                )
-            proactive_scan_data = proactive_scan.json()
+            proactive_scan_data = engine.proactive_intelligence.evaluate(
+                scope="personal",
+                trigger="runtime_smoke",
+            ).to_dict()
             if not 0.0 <= float(
                 proactive_scan_data.get("awareness_score") or 0.0
             ) <= 100.0:
@@ -666,23 +660,13 @@ def main() -> int:
                         "исполняемый tool proposal"
                     )
 
-            proactive_feedback = client.post(
-                "/api/assistant/proactive-intelligence/incidents/"
-                f"{int(overdue_incident['id'])}/feedback",
-                json={
-                    "scope": "personal",
-                    "feedback": "noisy",
-                    "reason": "runtime smoke suppression check",
-                },
+            proactive_feedback = engine.proactive_intelligence.feedback(
+                int(overdue_incident["id"]),
+                scope="personal",
+                feedback="noisy",
+                reason="runtime smoke suppression check",
             )
-            if proactive_feedback.status_code != 200:
-                raise RuntimeError(
-                    f"Proactive feedback returned HTTP "
-                    f"{proactive_feedback.status_code}"
-                )
-            feedback_incident = (
-                proactive_feedback.json().get("incident") or {}
-            )
+            feedback_incident = proactive_feedback.get("incident") or {}
             if feedback_incident.get("status") != "snoozed":
                 raise RuntimeError(
                     "Noisy feedback должен временно подавлять incident"
@@ -692,12 +676,10 @@ def main() -> int:
                     "Noisy feedback должен сохранять snoozed_until"
                 )
 
-            proactive_rescan = client.post(
-                "/api/assistant/proactive-intelligence/scan",
-                params={"scope": "personal"},
+            engine.proactive_intelligence.evaluate(
+                scope="personal",
+                trigger="runtime_smoke_rescan",
             )
-            if proactive_rescan.status_code != 200:
-                raise RuntimeError("Повторный proactive scan завершился ошибкой")
             incident_after_rescan = engine.proactive_intelligence.incident(
                 int(overdue_incident["id"]),
                 scope="personal",
@@ -719,9 +701,9 @@ def main() -> int:
                 raise RuntimeError(
                     "Не удалось завершить proactive smoke task"
                 )
-            client.post(
-                "/api/assistant/proactive-intelligence/scan",
-                params={"scope": "personal"},
+            engine.proactive_intelligence.evaluate(
+                scope="personal",
+                trigger="runtime_smoke_cleanup",
             )
 
             checks["proactive_intelligence"] = {

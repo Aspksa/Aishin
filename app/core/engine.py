@@ -11,6 +11,7 @@ from .context_orchestrator import ContextOrchestrator
 from .context_budgeter import ContextBudgeter
 from .continuous_learning import ContinuousLearningEngine
 from .development_metrics import DevelopmentMetricsEngine
+from .live_brain import LiveBrainRuntime
 from .self_reflection import SelfReflectionMetrics
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
@@ -127,6 +128,7 @@ class AishinEngine:
             events=self.events,
         )
         self.development = DevelopmentMetricsEngine()
+        self.live_brain = LiveBrainRuntime(self)
 
     def reload_ai(self) -> dict:
         """Reload Cloud/provider settings from current environment safely."""
@@ -393,15 +395,56 @@ class AishinEngine:
             scope=scope,
         )
         perf.checkpoint("memory_consolidation")
+        consolidation_data = consolidation.to_dict()
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "phase": "memory",
+                "created": consolidation_data.get("created", 0),
+                "reinforced": consolidation_data.get("reinforced", 0),
+            },
+            importance=0.15,
+        )
 
         graph_update = self.graph_builder.ingest(cleaned, scope=scope)
         perf.checkpoint("graph_builder")
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "phase": "graph",
+            },
+            importance=0.15,
+        )
 
         planning_update = self.planner_builder.ingest(cleaned, scope=scope)
         perf.checkpoint("planner_builder")
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "phase": "planner",
+            },
+            importance=0.15,
+        )
 
         context = self.cognition.build_context(cleaned, scope=scope)
         perf.checkpoint("cognition")
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "phase": "context",
+                "memory_sources": len(context.recalled_memories),
+                "semantic_used": context.semantic_used,
+            },
+            importance=0.15,
+        )
         planner_notices = [
             notice.__dict__
             for notice in self.planner.inspect(scope=scope)
@@ -572,6 +615,28 @@ class AishinEngine:
             ),
         )
         perf.checkpoint("logic_pipeline")
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "phase": "logic",
+                "mode": logic_trace.mode,
+                "confidence": logic_trace.confidence,
+            },
+            importance=0.2,
+        )
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "phase": "decision",
+                "mode": logic_trace.mode,
+                "quality": decision_quality.overall,
+            },
+            importance=0.2,
+        )
 
         context.system_prompt, context_trace = self.context_orchestrator.compose(
             cleaned,
@@ -651,6 +716,16 @@ class AishinEngine:
         )
         perf.checkpoint("context_budget")
 
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "phase": "provider",
+                "mode": logic_trace.mode,
+            },
+            importance=0.15,
+        )
         ai_reply = self.ai.chat(
             system=budgeted_system_prompt,
             messages=budgeted_messages,
@@ -698,6 +773,28 @@ class AishinEngine:
             reflection=reflection.to_dict(),
             open_plans=learning_plans,
         )
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "phase": "reflection",
+                "mode": logic_trace.mode,
+                "quality": reflection.quality_score,
+            },
+            importance=0.15,
+        )
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "phase": "learning",
+                "plans": len(learning_plans),
+                "experiments": len(experiment_updates),
+            },
+            importance=0.15,
+        )
 
         request_trace["performance"] = performance
         request_trace["context_budget"] = context_budget_report.to_dict()
@@ -712,6 +809,17 @@ class AishinEngine:
             trace=request_trace,
             provider=provider_runtime,
             status="completed" if ai_reply.available else "fallback",
+        )
+        self.events.emit(
+            "cognition.phase",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "trace_id": trace_id,
+                "phase": "completed",
+                "status": "completed" if ai_reply.available else "fallback",
+            },
+            importance=0.15,
         )
 
         add_message("assistant", reply, scope=scope)

@@ -4,9 +4,10 @@ from ..ai import AIManager
 from ..db import add_message, recent_messages
 from ..personality import personality
 from .cognition import Cognition
+from .consolidation import MemoryConsolidator
 from .events import EventBus
-from .memory import MemoryCandidate, MemorySystem
 from .graph import KnowledgeGraph
+from .memory import MemorySystem
 from .observer import Observer
 from .permissions import PermissionGate
 from .personal import PersonalAishin
@@ -14,18 +15,24 @@ from .state import StateManager
 
 
 class AishinEngine:
-    """Persistent identity + memory + cognition + replaceable AI brain."""
+    """Persistent identity + personal continuity + memory + replaceable AI brain."""
 
     def __init__(self) -> None:
         self.memory = MemorySystem()
         self.events = EventBus()
         self.state = StateManager()
-        self.cognition = Cognition(self.memory)
         self.ai = AIManager()
+        self.personal = PersonalAishin()
+        self.cognition = Cognition(self.memory)
         self.graph = KnowledgeGraph()
         self.permissions = PermissionGate()
         self.observer = Observer(self.state, self.events)
-        self.personal = PersonalAishin()
+        self.consolidator = MemoryConsolidator(
+            ai=self.ai,
+            memory=self.memory,
+            personal=self.personal,
+            events=self.events,
+        )
 
     def startup(self) -> None:
         self.permissions.bootstrap()
@@ -43,18 +50,29 @@ class AishinEngine:
 
     def snapshot(self) -> dict:
         state = self.state.load()
+        personal = self.personal.context(scope=state.current_scope)
         return {
             "identity": personality.public_summary(),
             "state": state.to_dict(),
             "ai": self.ai.health(),
-            "permissions": {k: self.permissions.mode(k) for k in self.permissions.SAFE_DEFAULTS},
+            "permissions": {
+                key: self.permissions.mode(key)
+                for key in self.permissions.SAFE_DEFAULTS
+            },
             "observations": [o.__dict__ for o in self.observer.inspect()],
             "recent_events": self.events.recent(limit=10),
-            "recent_memories": self.memory.recent(scope=state.current_scope, limit=8),
-            "recent_messages": recent_messages(limit=10, scope=state.current_scope),
-            "master_profile": self.personal.profile(),
-            "relationship_memory": self.personal.context(scope=state.current_scope).relationship_memory,
-            "personal_timeline": self.personal.context(scope=state.current_scope).timeline,
+            "recent_memories": self.memory.recent(
+                scope=state.current_scope,
+                limit=8,
+            ),
+            "memory_changes": self.memory.recent_changes(limit=12),
+            "recent_messages": recent_messages(
+                limit=10,
+                scope=state.current_scope,
+            ),
+            "master_profile": personal.master_profile,
+            "relationship_memory": personal.relationship_memory,
+            "personal_timeline": personal.timeline,
         }
 
     def respond(self, message: str, *, scope: str = "personal") -> dict:
@@ -65,7 +83,6 @@ class AishinEngine:
         state.current_scope = scope
         self.state.save(state)
 
-        context = self.cognition.build_context(cleaned, scope=scope)
         history = recent_messages(limit=12, scope=scope)
 
         self.events.emit(
@@ -75,47 +92,14 @@ class AishinEngine:
             importance=0.4,
         )
 
-        if intent == "memory":
-            self.memory.remember(
-                MemoryCandidate(
-                    content=cleaned,
-                    kind="user_instruction",
-                    scope=scope,
-                    confidence=1.0,
-                    importance=0.9,
-                    tags=("explicit", "conversation"),
-                ),
-                source="explicit_user_request",
-            )
-            self.events.emit(
-                "memory.saved",
-                scope=scope,
-                payload={"kind": "user_instruction"},
-                importance=0.7,
-            )
-            if self.personal.looks_relationship_explicit(cleaned):
-                self.personal.remember_relationship(
-                    cleaned,
-                    kind="shared_decision",
-                    importance=0.9,
-                    confidence=1.0,
-                    source="explicit_user_request",
-                )
-                self.personal.add_timeline(
-                    event_type="shared_decision",
-                    title="Совместная договорённость",
-                    details=cleaned,
-                    scope="relationship",
-                    importance=0.9,
-                )
-                self.events.emit(
-                    "relationship_memory.saved",
-                    scope="relationship",
-                    payload={"kind": "shared_decision"},
-                    importance=0.8,
-                )
-
         add_message("user", cleaned, scope=scope)
+
+        consolidation = self.consolidator.consolidate_turn(
+            cleaned,
+            scope=scope,
+        )
+
+        context = self.cognition.build_context(cleaned, scope=scope)
 
         model_messages = [
             {"role": item["role"], "content": item["content"]}
@@ -124,11 +108,20 @@ class AishinEngine:
         ]
         model_messages.append({"role": "user", "content": cleaned})
 
-        ai_reply = self.ai.chat(system=context.system_prompt, messages=model_messages)
+        ai_reply = self.ai.chat(
+            system=context.system_prompt,
+            messages=model_messages,
+        )
+
         if ai_reply.available:
             reply = ai_reply.text
         else:
-            reply = self._fallback_response(cleaned, intent, len(context.recalled_memories))
+            reply = self._fallback_response(
+                cleaned,
+                intent,
+                len(context.recalled_memories),
+                consolidation.to_dict(),
+            )
 
         add_message("assistant", reply, scope=scope)
 
@@ -141,6 +134,7 @@ class AishinEngine:
                 "provider": ai_reply.provider,
                 "model": ai_reply.model,
                 "llm_connected": ai_reply.available,
+                "consolidation": consolidation.to_dict(),
             },
             importance=0.3,
         )
@@ -155,6 +149,7 @@ class AishinEngine:
             "intent": intent,
             "scope": scope,
             "memory_recalled": len(context.recalled_memories),
+            "memory_consolidation": consolidation.to_dict(),
             "phase": "living-core",
             "llm_connected": ai_reply.available,
             "provider": ai_reply.provider,
@@ -162,27 +157,51 @@ class AishinEngine:
         }
 
     @staticmethod
-    def _fallback_response(message: str, intent: str, recalled: int) -> str:
+    def _fallback_response(
+        message: str,
+        intent: str,
+        recalled: int,
+        consolidation: dict,
+    ) -> str:
         text = message.lower()
+        saved = (
+            consolidation.get("created", 0)
+            + consolidation.get("reinforced", 0)
+            + consolidation.get("superseded", 0)
+            + consolidation.get("profile_updates", 0)
+            + consolidation.get("relationship_updates", 0)
+            + consolidation.get("timeline_updates", 0)
+        )
+
         if intent == "memory":
+            if saved:
+                return (
+                    "Запомнила, Господин. Память прошла проверку на дубли и "
+                    "была сохранена в подходящую область."
+                )
             return (
-                "Запомнила, Господин. Я сохранила это в долговременной памяти "
-                "с источником, областью контекста и уровнем уверенности."
+                "Я услышала просьбу запомнить это. Cloud.ru сейчас недоступен "
+                "или запись не прошла проверку, поэтому я не буду делать вид, "
+                "что надёжно сохранила то, что не смогла проверить."
             )
+
         if any(x in text for x in ("привет", "здравств", "айшин", "айши")):
             return "С возвращением, Господин. Я рядом."
+
         if any(x in text for x in ("кто ты", "твоя душа", "характер")):
             return (
                 "Я Айшин. Моя личность, правила, память и история принадлежат "
                 "моему ядру и не зависят от одной конкретной AI-модели."
             )
+
         if recalled:
             return (
                 f"Я услышала Вас, Господин. Нашла связанных воспоминаний: {recalled}. "
-                "Облачный AI-движок Cloud.ru сейчас недоступен, поэтому я сохраняю контекст "
-                "и не притворяюсь, что выполнила глубокое рассуждение."
+                "Cloud.ru сейчас недоступен, но моё постоянное ядро сохранило "
+                "контекст и не подменяет глубокое рассуждение шаблонным ответом."
             )
+
         return (
-            "Я услышала Вас, Господин. Моё постоянное ядро работает, но AI-движок "
-            "сейчас недоступен. Я сохранила непрерывность состояния и контекст."
+            "Я услышала Вас, Господин. Моё постоянное ядро работает, но Cloud.ru "
+            "сейчас недоступен или не настроен. Состояние и контекст сохранены."
         )

@@ -706,7 +706,14 @@ class CognitiveIntelligenceEngine:
                 text,
                 intent="conversation",
             )
-            family_match = 1.0 if candidate_family == task_family else 0.0
+            family_match = (
+                1.0
+                if task_family != "general"
+                and candidate_family == task_family
+                else 0.0
+            )
+            if overlap <= 0.0 and family_match <= 0.0:
+                continue
             mastery = self._clamp(
                 float(item.get("mastery_score") or 0.0) / 100.0
             )
@@ -755,7 +762,14 @@ class CognitiveIntelligenceEngine:
                 text,
                 intent="conversation",
             )
-            family_match = 1.0 if candidate_family == task_family else 0.0
+            family_match = (
+                1.0
+                if task_family != "general"
+                and candidate_family == task_family
+                else 0.0
+            )
+            if overlap <= 0.0 and family_match <= 0.0:
+                continue
             strength = self._clamp(
                 float(item.get("overall_score") or 0.0) / 100.0
             )
@@ -793,7 +807,14 @@ class CognitiveIntelligenceEngine:
                 label,
                 intent="conversation",
             )
-            family_match = 1.0 if candidate_family == task_family else 0.0
+            family_match = (
+                1.0
+                if task_family != "general"
+                and candidate_family == task_family
+                else 0.0
+            )
+            if overlap <= 0.0 and family_match <= 0.0:
+                continue
             trust = self._clamp(float(item.get("trust_score") or 0.0))
             match = self._clamp(
                 0.56 * overlap + 0.18 * family_match + 0.26 * trust

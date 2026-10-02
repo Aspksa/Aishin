@@ -154,6 +154,22 @@ def main() -> int:
                 engine.causal.recent(scope="personal", limit=10)
             ),
         }
+        checks["hypothesis_manager"] = {
+            "status": "ok",
+            "engine": engine.hypotheses.__class__.__name__,
+            "history_entries": len(
+                engine.hypotheses.recent(scope="personal", limit=10)
+            ),
+            "active_modes": ["VERIFY", "DIAGNOSE"],
+        }
+        checks["logic_learning"] = {
+            "status": "ok",
+            "engine": engine.logic_learning.__class__.__name__,
+            "events": len(
+                engine.logic_learning.recent_events(scope="personal", limit=10)
+            ),
+            "feedback_policy": "explicit_success_or_failure_only",
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

@@ -495,7 +495,11 @@ def assistant_permission_update(
 
 
 @app.post('/api/assistant/proactive/evaluate')
-def assistant_proactive_evaluate(scope: str = 'personal') -> dict:
+def assistant_proactive_evaluate(
+    request: Request,
+    scope: str = 'personal',
+) -> dict:
+    _local_only(request)
     return engine.proactive.evaluate(scope=scope).to_dict()
 
 

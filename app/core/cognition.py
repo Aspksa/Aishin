@@ -5,6 +5,7 @@ from .memory import MemorySystem
 from .personal import PersonalAishin
 from .self_model import SelfModel
 from .semantic import SemanticMemory
+from .planner import Planner
 
 
 @dataclass
@@ -21,9 +22,11 @@ class Cognition:
         self,
         memory: MemorySystem,
         semantic: SemanticMemory | None = None,
+        planner: Planner | None = None,
     ):
         self.memory = memory
         self.semantic = semantic
+        self.planner = planner
         self.self_model = SelfModel()
         self.personal = PersonalAishin()
 
@@ -45,6 +48,8 @@ class Cognition:
             + "\n\n"
             + self.personal.prompt_block(scope=scope)
         )
+        if self.planner is not None:
+            prompt += "\n\n" + self.planner.prompt_block(scope=scope)
 
         if block:
             prompt += (

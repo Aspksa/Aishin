@@ -11,6 +11,8 @@ from .graph_builder import GraphBuilder
 from .memory import MemorySystem
 from .observer import Observer
 from .permissions import PermissionGate
+from .planner import Planner
+from .planner_builder import PlannerBuilder
 from .personal import PersonalAishin
 from .semantic import SemanticMemory
 from .state import StateManager
@@ -26,9 +28,19 @@ class AishinEngine:
         self.ai = AIManager()
         self.personal = PersonalAishin()
         self.semantic = SemanticMemory(self.ai)
-        self.cognition = Cognition(self.memory, semantic=self.semantic)
+        self.planner = Planner()
+        self.cognition = Cognition(
+            self.memory,
+            semantic=self.semantic,
+            planner=self.planner,
+        )
         self.graph = KnowledgeGraph()
         self.graph_builder = GraphBuilder(ai=self.ai, graph=self.graph, events=self.events)
+        self.planner_builder = PlannerBuilder(
+            ai=self.ai,
+            planner=self.planner,
+            events=self.events,
+        )
         self.permissions = PermissionGate()
         self.observer = Observer(self.state, self.events)
         self.consolidator = MemoryConsolidator(
@@ -64,6 +76,17 @@ class AishinEngine:
             "knowledge_graph": {
                 "personal": self.graph.stats(scope="personal"),
                 "relationship": self.graph.stats(scope="relationship"),
+            },
+            "planner": {
+                "open_items": self.planner.open_items(scope=state.current_scope),
+                "notices": [
+                    notice.__dict__
+                    for notice in self.planner.inspect(scope=state.current_scope)
+                ],
+                "changes": self.planner.changes(
+                    scope=state.current_scope,
+                    limit=12,
+                ),
             },
             "permissions": {
                 key: self.permissions.mode(key)
@@ -109,6 +132,7 @@ class AishinEngine:
             scope=scope,
         )
         graph_update = self.graph_builder.ingest(cleaned, scope=scope)
+        planning_update = self.planner_builder.ingest(cleaned, scope=scope)
 
         context = self.cognition.build_context(cleaned, scope=scope)
 
@@ -148,6 +172,7 @@ class AishinEngine:
                 "llm_connected": ai_reply.available,
                 "consolidation": consolidation.to_dict(),
                 "knowledge_graph": graph_update.to_dict(),
+                "planner": planning_update.to_dict(),
             },
             importance=0.3,
         )
@@ -165,6 +190,11 @@ class AishinEngine:
             "semantic_used": context.semantic_used,
             "memory_consolidation": consolidation.to_dict(),
             "knowledge_graph": graph_update.to_dict(),
+            "planner": planning_update.to_dict(),
+            "planner_notices": [
+                notice.__dict__
+                for notice in self.planner.inspect(scope=scope)
+            ],
             "phase": "living-core",
             "llm_connected": ai_reply.available,
             "provider": ai_reply.provider,

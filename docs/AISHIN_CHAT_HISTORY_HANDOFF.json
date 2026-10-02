@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T20:59:00+10:00",
+  "generated_at": "2026-10-02T21:20:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 11,
+      "latest_schema_version": 12,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -144,14 +144,10 @@
       "checks": [
         "python compileall",
         "scripts/self_check.py",
-        "scripts/runtime_smoke.py",
-        "atomic write temp+fsync+replace",
-        "expected SHA guard",
-        "backup integrity",
-        "rollback restore"
+        "scripts/runtime_smoke.py"
       ],
-      "latest_confirmed_run_id": 36998386131,
-      "latest_confirmed_head_sha": "648ecf89c638dc5e2c69715558d2057002eeabf1"
+      "latest_confirmed_run_id": 37000341016,
+      "latest_confirmed_head_sha": "675f7ac06d37a99e300b36137913bc8125f83cce"
     }
   },
   "implemented_architecture": [
@@ -486,26 +482,33 @@
         "scripts/runtime_smoke.py"
       ],
       "details": "project.write_text now uses same-directory temp file, fsync and os.replace with expected-before SHA precondition. Backups are atomically written and hash-verified. project.rollback_write is destructive, verifies target/backup hashes and always requires fresh explicit approval."
+    },
+    {
+      "layer": "Continuous Learning Engine",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/continuous_learning.py",
+        "app/core/engine.py",
+        "app/main.py",
+        "app/migrations.py",
+        "app/templates/index.html",
+        "app/static/app.js"
+      ],
+      "details": "Always-on background learning around the model with automatic REALTIME/BACKGROUND/IDLE/MAINTENANCE mode selection. Learns locally from events, performance, explicit logic feedback, memory/graph changes and execution outcomes. Learned operational patterns feed back into cognition as weak experience, never as facts or permission."
     }
   ],
   "current_cognitive_flow": [
-    "Input creates request_id and starts PerformanceTracker",
-    "Logic Learning feedback",
-    "Memory Consolidation timing",
-    "Graph Builder timing",
-    "Planner Builder timing",
-    "Hybrid Cognition timing",
-    "Sensors + initial Metacognition timing",
-    "Logic mode selection",
-    "Intent-aware Verification only when justified",
-    "Final Metacognition when Verification ran",
-    "Logic/Causal/Hypothesis/Counterfactual/Decision Quality/Action Selection timing",
-    "Context Orchestrator timing",
-    "Cloud.ru bounded resilient request timing",
-    "Postprocess timing",
-    "Performance trace persisted with bottleneck and soft-budget result",
-    "Cognitive request trace persisted under same request_id",
-    "Response/Event/State update"
+    "Continuous Learning worker runs automatically beside Aishin lifecycle",
+    "Worker ingests new persisted outcomes/telemetry into deduplicated learning queue",
+    "Automatic mode controller selects REALTIME/BACKGROUND/IDLE/MAINTENANCE",
+    "Local Pattern Learner updates operational experience",
+    "Verified accumulated operational patterns can enter future cognition as weak experience",
+    "User input creates request_id",
+    "Memory/Graph/Planner/Metacognition/Logic/Verification reasoning pipeline",
+    "Context Orchestrator",
+    "Cloud.ru main response",
+    "Performance and cognitive traces persist",
+    "New events/outcomes become future Continuous Learning input"
   ],
   "metacognition": {
     "statuses": [
@@ -601,7 +604,11 @@
     "execution_attempts",
     "cognitive_request_traces",
     "performance_traces",
-    "proactive_conditions"
+    "proactive_conditions",
+    "continuous_learning_state",
+    "continuous_learning_queue",
+    "learning_patterns",
+    "continuous_learning_cycles"
   ],
   "important_api": [
     "GET /health",
@@ -657,7 +664,11 @@
     "GET /api/assistant/performance",
     "GET /api/assistant/proactive/conditions",
     "POST /api/assistant/proactive/{decision_id}/acknowledge",
-    "POST /api/assistant/execution/attempts/{attempt_id}/rollback"
+    "POST /api/assistant/execution/attempts/{attempt_id}/rollback",
+    "GET /api/assistant/continuous-learning/status",
+    "GET /api/assistant/continuous-learning/cycles",
+    "GET /api/assistant/continuous-learning/patterns",
+    "GET /api/assistant/continuous-learning/queue"
   ],
   "key_fixed_bugs_and_safety_changes": [
     "Исправлена SQL-ошибка кавычек в запросе active memories.",
@@ -732,7 +743,14 @@
     "Rollback refuses to overwrite/remove a target that changed after the original write.",
     "Rollback backup path is restricted to .aishin_backups and its hash is verified before restore.",
     "Runtime smoke correctly recognizes local-only HTTP 403 as protection for nonlocal rollback calls.",
-    "Atomic write / rollback hardening validated on Windows and Ubuntu in GitHub Actions run 36998386131."
+    "Atomic write / rollback hardening validated on Windows and Ubuntu in GitHub Actions run 36998386131.",
+    "Continuous learning mode is automatic; no manual mode switch is required.",
+    "Continuous learner does not learn truth from hidden chain-of-thought or self-generated claims.",
+    "Explicit Logic Learning outcomes remain the trusted success/failure reinforcement source.",
+    "Background learning is local by default and does not continuously call Cloud.ru.",
+    "Learning event payload metadata recursively redacts secret/content-like keys before queue storage.",
+    "24/7 cycle audit noise is suppressed: empty cycles are not inserted every worker interval.",
+    "Continuous Learning Engine validated on Windows and Ubuntu in GitHub Actions run 37000341016."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -773,18 +791,18 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Tool Registry atomic write / rollback hardening completed, history saved, cross-platform runtime validated.",
-    "last_implemented_feature": "Atomic fsync+replace writes, expected-before SHA precondition, verified backups and separately-approved guarded rollback executor.",
-    "next_recommended_step": "Security and data-integrity hardening of audit payloads and filesystem sensors: recursive secret redaction for nested audit objects, bounded filesystem traversal/cache, and cleanup/retention policy for .aishin_backups plus old runtime audit rows.",
+    "milestone": "Continuous Learning Engine with automatic modes completed, history saved, cross-platform runtime validated.",
+    "last_implemented_feature": "Always-on local self-learning around the model with automatic REALTIME/BACKGROUND/IDLE/MAINTENANCE mode selection and learned operational patterns feeding back into cognition.",
+    "next_recommended_step": "Add Learning Quality Gate and promotion lifecycle: candidate→observed→trusted/deprecated patterns, contradiction detection between learned patterns, drift/decay, and optional bounded Cloud.ru deep-analysis only for high-value BACKGROUND items. Separately add Windows autostart/service if true across-reboot 24/7 operation is required.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не смешивать память Aishin с TooruDragon.",
-      "Не писать project files напрямую без atomic replace.",
-      "Не игнорировать expected-before SHA при coordinator write.",
-      "Не восстанавливать backup без проверки target after_sha256 и backup_sha256.",
-      "Не использовать старое execution approval для rollback.",
-      "Не обходить Permission Gate / local-only API guard."
+      "Не давать Continuous Learning права переписывать личность.",
+      "Не считать собственный ответ доказательством успешного обучения.",
+      "Не превращать learned pattern в факт без evidence/verification.",
+      "Не гонять Cloud.ru постоянно в 24/7 worker.",
+      "Не позволять learned pattern обходить Permission Gate / Verification."
     ]
   },
   "development_sequence_current_chat": [
@@ -883,6 +901,10 @@
     {
       "user_prompt": "Делай",
       "result": "Закрыт Tool Registry atomic write hardening. project.write_text переведён на same-directory temp + flush/fsync + os.replace + final SHA verification; добавлен expected_sha256/__missing__ precondition; Coordinator передаёт свежий expected SHA после revalidation; backup пишется атомарно и проверяется по hash. Добавлен destructive project.rollback_write и POST /execution/attempts/{attempt_id}/rollback с отдельным свежим approval; rollback проверяет target after_sha256 и backup integrity. Self-check использует TemporaryDirectory. Первый smoke-тест встретил корректный local-only 403 вместо ожидаемого 400; ожидание исправлено. Финальный GitHub Actions run 36998386131 прошёл Windows + Ubuntu. Schema остаётся 11. История сохранена."
+    },
+    {
+      "user_prompt": "Давай сделаем постоянное самообучение системы вокруг модели. Режимы она сама должна ставить автоматически",
+      "result": "Реализован Continuous Learning Engine. Schema migration 12: continuous_learning_state/queue, learning_patterns, cycles. Background worker автоматически стартует вместе с FastAPI и выбирает REALTIME/BACKGROUND/IDLE/MAINTENANCE по активности пользователя, очереди и maintenance due. Источники: events, performance, explicit Logic Learning feedback, memory/graph changes, execution outcomes. Local Pattern Learner возвращает проверенный operational experience в cognition как слабую подсказку. Cloud.ru в v1 background loop не вызывается постоянно. Пустые циклы не засоряют SQLite. Live Brain и 4 GET API добавлены. GitHub Actions run 37000341016 успешно прошёл Windows + Ubuntu. История сохранена."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -899,10 +921,10 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать atomic Tool Registry write + guarded rollback реализованными; schema остаётся 11.",
-      "Не возвращать direct path.write_bytes для project.write_text.",
-      "Не выполнять rollback старым approval исходной операции.",
-      "Следующий этап: recursive audit secret redaction + bounded filesystem sensor traversal + backup/audit retention."
+      "Считать schema 12 Continuous Learning Engine реализованным.",
+      "Режимы Continuous Learning должны оставаться автоматическими; не добавлять ручной selector без отдельного запроса.",
+      "Не включать постоянные Cloud.ru calls в background learner.",
+      "Следующий рекомендуемый этап: Learning Quality Gate / pattern promotion and decay; отдельно Windows autostart/service для across-reboot 24/7."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -1937,6 +1959,64 @@
     "api": "POST /api/assistant/execution/attempts/{attempt_id}/rollback",
     "validation": {
       "run_id": 36998386131,
+      "windows": "success",
+      "ubuntu": "success"
+    }
+  },
+  "continuous_learning": {
+    "repository_path": "app/core/continuous_learning.py",
+    "automatic_modes": {
+      "REALTIME": "recent user activity; batch=2 to avoid competing with conversation",
+      "BACKGROUND": "pending learning queue while user is not actively interacting",
+      "IDLE": "no pending learning work",
+      "MAINTENANCE": "long idle plus maintenance overdue; larger maintenance batch"
+    },
+    "mode_selection": {
+      "user_active_seconds": 45,
+      "maintenance_idle_seconds": 1800,
+      "maintenance_period_hours": 6,
+      "worker_interval_seconds": 15
+    },
+    "sources": [
+      "events",
+      "performance_traces",
+      "logic_learning_events",
+      "memory_changes",
+      "graph_changes",
+      "execution_attempts"
+    ],
+    "tables": [
+      "continuous_learning_state",
+      "continuous_learning_queue",
+      "learning_patterns",
+      "continuous_learning_cycles"
+    ],
+    "pattern_categories": [
+      "performance_bottleneck",
+      "logic_strategy_feedback",
+      "tool_execution",
+      "memory_change",
+      "graph_change",
+      "event_frequency"
+    ],
+    "cognition_feedback_rule": "Only operational patterns with >=2 observations from selected categories enter the prompt as weak experience. They are not facts, not hidden chain-of-thought and not action permission.",
+    "cloud_policy": "v1 background learner is local; cloud_used=false to prevent constant Cloud.ru cost/traffic",
+    "maintenance": [
+      "recover stale processing queue items",
+      "delete completed queue items older than 7 days",
+      "never delete user long-term memory"
+    ],
+    "audit_noise_control": "empty cycles are not logged every 15 seconds; log on mode change/work/maintenance or ~5 minute heartbeat",
+    "apis": [
+      "GET /api/assistant/continuous-learning/status",
+      "GET /api/assistant/continuous-learning/cycles",
+      "GET /api/assistant/continuous-learning/patterns",
+      "GET /api/assistant/continuous-learning/queue"
+    ],
+    "live_brain_node": "Continuous Learning",
+    "runtime_limit": "Runs continuously while Aishin process is running. OS-level restart/autostart requires a separate Windows service/task layer.",
+    "validation": {
+      "run_id": 37000341016,
       "windows": "success",
       "ubuntu": "success"
     }

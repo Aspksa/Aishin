@@ -426,7 +426,7 @@ Live Brain содержит отдельный узел `Verification`, кото
 SQLite:
 - добавлен `app/migrations.py`;
 - таблица `schema_migrations` хранит применённые миграции;
-- текущая версия схемы: `5`;
+- текущая версия схемы: `6`;
 - `init_db()` автоматически применяет недостающие миграции;
 - self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
 
@@ -577,3 +577,59 @@ Hypothesis Manager и Logic Learning подтверждены GitHub Actions:
 - Ubuntu / Python 3.11: success;
 - Windows / Python 3.11: success;
 - compileall, self-check и FastAPI runtime smoke: success.
+
+
+## Counterfactual Reasoning
+Перед сложным решением Aishin может построить условные сценарии «что изменится, если сделать X».
+
+Активные режимы:
+- `DEEP`
+- `PLAN`
+- `VERIFY`
+- `DIAGNOSE`
+
+Каждый сценарий содержит:
+- действие;
+- возможные эффекты;
+- риски;
+- обратимость `high/medium/low`;
+- confidence;
+- evidence.
+
+Ключевое правило: сценарий не является прогнозом. Если evidence недостаточно, эффект явно помечается как неподтверждённый сценарий. Temporal/correlation evidence не превращается автоматически в причинный прогноз.
+
+Хранилище:
+- `counterfactual_assessments`
+
+API:
+- `GET /api/assistant/counterfactual`
+
+## Decision Quality Scoring
+Decision Quality Scoring оценивает не «правильность решения», а качество его основания.
+
+Компоненты:
+- logic confidence;
+- evidence quality;
+- verification quality;
+- uncertainty control;
+- contradiction control;
+- alternative coverage;
+- reversibility.
+
+Итоговые состояния:
+- `evidence_sufficient_for_considered_action`;
+- `proceed_cautiously_or_verify_remaining_risks`;
+- `do_not_treat_as_ready_for_action`.
+
+Низкая обратимость, слабая evidence-опора, нерешённые противоречия и большой остаток неопределённости снижают качество решения.
+
+Хранилище:
+- `decision_quality_scores`
+
+API:
+- `GET /api/assistant/decision-quality`
+
+Live Brain показывает отдельные узлы Counterfactual и Decision Quality.
+
+Schema migration: `6`.
+Версия приложения остаётся `0.0.3`.

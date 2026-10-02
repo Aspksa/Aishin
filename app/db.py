@@ -246,6 +246,26 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS proactive_decisions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL,
+                fingerprint TEXT NOT NULL,
+                source TEXT NOT NULL,
+                title TEXT NOT NULL,
+                rationale TEXT NOT NULL,
+                priority REAL NOT NULL DEFAULT 0.5,
+                confidence REAL NOT NULL DEFAULT 0.7,
+                tool_name TEXT,
+                capability TEXT,
+                arguments_json TEXT NOT NULL DEFAULT '{}',
+                preview_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'pending',
+                execution_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(scope, fingerprint, status)
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -1180,3 +1200,132 @@ def recent_tool_actions(scope: str, limit: int = 50) -> list[dict]:
         item["output"] = json.loads(item.pop("output_json") or "{}")
         result.append(item)
     return result
+
+
+def create_proactive_decision(
+    *,
+    scope: str,
+    fingerprint: str,
+    source: str,
+    title: str,
+    rationale: str,
+    priority: float,
+    confidence: float,
+    tool_name: str | None,
+    capability: str | None,
+    arguments: dict,
+    preview: dict,
+) -> int:
+    with connect() as conn:
+        existing = conn.execute(
+            """SELECT id FROM proactive_decisions
+               WHERE scope=? AND fingerprint=? AND status='pending'
+               ORDER BY id DESC LIMIT 1""",
+            (scope, fingerprint),
+        ).fetchone()
+        if existing:
+            return int(existing["id"])
+
+        cur = conn.execute(
+            """INSERT INTO proactive_decisions(
+                   scope, fingerprint, source, title, rationale,
+                   priority, confidence, tool_name, capability,
+                   arguments_json, preview_json
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                scope,
+                fingerprint,
+                source,
+                title,
+                rationale,
+                priority,
+                confidence,
+                tool_name,
+                capability,
+                json.dumps(arguments or {}, ensure_ascii=False),
+                json.dumps(preview or {}, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def get_proactive_decision(decision_id: int, scope: str | None = None) -> dict | None:
+    with connect() as conn:
+        if scope is None:
+            row = conn.execute(
+                "SELECT * FROM proactive_decisions WHERE id=?",
+                (decision_id,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM proactive_decisions WHERE id=? AND scope=?",
+                (decision_id, scope),
+            ).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["arguments"] = json.loads(item.pop("arguments_json") or "{}")
+    item["preview"] = json.loads(item.pop("preview_json") or "{}")
+    item["execution"] = json.loads(item.pop("execution_json") or "{}")
+    return item
+
+
+def list_proactive_decisions(
+    scope: str,
+    status: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    with connect() as conn:
+        if status:
+            rows = conn.execute(
+                """SELECT * FROM proactive_decisions
+                   WHERE scope=? AND status=?
+                   ORDER BY priority DESC, id DESC LIMIT ?""",
+                (scope, status, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM proactive_decisions
+                   WHERE scope=?
+                   ORDER BY
+                     CASE status WHEN 'pending' THEN 0 ELSE 1 END,
+                     priority DESC,
+                     id DESC
+                   LIMIT ?""",
+                (scope, limit),
+            ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["arguments"] = json.loads(item.pop("arguments_json") or "{}")
+        item["preview"] = json.loads(item.pop("preview_json") or "{}")
+        item["execution"] = json.loads(item.pop("execution_json") or "{}")
+        result.append(item)
+    return result
+
+
+def update_proactive_decision(
+    decision_id: int,
+    *,
+    scope: str,
+    status: str,
+    execution: dict | None = None,
+) -> None:
+    if status not in {"pending", "approved", "rejected", "executed", "failed", "dismissed"}:
+        raise ValueError("invalid proactive decision status")
+    with connect() as conn:
+        cur = conn.execute(
+            """UPDATE proactive_decisions
+               SET status=?, execution_json=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=? AND scope=?""",
+            (
+                status,
+                json.dumps(execution or {}, ensure_ascii=False),
+                decision_id,
+                scope,
+            ),
+        )
+        if cur.rowcount == 0:
+            raise ValueError("decision not found in scope")
+        conn.commit()

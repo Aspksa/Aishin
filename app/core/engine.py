@@ -118,6 +118,21 @@ class AishinEngine:
             events=self.events,
         )
 
+    def reload_ai(self) -> dict:
+        """Reload Cloud/provider settings from current environment safely."""
+        self.ai = AIManager()
+        self.semantic.ai = self.ai
+        self.graph_builder.ai = self.ai
+        self.planner_builder.ai = self.ai
+        self.verification.ai = self.ai
+        self.consolidator.ai = self.ai
+        return {
+            "health": self.ai.cloudru.health(force=True)
+            if self.ai.mode in {"cloudru", "cloud.ru"}
+            else self.ai.health(),
+            "diagnostics": self.ai.diagnostics(),
+        }
+
     def startup(self) -> None:
         self.permissions.bootstrap()
         self.graph.seed_personal_foundation()

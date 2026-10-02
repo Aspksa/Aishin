@@ -65,7 +65,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.7', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.8', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -168,7 +168,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.7',
+        'version': '0.0.8',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -264,6 +264,95 @@ def assistant_intelligence_transfer(
     scope: str = 'personal',
 ) -> list[dict]:
     return engine.cognitive_intelligence.transfer_map(scope=scope)
+
+
+@app.get('/api/assistant/evolution')
+def assistant_evolution(
+    scope: str = 'personal',
+    capability_limit: int = 30,
+    variant_limit: int = 50,
+    curriculum_limit: int = 50,
+    transfer_limit: int = 50,
+    cycle_limit: int = 60,
+) -> dict:
+    return engine.evolution.dashboard(
+        scope=scope,
+        capability_limit=max(1, min(capability_limit, 200)),
+        variant_limit=max(1, min(variant_limit, 300)),
+        curriculum_limit=max(1, min(curriculum_limit, 300)),
+        transfer_limit=max(1, min(transfer_limit, 300)),
+        cycle_limit=max(1, min(cycle_limit, 500)),
+        refresh=False,
+    )
+
+
+@app.post('/api/assistant/evolution/cycle')
+def assistant_evolution_cycle(
+    request: Request,
+    scope: str = 'personal',
+) -> dict:
+    _local_only(request)
+    return engine.evolution.run_cycle(
+        scope=scope,
+        trigger='manual',
+    ).to_dict()
+
+
+@app.get('/api/assistant/evolution/capabilities')
+def assistant_evolution_capabilities(
+    scope: str = 'personal',
+    limit: int = 50,
+) -> list[dict]:
+    return engine.evolution.capabilities(
+        scope=scope,
+        limit=max(1, min(limit, 200)),
+    )
+
+
+@app.get('/api/assistant/evolution/variants')
+def assistant_evolution_variants(
+    scope: str = 'personal',
+    lifecycle: str | None = None,
+    limit: int = 80,
+) -> list[dict]:
+    return engine.evolution.variants(
+        scope=scope,
+        lifecycle=lifecycle,
+        limit=max(1, min(limit, 300)),
+    )
+
+
+@app.get('/api/assistant/evolution/curriculum')
+def assistant_evolution_curriculum(
+    scope: str = 'personal',
+    limit: int = 80,
+) -> list[dict]:
+    return engine.evolution.curriculum(
+        scope=scope,
+        limit=max(1, min(limit, 300)),
+    )
+
+
+@app.get('/api/assistant/evolution/transfers')
+def assistant_evolution_transfers(
+    scope: str = 'personal',
+    limit: int = 80,
+) -> list[dict]:
+    return engine.evolution.transfers(
+        scope=scope,
+        limit=max(1, min(limit, 300)),
+    )
+
+
+@app.get('/api/assistant/evolution/cycles')
+def assistant_evolution_cycles(
+    scope: str = 'personal',
+    limit: int = 100,
+) -> list[dict]:
+    return engine.evolution.cycles(
+        scope=scope,
+        limit=max(1, min(limit, 500)),
+    )
 
 
 @app.get('/api/assistant/growth')

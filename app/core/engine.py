@@ -36,6 +36,7 @@ from .permissions import PermissionGate
 from .planner import Planner
 from .planner_builder import PlannerBuilder
 from .proactive import ProactiveDecisionLoop
+from .proactive_intelligence import ProactiveIntelligenceEngine
 from .personal import PersonalAishin
 from .performance import PerformanceHistory, PerformanceTracker
 from .semantic import SemanticMemory
@@ -116,6 +117,12 @@ class AishinEngine:
             events=self.events,
             coordinator=self.execution_coordinator,
         )
+        self.proactive_intelligence = ProactiveIntelligenceEngine(
+            legacy_loop=self.proactive,
+            planner=self.planner,
+            sensors=self.sensors,
+            events=self.events,
+        )
         self.observer = Observer(self.state, self.events)
         self.consolidator = MemoryConsolidator(
             ai=self.ai,
@@ -168,6 +175,10 @@ class AishinEngine:
             scope=state.current_scope,
             persist=True,
         )
+        proactive_intelligence = self.proactive_intelligence.evaluate(
+            scope=state.current_scope,
+            trigger="startup",
+        )
         self.events.emit(
             "aishin.started",
             scope=state.current_scope,
@@ -183,6 +194,7 @@ class AishinEngine:
                     "overall_score": intelligence.get("overall_score"),
                     "formula_version": intelligence.get("formula_version"),
                 },
+                "proactive_intelligence": proactive_intelligence.to_dict(),
             },
             importance=0.6,
         )
@@ -240,6 +252,13 @@ class AishinEngine:
                     limit=50,
                 ),
             },
+            "proactive_intelligence": self.proactive_intelligence.dashboard(
+                scope=state.current_scope,
+                incident_limit=40,
+                signal_limit=40,
+                run_limit=20,
+                refresh=False,
+            ),
             "metacognition": self._metacognition_snapshot(
                 scope=state.current_scope,
             ),
@@ -749,6 +768,10 @@ class AishinEngine:
             )
         context.system_prompt += "\n\n" + self.proactive.prompt_block(scope=scope)
         context.system_prompt += (
+            "\n\n"
+            + self.proactive_intelligence.prompt_block(scope=scope)
+        )
+        context.system_prompt += (
             "\n\nДоступные внутренние инструменты Айшин:\n"
             + "\n".join(
                 f"- {item['name']}: {item['description']} "
@@ -972,6 +995,11 @@ class AishinEngine:
             importance=0.3,
         )
 
+        proactive_intelligence_report = self.proactive_intelligence.evaluate(
+            scope=scope,
+            trigger="message",
+        )
+
         state = self.state.load()
         state.activity = "idle"
         state.focus = "waiting"
@@ -1016,6 +1044,7 @@ class AishinEngine:
                 "outcome": intelligence_outcome,
                 "current": cognitive_intelligence,
             },
+            "proactive_intelligence": proactive_intelligence_report.to_dict(),
             "planner_notices": [
                 notice.__dict__
                 for notice in self.planner.inspect(scope=scope)

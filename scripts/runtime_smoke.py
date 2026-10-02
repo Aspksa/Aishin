@@ -3,7 +3,12 @@ from __future__ import annotations
 import base64
 import json
 import sys
+from io import BytesIO
 from pathlib import Path
+
+from docx import Document as SmokeDocxDocument
+from openpyxl import Workbook as SmokeWorkbook
+from pypdf import PdfWriter
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -1744,6 +1749,95 @@ def main() -> int:
                     "с provenance"
                 )
 
+            docx_buffer = BytesIO()
+            docx = SmokeDocxDocument()
+            docx.add_heading("ТЕХНИЧЕСКОЕ РУКОВОДСТВО", level=1)
+            docx.add_paragraph("Контрольный параметр: 42 единицы")
+            for i in range(1, 16):
+                docx.add_paragraph(
+                    f"Раздел {i}. Проверяемый текст руководства "
+                    "содержит описание процедуры, условия применения "
+                    "и ссылку на первичный документ."
+                )
+            docx.save(docx_buffer)
+            docx_result = engine.documents.ingest_bytes(
+                scope=document_scope,
+                filename="Техническое руководство 2025.docx",
+                data=docx_buffer.getvalue(),
+                media_type=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "wordprocessingml.document"
+                ),
+                trigger="runtime_smoke_docx",
+                enrich_with_ai=False,
+                build_semantic_index=False,
+            )
+            if (
+                docx_result.status != "studied"
+                or docx_result.section_count < 1
+                or docx_result.chunk_count < 1
+            ):
+                raise RuntimeError(
+                    "DOCX parser должен сохранить структуру и chunks"
+                )
+
+            xlsx_buffer = BytesIO()
+            workbook = SmokeWorkbook()
+            sheet = workbook.active
+            sheet.title = "Нормативы"
+            sheet.append(["Параметр", "Значение", "Комментарий"])
+            for i in range(1, 25):
+                sheet.append([
+                    f"Норма {i}",
+                    i * 10,
+                    (
+                        "Проверяемое значение для структурного "
+                        "извлечения таблицы"
+                    ),
+                ])
+            workbook.save(xlsx_buffer)
+            xlsx_result = engine.documents.ingest_bytes(
+                scope=document_scope,
+                filename="Нормативы 2025.xlsx",
+                data=xlsx_buffer.getvalue(),
+                media_type=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet"
+                ),
+                trigger="runtime_smoke_xlsx",
+                enrich_with_ai=False,
+                build_semantic_index=False,
+            )
+            if (
+                xlsx_result.status != "studied"
+                or xlsx_result.page_count != 1
+                or xlsx_result.section_count != 1
+            ):
+                raise RuntimeError(
+                    "XLSX parser должен сохранять worksheet как section"
+                )
+
+            pdf_buffer = BytesIO()
+            pdf_writer = PdfWriter()
+            pdf_writer.add_blank_page(width=300, height=400)
+            pdf_writer.write(pdf_buffer)
+            pdf_result = engine.documents.ingest_bytes(
+                scope=document_scope,
+                filename="Скан PDF без текста.pdf",
+                data=pdf_buffer.getvalue(),
+                media_type="application/pdf",
+                trigger="runtime_smoke_pdf_ocr",
+                enrich_with_ai=False,
+                build_semantic_index=False,
+            )
+            if (
+                pdf_result.status != "needs_ocr"
+                or not pdf_result.ocr_required
+            ):
+                raise RuntimeError(
+                    "PDF без текстового слоя должен получить needs_ocr"
+                )
+
             png_1x1 = base64.b64decode(
                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
                 "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -1829,6 +1923,9 @@ def main() -> int:
                 "lexical_retrieval": True,
                 "research_evidence": True,
                 "ocr_honesty": True,
+                "docx_parser": True,
+                "xlsx_parser": True,
+                "pdf_text_layer_check": True,
                 "documents": len(
                     document_dashboard.get("documents") or []
                 ),

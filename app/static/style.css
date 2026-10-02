@@ -402,7 +402,7 @@ h1 { margin-bottom: 0; font-family: Georgia, serif; font-size: clamp(30px, 4vw, 
 
 .brain-flow {
   display: grid;
-  grid-template-columns: minmax(100px,1fr) 26px minmax(100px,1fr) 26px minmax(100px,1fr) 26px minmax(100px,1fr) 26px minmax(100px,1fr) 26px minmax(100px,1fr) 26px minmax(100px,1fr);
+  grid-template-columns: repeat(15, minmax(0, auto));
   align-items: center;
   gap: 0;
   padding: 10px 0 18px;

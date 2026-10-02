@@ -15,6 +15,7 @@ from .live_brain import LiveBrainRuntime
 from .long_term_growth import LongTermGrowthEngine
 from .cognitive_intelligence import CognitiveIntelligenceEngine
 from .evolution_engine import EvolutionEngine
+from .research_intelligence import AutonomousResearchEngine
 from .self_reflection import SelfReflectionMetrics
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
@@ -149,6 +150,14 @@ class AishinEngine:
             events=self.events,
         )
         self.cognitive_intelligence.bind_evolution(self.evolution)
+        self.research = AutonomousResearchEngine(
+            ai=self.ai,
+            memory=self.memory,
+            semantic=self.semantic,
+            graph=self.graph,
+            tools=self.tools,
+            events=self.events,
+        )
         self.live_brain = LiveBrainRuntime(self)
 
     def reload_ai(self) -> dict:
@@ -159,6 +168,7 @@ class AishinEngine:
         self.planner_builder.ai = self.ai
         self.verification.ai = self.ai
         self.consolidator.ai = self.ai
+        self.research.ai = self.ai
         return {
             "health": self.ai.cloudru.health(force=True)
             if self.ai.mode in {"cloudru", "cloud.ru"}
@@ -190,6 +200,9 @@ class AishinEngine:
             scope=state.current_scope,
             trigger="startup",
         )
+        research = self.research.bootstrap(
+            scope=state.current_scope,
+        )
         self.events.emit(
             "aishin.started",
             scope=state.current_scope,
@@ -207,6 +220,12 @@ class AishinEngine:
                 },
                 "proactive_intelligence": proactive_intelligence.to_dict(),
                 "evolution": evolution.to_dict(),
+                "research": {
+                    "gaps_discovered": research.get("gaps_discovered"),
+                    "research_score": (
+                        research.get("state") or {}
+                    ).get("research_score"),
+                },
             },
             importance=0.6,
         )
@@ -417,6 +436,14 @@ class AishinEngine:
                 transfer_limit=40,
                 cycle_limit=30,
                 refresh=False,
+            ),
+            "research": self.research.dashboard(
+                scope=state.current_scope,
+                gap_limit=40,
+                session_limit=30,
+                claim_limit=50,
+                evidence_limit=60,
+                cycle_limit=30,
             ),
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(

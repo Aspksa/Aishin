@@ -28,7 +28,7 @@ templates = Environment(
 )
 
 engine = AishinEngine()
-heartbeat = Heartbeat(interval_seconds=60)
+heartbeat = Heartbeat(interval_seconds=60, planner=engine.planner)
 heartbeat_task: asyncio.Task | None = None
 
 

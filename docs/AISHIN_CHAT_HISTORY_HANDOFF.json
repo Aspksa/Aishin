@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T19:37:00+10:00",
+  "generated_at": "2026-10-02T19:43:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 5,
+      "latest_schema_version": 6,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -146,8 +146,8 @@
         "scripts/self_check.py",
         "scripts/runtime_smoke.py"
       ],
-      "latest_confirmed_run_id": 36990689777,
-      "latest_confirmed_head_sha": "0c954eaad972499236ae3edc6d8897ef88f33b9a"
+      "latest_confirmed_run_id": 36991246148,
+      "latest_confirmed_head_sha": "28789f82ac239a3dc1291417dd3bc65db5fa4ffd"
     }
   },
   "implemented_architecture": [
@@ -360,6 +360,26 @@
         "app/migrations.py"
       ],
       "details": "Feedback-grounded strategy learning. Only explicit later user success/failure feedback updates reliability; own assistant output is never treated as success evidence."
+    },
+    {
+      "layer": "Counterfactual Reasoning",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/counterfactual.py",
+        "app/core/engine.py",
+        "app/migrations.py"
+      ],
+      "details": "Mode-aware what-if analysis for DEEP/PLAN/VERIFY/DIAGNOSE. Produces possible effects, risks, reversibility, evidence and bounded confidence. Scenarios are explicitly not guaranteed forecasts."
+    },
+    {
+      "layer": "Decision Quality Scoring",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/decision_quality.py",
+        "app/core/engine.py",
+        "app/migrations.py"
+      ],
+      "details": "Scores quality of decision basis using logic confidence, evidence, verification, uncertainty, contradictions, alternative coverage and reversibility. Score does not claim objective correctness."
     }
   ],
   "current_cognitive_flow": [
@@ -376,6 +396,8 @@
     "Logic Evidence Chain + Contradiction Resolver + Decision Journal",
     "Causal Reasoning",
     "Hypothesis Manager in VERIFY/DIAGNOSE",
+    "Counterfactual Reasoning in DEEP/PLAN/VERIFY/DIAGNOSE",
+    "Decision Quality Scoring",
     "Context Orchestrator rebuilds final prompt according to Logic Mode budget",
     "Learned strategy hints for current mode",
     "Proactive Context + Tool safety rules",
@@ -469,7 +491,9 @@
     "causal_assessments",
     "hypothesis_runs",
     "logic_strategies",
-    "logic_learning_events"
+    "logic_learning_events",
+    "counterfactual_assessments",
+    "decision_quality_scores"
   ],
   "important_api": [
     "GET /health",
@@ -514,7 +538,9 @@
     "GET /api/assistant/context-traces",
     "GET /api/assistant/causal",
     "GET /api/assistant/hypotheses",
-    "GET /api/assistant/logic-learning"
+    "GET /api/assistant/logic-learning",
+    "GET /api/assistant/counterfactual",
+    "GET /api/assistant/decision-quality"
   ],
   "key_fixed_bugs_and_safety_changes": [
     "Исправлена SQL-ошибка кавычек в запросе active memories.",
@@ -542,7 +568,11 @@
     "Hypothesis confidence does not promote a candidate into fact without resolving evidence.",
     "Logic Learning reinforces strategies only from explicit later user feedback.",
     "One success is prevented from creating certainty by Beta(2,2) prior.",
-    "Hypothesis Manager + Logic Learning validated on Windows and Ubuntu in GitHub Actions run 36990689777."
+    "Hypothesis Manager + Logic Learning validated on Windows and Ubuntu in GitHub Actions run 36990689777.",
+    "Counterfactual scenarios are explicitly conditional and cannot be presented as guaranteed predictions.",
+    "Decision Quality score measures evidence/risk/reversibility quality, not objective correctness.",
+    "Low reversibility, unresolved contradictions and weak evidence automatically reduce decision quality.",
+    "Counterfactual + Decision Quality validated on Windows and Ubuntu in GitHub Actions run 36991246148."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -583,17 +613,18 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Hypothesis Manager + Logic Learning completed and cross-platform runtime validated.",
-    "last_implemented_feature": "Competing diagnostic hypotheses plus explicit-feedback strategy learning integrated into Aishin reasoning.",
-    "next_recommended_step": "Counterfactual Reasoning + Decision Quality Scoring: estimate what changes if action X is taken, compare alternatives, risks, reversibility and evidence quality before execution.",
+    "milestone": "Counterfactual Reasoning + Decision Quality Scoring completed and cross-platform runtime validated.",
+    "last_implemented_feature": "Conditional what-if analysis plus technical scoring of decision evidence, risk control, uncertainty and reversibility.",
+    "next_recommended_step": "Action Selection / Expected Utility Controller: compare safe candidate actions using decision quality, cost, reversibility and required permissions, but never execute without Tool Registry and Permission Gate.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не превращать Aishin в multi-user SaaS.",
       "Не смешивать память Aishin с TooruDragon.",
       "Не сохранять и не экспонировать private chain-of-thought.",
-      "Не считать highest-confidence hypothesis доказанным фактом.",
-      "Не обучать Logic Learning на собственных ответах Айшин без внешнего подтверждения.",
+      "Не выдавать counterfactual scenario за гарантированный прогноз.",
+      "Не трактовать Decision Quality score как гарантию правильности.",
+      "Не обходить Permission Gate и Tool Registry при выполнении действий.",
       "Не коммитить Cloud.ru API key или другие секреты."
     ]
   },
@@ -661,6 +692,10 @@
     {
       "user_prompt": "Делай",
       "result": "Добавлены Hypothesis Manager и Logic Learning. Schema migration 5, hypothesis_runs, logic_strategies, logic_learning_events, APIs, Live Brain nodes, explicit-feedback reinforcement, self-check/runtime smoke. GitHub Actions run 36990689777 прошёл Windows + Ubuntu."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Добавлены Counterfactual Reasoning и Decision Quality Scoring. Schema migration 6, counterfactual_assessments, decision_quality_scores, APIs, Live Brain nodes, self-check/runtime smoke. GitHub Actions run 36991246148 успешно прошёл Windows + Ubuntu."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -677,8 +712,8 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать Logic Engine, Context Orchestrator, Causal Reasoning, Hypothesis Manager и Logic Learning уже реализованными.",
-      "Следующий рекомендуемый логический этап: Counterfactual Reasoning + Decision Quality Scoring."
+      "Считать Logic Engine, Context Orchestrator, Causal Reasoning, Hypothesis Manager, Logic Learning, Counterfactual Reasoning и Decision Quality Scoring уже реализованными.",
+      "Следующий рекомендуемый логический этап: Action Selection / Expected Utility Controller с обязательным Permission Gate."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -1388,5 +1423,45 @@
     ],
     "api": "GET /api/assistant/logic-learning",
     "safety_rule": "Assistant-generated answers never self-confirm strategy success."
+  },
+  "counterfactual_reasoning": {
+    "repository_path": "app/core/counterfactual.py",
+    "active_modes": [
+      "DEEP",
+      "PLAN",
+      "VERIFY",
+      "DIAGNOSE"
+    ],
+    "outputs": [
+      "action",
+      "expected_effects",
+      "risks",
+      "reversibility",
+      "confidence",
+      "evidence"
+    ],
+    "table": "counterfactual_assessments",
+    "api": "GET /api/assistant/counterfactual",
+    "safety_rule": "Counterfactual scenarios are conditional models, not guaranteed predictions. Unsupported effects remain explicitly uncertain."
+  },
+  "decision_quality": {
+    "repository_path": "app/core/decision_quality.py",
+    "components": [
+      "logic_confidence",
+      "evidence_quality",
+      "verification_quality",
+      "uncertainty_control",
+      "contradiction_control",
+      "alternative_coverage",
+      "reversibility"
+    ],
+    "recommendations": [
+      "evidence_sufficient_for_considered_action",
+      "proceed_cautiously_or_verify_remaining_risks",
+      "do_not_treat_as_ready_for_action"
+    ],
+    "table": "decision_quality_scores",
+    "api": "GET /api/assistant/decision-quality",
+    "safety_rule": "Overall score measures decision-basis quality, not truth, correctness or certainty of outcome."
   }
 }

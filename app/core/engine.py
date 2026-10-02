@@ -10,6 +10,7 @@ from .cognitive_trace import CognitiveTraceStore
 from .context_orchestrator import ContextOrchestrator
 from .context_budgeter import ContextBudgeter
 from .continuous_learning import ContinuousLearningEngine
+from .development_metrics import DevelopmentMetricsEngine
 from .self_reflection import SelfReflectionMetrics
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
@@ -125,6 +126,7 @@ class AishinEngine:
             state=self.state,
             events=self.events,
         )
+        self.development = DevelopmentMetricsEngine()
 
     def reload_ai(self) -> dict:
         """Reload Cloud/provider settings from current environment safely."""
@@ -333,6 +335,10 @@ class AishinEngine:
             "context_budget": self.context_budgeter.recent(
                 scope=state.current_scope,
                 limit=20,
+            ),
+            "development": self.development.current(
+                scope=state.current_scope,
+                persist=True,
             ),
             "memory_changes": self.memory.recent_changes(limit=12),
             "recent_messages": recent_messages(

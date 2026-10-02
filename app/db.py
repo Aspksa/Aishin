@@ -101,6 +101,16 @@ def init_db() -> None:
                 FOREIGN KEY(target_entity_id) REFERENCES entities(id)
             );
 
+            CREATE TABLE IF NOT EXISTS graph_changes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL,
+                action TEXT NOT NULL,
+                entity_id INTEGER,
+                relation_id INTEGER,
+                details_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS permissions (
                 capability TEXT PRIMARY KEY,
                 mode TEXT NOT NULL DEFAULT 'ask',
@@ -671,3 +681,123 @@ def active_memories_missing_vector(scope: str, model: str, limit: int = 64) -> l
             (scope, model, limit),
         ).fetchall()
     return [_memory_row(row) for row in rows]
+
+
+def list_entities(scope: str, limit: int = 100, entity_type: str | None = None) -> list[dict]:
+    with connect() as conn:
+        if entity_type:
+            rows = conn.execute(
+                """SELECT * FROM entities
+                   WHERE scope=? AND entity_type=?
+                   ORDER BY updated_at DESC, id DESC LIMIT ?""",
+                (scope, entity_type, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM entities
+                   WHERE scope=?
+                   ORDER BY updated_at DESC, id DESC LIMIT ?""",
+                (scope, limit),
+            ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["data"] = json.loads(item.pop("data_json") or "{}")
+        result.append(item)
+    return result
+
+
+def search_entities(scope: str, query: str, limit: int = 20) -> list[dict]:
+    pattern = f"%{query.strip().lower()}%"
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT * FROM entities
+               WHERE scope=? AND LOWER(canonical_name) LIKE ?
+               ORDER BY updated_at DESC, id DESC LIMIT ?""",
+            (scope, pattern, limit),
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["data"] = json.loads(item.pop("data_json") or "{}")
+        result.append(item)
+    return result
+
+
+def list_relations(scope: str, limit: int = 200) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT r.id, r.scope, r.relation_type, r.confidence, r.evidence, r.created_at,
+                      s.id AS source_id, s.entity_type AS source_type, s.canonical_name AS source_name,
+                      t.id AS target_id, t.entity_type AS target_type, t.canonical_name AS target_name
+               FROM relations r
+               JOIN entities s ON s.id=r.source_entity_id
+               JOIN entities t ON t.id=r.target_entity_id
+               WHERE r.scope=?
+               ORDER BY r.id DESC LIMIT ?""",
+            (scope, limit),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def graph_stats(scope: str) -> dict:
+    with connect() as conn:
+        entities_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM entities WHERE scope=?",
+            (scope,),
+        ).fetchone()["n"]
+        relations_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM relations WHERE scope=?",
+            (scope,),
+        ).fetchone()["n"]
+        type_rows = conn.execute(
+            """SELECT entity_type, COUNT(*) AS n
+               FROM entities WHERE scope=?
+               GROUP BY entity_type ORDER BY n DESC""",
+            (scope,),
+        ).fetchall()
+    return {
+        "scope": scope,
+        "entities": int(entities_count),
+        "relations": int(relations_count),
+        "entity_types": {row["entity_type"]: int(row["n"]) for row in type_rows},
+    }
+
+
+def log_graph_change(
+    scope: str,
+    action: str,
+    *,
+    entity_id: int | None = None,
+    relation_id: int | None = None,
+    details: dict | None = None,
+) -> int:
+    with connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO graph_changes(scope, action, entity_id, relation_id, details_json)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                scope,
+                action,
+                entity_id,
+                relation_id,
+                json.dumps(details or {}, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def recent_graph_changes(scope: str, limit: int = 30) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT * FROM graph_changes
+               WHERE scope=? ORDER BY id DESC LIMIT ?""",
+            (scope, limit),
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["details"] = json.loads(item.pop("details_json") or "{}")
+        result.append(item)
+    return result

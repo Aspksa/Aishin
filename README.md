@@ -520,3 +520,13 @@ Live Brain показывает отдельные узлы Context и Causal.
 
 Schema migration: `4`.
 Версия приложения остаётся `0.0.3`.
+
+
+### Подтверждение Context + Causal runtime
+Context Orchestrator и Causal Reasoning подтверждены GitHub Actions:
+- run id: `36989908775`;
+- Ubuntu / Python 3.11: success;
+- Windows / Python 3.11: success;
+- compileall, self-check и FastAPI runtime smoke: success.
+
+Во время первого прогона CI обнаружил некорректные newline-литералы в `app/core/context_orchestrator.py`; файл был переписан безопасно и повторный cross-platform run прошёл полностью.

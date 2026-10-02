@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T19:08:00+10:00",
+  "generated_at": "2026-10-02T19:17:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 2,
+      "latest_schema_version": 3,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -307,6 +307,17 @@
         "app/db.py"
       ],
       "details": "При verification/needs_verification/insufficient_data расширяет память, semantic search, graph, sensors, явно указанные безопасные файлы, выполняет Cloud.ru consistency check только по собранным evidence, затем повторно запускает Metacognition до финального ответа."
+    },
+    {
+      "layer": "Aishin Logic Engine v1",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/logic.py",
+        "app/core/engine.py",
+        "app/migrations.py",
+        "app/main.py"
+      ],
+      "details": "Dynamic FAST/DEEP/VERIFY/PLAN/DIAGNOSE controller, deterministic Rule Engine, Evidence Chain, Contradiction Resolver and technical Decision Journal. VERIFY/DIAGNOSE force Verification Engine before final answer. No private chain-of-thought is stored."
     }
   ],
   "current_cognitive_flow": [
@@ -316,8 +327,10 @@
     "Planner Builder",
     "Hybrid Recall / Working Memory",
     "Initial Metacognition",
-    "Verification Engine when required",
+    "Logic Engine mode selection",
+    "Verification Engine when Logic or Metacognition requires it",
     "Final Metacognition",
+    "Logic Evidence Chain + Contradiction Resolver + Decision Journal",
     "Sensor Context",
     "Proactive Context",
     "Tool Catalog / Permission Rules",
@@ -404,7 +417,9 @@
     "tool_actions",
     "proactive_decisions",
     "metacognitive_assessments",
-    "verification_runs"
+    "verification_runs",
+    "logic_decisions",
+    "logic_rule_events"
   ],
   "important_api": [
     "GET /health",
@@ -444,7 +459,8 @@
     "POST /api/assistant/proactive/{decision_id}/execute",
     "GET /api/assistant/metacognition",
     "GET /api/assistant/verification",
-    "POST /api/system/update"
+    "POST /api/system/update",
+    "GET /api/assistant/logic"
   ],
   "key_fixed_bugs_and_safety_changes": [
     "Исправлена SQL-ошибка кавычек в запросе active memories.",
@@ -505,14 +521,15 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Reliability foundation completed: canonical personality loader + formal DB migrations + successful cross-platform runtime CI.",
-    "last_implemented_feature": "Canonical profile primary source, schema_migrations version 2, runtime smoke and GitHub Actions Windows/Linux validation.",
-    "next_recommended_step": "Implement Context Budgeter first, then Cloud.ru resilience (health cache, retry/backoff, safe errors).",
+    "milestone": "Aishin Logic Engine v1 implemented on top of Metacognition and Verification.",
+    "last_implemented_feature": "Dynamic FAST/DEEP/VERIFY/PLAN/DIAGNOSE logic controller with Rule Engine, Evidence Chain, Contradiction Resolver and technical Decision Journal.",
+    "next_recommended_step": "After CI confirmation, implement Context Budgeter / Context Orchestrator so logic can choose not only how to think but what context to spend on each mode.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не превращать Aishin в multi-user SaaS.",
       "Не смешивать память Aishin с TooruDragon.",
+      "Не сохранять и не экспонировать private chain-of-thought.",
       "Не коммитить Cloud.ru API key или другие секреты."
     ]
   },
@@ -568,6 +585,10 @@
     {
       "user_prompt": "Делай",
       "result": "Закрыт технический фундамент: canonical-first personality loader, formal schema migrations, runtime_smoke, Aishin.bat Python 3.11 validation, GitHub Actions Windows/Linux CI. Первый CI выявил две реальные ошибки (literal \\\\n и Windows cp1252), они исправлены; run 36987889755 успешно прошёл на обеих ОС."
+    },
+    {
+      "user_prompt": "Давай на логику / Делай",
+      "result": "Добавлен Aishin Logic Engine v1: Reasoning Controller, Rule Engine, Evidence Chain, Contradiction Resolver, dynamic FAST/DEEP/VERIFY/PLAN/DIAGNOSE mode selection, Decision Journal, schema migration 3, API and Live Brain node."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -584,8 +605,8 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать canonical personality loader и migrations уже закрытыми, не переделывать без причины.",
-      "Следующий рекомендуемый этап: Context Budgeter, затем Cloud.ru resilience."
+      "Считать Aishin Logic Engine v1 уже реализованным; не переписывать без причины.",
+      "Следующий рекомендуемый этап: Context Budgeter / Context Orchestrator, затем Cloud.ru resilience."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -1165,5 +1186,31 @@
     "Recent commits взяты непосредственно из GitHub API на момент handoff.",
     "Repository tree взят непосредственно из main на момент handoff.",
     "Файл фиксирует рабочее состояние и решения, но не заменяет проверку актуального HEAD перед новыми изменениями."
-  ]
+  ],
+  "logic_engine": {
+    "repository_path": "app/core/logic.py",
+    "modes": {
+      "FAST": "простая линейная обработка",
+      "DEEP": "сравнение технических альтернатив по evidence/рискам",
+      "VERIFY": "доказательная перепроверка до вывода",
+      "PLAN": "цель, зависимости, следующий шаг, критерий завершения",
+      "DIAGNOSE": "симптомы, факты, гипотезы, проверки, причина"
+    },
+    "components": [
+      "Reasoning Controller",
+      "Rule Engine",
+      "Evidence Chain",
+      "Contradiction Resolver",
+      "Dynamic Thinking Mode",
+      "Decision Journal"
+    ],
+    "tables": [
+      "logic_decisions",
+      "logic_rule_events"
+    ],
+    "api": "GET /api/assistant/logic",
+    "live_brain_node": "Logic Engine",
+    "safety_rule": "Decision Journal хранит только техническую трассу решения и evidence; скрытые внутренние chain-of-thought не сохраняются и не экспонируются.",
+    "verification_rule": "Modes VERIFY and DIAGNOSE force Verification Engine before final response."
+  }
 }

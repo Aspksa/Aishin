@@ -91,6 +91,7 @@ def health() -> dict:
         'version': '0.0.3',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
+        'semantic_memory': engine.semantic.health(),
     }
 
 
@@ -113,6 +114,7 @@ def assistant_state() -> dict:
 def assistant_brain() -> dict:
     return {
         'ai': engine.ai.health(),
+        'semantic_memory': engine.semantic.health(),
         'state': engine.state.load().to_dict(),
         'permissions': {k: engine.permissions.mode(k) for k in engine.permissions.SAFE_DEFAULTS},
         'observations': [o.__dict__ for o in engine.observer.inspect()],
@@ -189,6 +191,24 @@ def create_timeline_event(payload: TimelineEventCreate) -> dict:
 def assistant_memory(scope: str = 'personal', limit: int = 20) -> list[dict]:
     limit = max(1, min(limit, 100))
     return engine.memory.recent(scope=scope, limit=limit)
+
+
+@app.get('/api/assistant/semantic-search')
+def assistant_semantic_search(
+    query: str,
+    scope: str = 'personal',
+    limit: int = 8,
+) -> list[dict]:
+    text = query.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail='Поисковый запрос пустой')
+    limit = max(1, min(limit, 30))
+    return engine.semantic.search(text, scope=scope, limit=limit)
+
+
+@app.post('/api/assistant/semantic-index')
+def assistant_semantic_index(scope: str = 'personal') -> dict:
+    return engine.semantic.ensure_index(scope=scope, batch_size=64)
 
 
 @app.get('/api/assistant/memory-changes')

@@ -140,23 +140,9 @@ class AishinEngine:
                     limit=20,
                 ),
             },
-            "metacognition": {
-                "last": (
-                    self.metacognition.recent(
-                        scope=state.current_scope,
-                        limit=1,
-                    )[0]
-                    if self.metacognition.recent(
-                        scope=state.current_scope,
-                        limit=1,
-                    )
-                    else None
-                ),
-                "history": self.metacognition.recent(
-                    scope=state.current_scope,
-                    limit=20,
-                ),
-            },
+            "metacognition": self._metacognition_snapshot(
+                scope=state.current_scope,
+            ),
             "observations": [o.__dict__ for o in self.observer.inspect()],
             "recent_events": self.events.recent(limit=10),
             "recent_memories": self.memory.recent(
@@ -181,6 +167,13 @@ class AishinEngine:
             "master_profile": personal.master_profile,
             "relationship_memory": personal.relationship_memory,
             "personal_timeline": personal.timeline,
+        }
+
+    def _metacognition_snapshot(self, *, scope: str) -> dict:
+        history = self.metacognition.recent(scope=scope, limit=20)
+        return {
+            "last": history[0] if history else None,
+            "history": history,
         }
 
     def respond(self, message: str, *, scope: str = "personal") -> dict:

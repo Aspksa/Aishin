@@ -11,6 +11,7 @@ from .memory import MemorySystem
 from .observer import Observer
 from .permissions import PermissionGate
 from .personal import PersonalAishin
+from .semantic import SemanticMemory
 from .state import StateManager
 
 
@@ -23,7 +24,8 @@ class AishinEngine:
         self.state = StateManager()
         self.ai = AIManager()
         self.personal = PersonalAishin()
-        self.cognition = Cognition(self.memory)
+        self.semantic = SemanticMemory(self.ai)
+        self.cognition = Cognition(self.memory, semantic=self.semantic)
         self.graph = KnowledgeGraph()
         self.permissions = PermissionGate()
         self.observer = Observer(self.state, self.events)
@@ -55,6 +57,7 @@ class AishinEngine:
             "identity": personality.public_summary(),
             "state": state.to_dict(),
             "ai": self.ai.health(),
+            "semantic_memory": self.semantic.health(),
             "permissions": {
                 key: self.permissions.mode(key)
                 for key in self.permissions.SAFE_DEFAULTS
@@ -131,6 +134,7 @@ class AishinEngine:
             payload={
                 "intent": intent,
                 "recalled_memories": len(context.recalled_memories),
+                "semantic_used": context.semantic_used,
                 "provider": ai_reply.provider,
                 "model": ai_reply.model,
                 "llm_connected": ai_reply.available,
@@ -149,6 +153,7 @@ class AishinEngine:
             "intent": intent,
             "scope": scope,
             "memory_recalled": len(context.recalled_memories),
+            "semantic_used": context.semantic_used,
             "memory_consolidation": consolidation.to_dict(),
             "phase": "living-core",
             "llm_connected": ai_reply.available,

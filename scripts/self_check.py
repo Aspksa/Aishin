@@ -61,6 +61,11 @@ def main() -> int:
                 for notice in engine.planner.inspect(scope="personal")
             ],
         }
+        checks["sensors_tools"] = {
+            "status": "ok",
+            "sensors": engine.sensors.scan(scope="personal", persist=False),
+            "tools": engine.tools.catalog(),
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

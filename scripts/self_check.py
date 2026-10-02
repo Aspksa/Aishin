@@ -78,6 +78,13 @@ def main() -> int:
                 engine.metacognition.recent(scope="personal", limit=10)
             ),
         }
+        checks["verification_engine"] = {
+            "status": "ok",
+            "engine": engine.verification.__class__.__name__,
+            "history_entries": len(
+                engine.verification.recent(scope="personal", limit=10)
+            ),
+        }
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 

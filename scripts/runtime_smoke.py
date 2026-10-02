@@ -61,6 +61,34 @@ def main() -> int:
                 "count": len(tools.json()),
             }
 
+            counterfactual = client.get(
+                "/api/assistant/counterfactual",
+                params={"scope": "personal", "limit": 1},
+            )
+            if counterfactual.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/counterfactual returned HTTP "
+                    f"{counterfactual.status_code}"
+                )
+            checks["counterfactual"] = {
+                "status": "ok",
+                "history_entries": len(counterfactual.json()),
+            }
+
+            decision_quality = client.get(
+                "/api/assistant/decision-quality",
+                params={"scope": "personal", "limit": 1},
+            )
+            if decision_quality.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/decision-quality returned HTTP "
+                    f"{decision_quality.status_code}"
+                )
+            checks["decision_quality"] = {
+                "status": "ok",
+                "history_entries": len(decision_quality.json()),
+            }
+
             hypotheses = client.get(
                 "/api/assistant/hypotheses",
                 params={"scope": "personal", "limit": 1},

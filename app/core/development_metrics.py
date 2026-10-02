@@ -383,6 +383,51 @@ class DevelopmentMetricsEngine:
                    WHERE scope=? AND status='trusted'""",
                 (scope,),
             ))
+            research_score = scalar(
+                """SELECT research_score FROM research_state
+                   WHERE scope=?""",
+                (scope,),
+            )
+            research_open_gaps = int(scalar(
+                """SELECT COUNT(*) FROM research_gaps
+                   WHERE scope=? AND status IN ('open','researching')""",
+                (scope,),
+            ))
+            research_sessions = int(scalar(
+                """SELECT COUNT(*) FROM research_sessions
+                   WHERE scope=?""",
+                (scope,),
+            ))
+            research_evidence = int(scalar(
+                """SELECT COUNT(*) FROM research_evidence
+                   WHERE scope=?""",
+                (scope,),
+            ))
+            research_trusted_claims = int(scalar(
+                """SELECT COUNT(*) FROM research_claims
+                   WHERE scope=? AND status='trusted'""",
+                (scope,),
+            ))
+            research_supported_claims = int(scalar(
+                """SELECT COUNT(*) FROM research_claims
+                   WHERE scope=? AND status='supported'""",
+                (scope,),
+            ))
+            research_conflicted_claims = int(scalar(
+                """SELECT COUNT(*) FROM research_claims
+                   WHERE scope=? AND status='conflicted'""",
+                (scope,),
+            ))
+            research_open_contradictions = int(scalar(
+                """SELECT COUNT(*) FROM research_contradictions
+                   WHERE scope=? AND status='open'""",
+                (scope,),
+            ))
+            research_sources = int(scalar(
+                """SELECT COUNT(*) FROM research_sources
+                   WHERE scope=? AND enabled=1""",
+                (scope,),
+            ))
 
         knowledge_items = memories + entities
         return {
@@ -442,6 +487,15 @@ class DevelopmentMetricsEngine:
             "evolution_rollbacks": evolution_rollbacks,
             "evolution_open_curriculum": evolution_open_curriculum,
             "evolution_trusted_transfers": evolution_trusted_transfers,
+            "research_score": round(research_score, 1),
+            "research_open_gaps": research_open_gaps,
+            "research_sessions": research_sessions,
+            "research_evidence": research_evidence,
+            "research_trusted_claims": research_trusted_claims,
+            "research_supported_claims": research_supported_claims,
+            "research_conflicted_claims": research_conflicted_claims,
+            "research_open_contradictions": research_open_contradictions,
+            "research_sources": research_sources,
         }
 
     def _components(self, c: dict) -> dict:

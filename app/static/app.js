@@ -396,7 +396,7 @@ const form = document.getElementById("chat-form");
 const input = document.getElementById("chat-input");
 const messages = document.getElementById("messages");
 
-function addMessage(text, who) {
+function addMessage(text, who, meta = {}) {
   const el = document.createElement("div");
   el.className = `message ${who}`;
 
@@ -408,10 +408,61 @@ function addMessage(text, who) {
     img.alt = "";
     avatar.appendChild(img);
 
+    const body = document.createElement("div");
+    body.className = "message-body";
     const bubble = document.createElement("div");
     bubble.className = "bubble";
     bubble.textContent = text;
-    el.append(avatar, bubble);
+    body.appendChild(bubble);
+
+    if (meta.turnId) {
+      const feedback = document.createElement("div");
+      feedback.className = "chat-communication-feedback";
+      [
+        ["useful", "Полезно"],
+        ["misunderstood", "Не поняла"],
+        ["too_long", "Длинно"],
+        ["too_short", "Коротко"]
+      ].forEach(([code, label]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+        button.addEventListener("click", async () => {
+          feedback.querySelectorAll("button").forEach((item) => {
+            item.disabled = true;
+          });
+          try {
+            const response = await fetch(
+              `/api/assistant/communication/turns/${meta.turnId}/feedback`,
+              {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                  scope: "personal",
+                  feedback: code,
+                  reason: "inline chat feedback"
+                })
+              }
+            );
+            if (!response.ok) throw new Error("Feedback HTTP " + response.status);
+            feedback.dataset.saved = "true";
+            button.classList.add("selected");
+            if (typeof window.AISHIN_COMMUNICATION_REFRESH === "function") {
+              window.AISHIN_COMMUNICATION_REFRESH();
+            }
+          } catch (error) {
+            feedback.querySelectorAll("button").forEach((item) => {
+              item.disabled = false;
+            });
+            console.error("Communication feedback:", error);
+          }
+        });
+        feedback.appendChild(button);
+      });
+      body.appendChild(feedback);
+    }
+
+    el.append(avatar, body);
   } else {
     el.textContent = text;
   }
@@ -435,7 +486,11 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify({message})
     });
     const data = await response.json();
-    addMessage(data.reply || "Не удалось получить ответ.", "aishin");
+    addMessage(
+      data.reply || "Не удалось получить ответ.",
+      "aishin",
+      {turnId: data.communication?.turn?.id}
+    );
     await refreshDashboard(false);
   } catch {
     addMessage("Господин, связь с ядром прервалась. Я бы проверила сервер.", "aishin");

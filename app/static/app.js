@@ -306,7 +306,7 @@ function setBrainNode(name, active, attention, detail) {
 
 function renderLivingBrain(state, sensors, pending, approved) {
   const runtime = state.state || {};
-  const memories = state.recent_memories || [];
+  const memories = state.working_memory?.memories || [];
   const graph = state.knowledge_graph?.personal || {};
   const tasks = state.planner?.open_items?.tasks || [];
   const events = state.recent_events || [];
@@ -502,7 +502,7 @@ async function refreshDashboard(evaluate = false) {
     approvedCount.textContent = String(approved.length);
     document.getElementById("metric-decisions").textContent = String(pending.length);
 
-    const memories = state.recent_memories || [];
+    const memories = state.working_memory?.memories || [];
     const tasks = state.planner?.open_items?.tasks || [];
     const entities = state.knowledge_graph?.personal?.entities || 0;
 

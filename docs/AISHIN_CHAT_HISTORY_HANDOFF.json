@@ -6,7 +6,7 @@
     "machine_readable": true,
     "purpose": "Передача полного рабочего контекста проекта Aishin следующему чату ChatGPT без смешивания с другими проектами."
   },
-  "generated_at": "2026-10-02T20:25:00+10:00",
+  "generated_at": "2026-10-02T20:32:00+10:00",
   "source_conversation": {
     "project": "Aishin Kitsune",
     "transcript_fidelity": {
@@ -115,7 +115,7 @@
     "database_migrations": {
       "framework": "app/migrations.py",
       "migration_table": "schema_migrations",
-      "latest_schema_version": 10,
+      "latest_schema_version": 11,
       "automatic_on_init": true,
       "self_check": [
         "schema up-to-date",
@@ -146,8 +146,8 @@
         "scripts/self_check.py",
         "scripts/runtime_smoke.py"
       ],
-      "latest_confirmed_run_id": 36994986756,
-      "latest_confirmed_head_sha": "a662356b9fb2bdf3147ea860d64590f2dffdef08"
+      "latest_confirmed_run_id": 36995834519,
+      "latest_confirmed_head_sha": "f0ca2811f709b752450bdd85453c1627a9f46445"
     }
   },
   "implemented_architecture": [
@@ -446,6 +446,19 @@
         "app/core/verification.py"
       ],
       "details": "Ordinary conversation is no longer escalated to heavy Verification solely because personal memory is empty. Explicit verification, contradictions and action+insufficient_data still trigger re-check."
+    },
+    {
+      "layer": "Proactive Lifecycle Dedupe / Acknowledge",
+      "status": "implemented_current_stop",
+      "paths": [
+        "app/core/proactive_lifecycle.py",
+        "app/core/proactive.py",
+        "app/db.py",
+        "app/migrations.py",
+        "app/main.py",
+        "app/static/app.js"
+      ],
+      "details": "Persistent condition state suppresses duplicate proactive decisions across pending/approved/rejected/acknowledged/executed/failed while the same condition remains active. Resolved→active recurrence increments generation and permits a fresh decision."
     }
   ],
   "current_cognitive_flow": [
@@ -560,7 +573,8 @@
     "execution_approvals",
     "execution_attempts",
     "cognitive_request_traces",
-    "performance_traces"
+    "performance_traces",
+    "proactive_conditions"
   ],
   "important_api": [
     "GET /health",
@@ -613,7 +627,9 @@
     "GET /api/assistant/execution/attempts",
     "GET /api/assistant/cognitive-traces",
     "GET /api/assistant/ai-diagnostics",
-    "GET /api/assistant/performance"
+    "GET /api/assistant/performance",
+    "GET /api/assistant/proactive/conditions",
+    "POST /api/assistant/proactive/{decision_id}/acknowledge"
   ],
   "key_fixed_bugs_and_safety_changes": [
     "Исправлена SQL-ошибка кавычек в запросе active memories.",
@@ -668,7 +684,12 @@
     "Verification should_run is now intent-aware: explicit verification and contradictions remain strict; action insufficient data remains protected.",
     "Every request now persists stage timings and identifies its bottleneck.",
     "Latency budgets are soft and cannot silently cut off reasoning or execution.",
-    "Performance + Verification policy validated on Windows and Ubuntu in GitHub Actions run 36994986756."
+    "Performance + Verification policy validated on Windows and Ubuntu in GitHub Actions run 36994986756.",
+    "Rejected/approved/acknowledged/executed proactive conditions no longer create a fresh pending card on every heartbeat while the same condition remains active.",
+    "Informational signals now have explicit acknowledged semantics instead of abusing reject as 'seen'.",
+    "Resolved conditions are re-armed only after a true resolved→active transition with a new generation.",
+    "Concurrent pending proposal creation is protected against SELECT→INSERT race by SQLite unique index + IntegrityError recovery.",
+    "Proactive lifecycle validated on Windows and Ubuntu in GitHub Actions run 36995834519."
   ],
   "known_technical_debt_and_unverified_items": [
     {
@@ -709,18 +730,16 @@
   ],
   "current_stop_point": {
     "date": "2026-10-02",
-    "milestone": "Performance Observability / Latency Budget and intent-aware Verification policy completed, history saved, cross-platform runtime validated.",
-    "last_implemented_feature": "Per-request stage timing/bottleneck traces plus removal of unnecessary Verification escalation for ordinary no-memory conversation.",
-    "next_recommended_step": "Use collected performance traces to optimize measured bottlenecks. High-value structural debts next: proactive decision lifecycle dedupe/acknowledge, Knowledge Graph data merge/startup audit suppression, and Tool Registry atomic writes/hash validation.",
+    "milestone": "Proactive lifecycle dedupe/acknowledge completed, history saved, cross-platform runtime validated.",
+    "last_implemented_feature": "Persistent active/resolved condition generations, acknowledge semantics and race-safe proactive pending creation.",
+    "next_recommended_step": "Knowledge Graph merge/audit suppression: merge entity data_json instead of overwriting, avoid graph_changes for unchanged startup seeds/upserts, then validate graph builder field shapes.",
     "do_not_do": [
       "Не повышать версию автоматически.",
       "Не возвращать Ollama.",
       "Не смешивать память Aishin с TooruDragon.",
-      "Не возвращать global last_cognitive_context.",
-      "Не превращать soft latency budget в скрытый hard cutoff без отдельного решения.",
-      "Не запускать Verification на обычный conversation только из-за отсутствия memory.",
-      "Не обходить Permission Gate / Execution Coordinator.",
-      "Не логировать Cloud.ru API key."
+      "Не создавать новую proactive decision для того же непрерывно активного fingerprint после reject/acknowledge.",
+      "Не использовать acknowledge для executable/tool decisions.",
+      "Не обходить Permission Gate / Execution Coordinator."
     ]
   },
   "development_sequence_current_chat": [
@@ -807,6 +826,10 @@
     {
       "user_prompt": "Делай",
       "result": "Добавлены Performance Observability / Latency Budget и intent-aware Verification trigger policy. Schema migration 10, performance_traces, stage timings per request_id, bottleneck/over-budget status, API /performance, Live Brain Latency node. Ordinary conversation without memory no longer auto-runs Verification; explicit verification/action safeguards remain. GitHub Actions run 36994986756 прошёл Windows + Ubuntu. История сохранена."
+    },
+    {
+      "user_prompt": "Делай",
+      "result": "Закрыт Proactive lifecycle dedupe/acknowledge. Schema migration 11, proactive_conditions, active/resolved generations, last_decision suppression across terminal statuses, explicit acknowledged status/API/UI, race-safe pending INSERT. GitHub Actions run 36995834519 прошёл Windows + Ubuntu. История сохранена."
     }
   ],
   "pre_current_chat_context_required_for_next_chat": [
@@ -823,9 +846,9 @@
       "Прочитать этот файл полностью.",
       "Подключиться к GitHub repo Aspksa/Aishin, branch main.",
       "Проверить актуальный HEAD и последний GitHub Actions Aishin Runtime Check.",
-      "Считать schema 10 Performance Observability + intent-aware Verification policy реализованными.",
-      "Сначала смотреть performance_traces перед оптимизацией скорости.",
-      "Следующие структурные кандидаты: proactive lifecycle dedupe/acknowledge, graph merge/audit suppression, atomic Tool Registry writes."
+      "Считать schema 11 proactive lifecycle реализованным.",
+      "Не возвращать dedupe только по pending status; использовать ProactiveLifecycle.",
+      "Следующий этап: Knowledge Graph merge/audit suppression."
     ],
     "github_connector_workflow": [
       "repository_full_name = Aspksa/Aishin",
@@ -1764,5 +1787,30 @@
     "action_insufficient_data": "runs",
     "conversation_insufficient_data": "does not run by should_run policy",
     "purpose": "avoid redundant expanded recall, graph/sensor scan and extra Cloud consistency call for ordinary conversation"
+  },
+  "proactive_lifecycle": {
+    "repository_path": "app/core/proactive_lifecycle.py",
+    "table": "proactive_conditions",
+    "identity": "scope + fingerprint",
+    "fields": [
+      "active",
+      "generation",
+      "last_decision_id",
+      "disposition",
+      "last_seen_at",
+      "resolved_at"
+    ],
+    "dedupe_rule": "one decision per continuously-active condition generation",
+    "recurrence_rule": "condition must resolve and become active again before a new decision is allowed",
+    "acknowledge": {
+      "status": "acknowledged",
+      "allowed_for": "informational pending decisions without tool_name",
+      "meaning": "user has seen/accepted the signal; not a rejection and not execution"
+    },
+    "race_safety": "pending INSERT catches sqlite3.IntegrityError and returns the already-created pending row protected by idx_proactive_pending_unique",
+    "apis": [
+      "GET /api/assistant/proactive/conditions",
+      "POST /api/assistant/proactive/{decision_id}/acknowledge"
+    ]
   }
 }

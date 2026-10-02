@@ -225,8 +225,12 @@ def assistant_growth(
     specialization_limit: int = 40,
     history_limit: int = 60,
 ) -> dict:
+    summary = engine.long_term_growth.refresh(
+        scope=scope,
+        persist_snapshot=True,
+    )
     return {
-        'summary': engine.long_term_growth.summary(scope=scope),
+        'summary': summary,
         'skills': engine.long_term_growth.skills(
             scope=scope,
             limit=max(1, min(skill_limit, 300)),

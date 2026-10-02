@@ -577,6 +577,17 @@ def assistant_proactive_execute(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.get('/api/assistant/action-selection')
+def assistant_action_selection(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.action_selector.recent(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
 @app.get('/api/assistant/counterfactual')
 def assistant_counterfactual(
     scope: str = 'personal',

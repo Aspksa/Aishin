@@ -34,3 +34,11 @@
 .communication-empty{min-height:76px;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:8px}
 @media(max-width:1180px){.communication-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.communication-grid{grid-template-columns:1fr}.communication-panel.wide{grid-column:auto}.communication-principles{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.communication-head{flex-direction:column}.communication-hero{grid-template-columns:1fr;justify-items:center;text-align:center;padding:18px}.communication-stats{grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.communication-turn{grid-template-columns:1fr}.communication-scorebox{text-align:left}.communication-runtime{grid-template-columns:repeat(2,minmax(0,1fr))}.communication-principles{grid-template-columns:1fr}}
+
+.message.aishin .message-body{min-width:0;display:grid;gap:5px}
+.chat-communication-feedback{display:flex;flex-wrap:wrap;gap:4px;padding-left:2px;opacity:.68;transition:opacity .16s ease}
+.message.aishin:hover .chat-communication-feedback{opacity:1}
+.chat-communication-feedback button{border:1px solid #e8dfda;border-radius:999px;padding:4px 7px;background:#fff;color:#88766e;font-size:6px;font-weight:800;cursor:pointer}
+.chat-communication-feedback button:hover{border-color:#cda8b4;background:#fff9fb}
+.chat-communication-feedback button.selected{border-color:#b8768b;background:#f8edf1;color:#8f4e63}
+.chat-communication-feedback button:disabled:not(.selected){opacity:.38;cursor:default}

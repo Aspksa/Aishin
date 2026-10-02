@@ -292,8 +292,6 @@ class AishinEngine:
             scope=scope,
             payload={
                 "request_id": request_id,
-                "request_id": request_id,
-                "trace_id": trace_id,
                 "intent": intent,
                 "text_preview": cleaned[:240],
             },
@@ -577,6 +575,8 @@ class AishinEngine:
             "response.created",
             scope=scope,
             payload={
+                "request_id": request_id,
+                "trace_id": trace_id,
                 "intent": intent,
                 "recalled_memories": len(context.recalled_memories),
                 "semantic_used": context.semantic_used,

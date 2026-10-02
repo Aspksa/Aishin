@@ -56,6 +56,31 @@ def main() -> int:
                 "Айшин запущена не из канонического профиля личности"
             )
 
+        ai_diag = engine.ai.diagnostics()
+        if ai_diag.get("provider") == "cloud.ru":
+            if not (0 <= int(ai_diag.get("max_retries", -1)) <= 4):
+                raise RuntimeError("Cloud.ru max_retries вне безопасной границы")
+            if float(ai_diag.get("health_ttl_seconds", 0)) < 5:
+                raise RuntimeError("Cloud.ru health cache TTL слишком мал")
+        checks["cloudru_resilience"] = {
+            "status": "ok",
+            "diagnostics": ai_diag,
+        }
+
+        checks["cognitive_trace_isolation"] = {
+            "status": "ok",
+            "store": engine.cognitive_traces.__class__.__name__,
+            "history_entries": len(
+                engine.cognitive_traces.recent(scope="personal", limit=10)
+            ),
+            "global_last_context_removed": not hasattr(
+                engine,
+                "last_cognitive_context",
+            ),
+        }
+        if not checks["cognitive_trace_isolation"]["global_last_context_removed"]:
+            raise RuntimeError("Глобальный last_cognitive_context всё ещё активен")
+
         checks["personality"] = {
             "status": "ok",
             "name": personality.name,

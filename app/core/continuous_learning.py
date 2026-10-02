@@ -457,6 +457,9 @@ class ContinuousLearningEngine:
             ("memory_changes", "memory_changes", "action", 0.70),
             ("graph_changes", "graph_changes", "action", 0.60),
             ("execution", "execution_attempts", "status", 0.90),
+            ("self_reflection", "self_reflection_runs", "mode", 0.90),
+            ("context_budget", "context_budget_reports", "mode", 0.65),
+            ("experiment", "experiment_observations", "experiment_id", 0.55),
         )
 
         for source_type, table, kind_column, default_priority in sources:
@@ -603,6 +606,7 @@ class ContinuousLearningEngine:
                 category="performance_bottleneck",
                 pattern_key=key,
                 success=success,
+                evidence_weight=0.70,
                 evidence={
                     "source_type": source_type,
                     "source_id": source_id,
@@ -622,6 +626,7 @@ class ContinuousLearningEngine:
                 pattern_key=key,
                 success=outcome == "success",
                 failure=outcome == "failure",
+                evidence_weight=1.00,
                 evidence={
                     "source_type": source_type,
                     "source_id": source_id,
@@ -639,10 +644,87 @@ class ContinuousLearningEngine:
                 pattern_key=tool_name,
                 success=status == "success",
                 failure=status in {"failed", "stale_or_blocked"},
+                evidence_weight=0.95,
                 evidence={
                     "source_type": source_type,
                     "source_id": source_id,
                     "status": status,
+                },
+            )
+            return True
+
+        if source_type == "self_reflection":
+            quality = float(payload.get("quality_score") or 0.0)
+            weak_spots = payload.get("weak_spots") or []
+            for weak_spot in weak_spots[:8]:
+                self._observe_pattern(
+                    scope=scope,
+                    category="self_reflection",
+                    pattern_key=str(weak_spot),
+                    failure=True,
+                    evidence_weight=0.85,
+                    evidence={
+                        "source_type": source_type,
+                        "source_id": source_id,
+                        "quality_score": quality,
+                        "confidence_score": payload.get("confidence_score"),
+                    },
+                )
+            band = (
+                "high_quality" if quality >= 0.80
+                else "low_quality" if quality < 0.60
+                else "mixed_quality"
+            )
+            self._observe_pattern(
+                scope=scope,
+                category="response_quality",
+                pattern_key=band,
+                success=quality >= 0.80,
+                failure=quality < 0.60,
+                evidence_weight=0.85,
+                evidence={
+                    "source_type": source_type,
+                    "source_id": source_id,
+                    "quality_score": quality,
+                    "correction_signal": bool(payload.get("correction_signal")),
+                },
+            )
+            return True
+
+        if source_type == "context_budget":
+            before = int(payload.get("estimated_tokens_before") or 0)
+            after = int(payload.get("estimated_tokens_after") or 0)
+            trimmed = int(payload.get("trimmed_chars") or 0)
+            mode = str(payload.get("mode") or kind or "FAST")
+            self._observe_pattern(
+                scope=scope,
+                category="context_pressure",
+                pattern_key=mode,
+                success=trimmed == 0,
+                failure=trimmed > 0,
+                evidence_weight=0.60,
+                evidence={
+                    "source_type": source_type,
+                    "source_id": source_id,
+                    "before": before,
+                    "after": after,
+                    "trimmed_chars": trimmed,
+                },
+            )
+            return True
+
+        if source_type == "experiment":
+            self._observe_pattern(
+                scope=scope,
+                category="experiment_signal",
+                pattern_key=f"experiment:{payload.get('experiment_id') or kind}",
+                evidence_weight=0.35,
+                evidence={
+                    "source_type": source_type,
+                    "source_id": source_id,
+                    "baseline_score": payload.get("baseline_score"),
+                    "candidate_score": payload.get("candidate_score"),
+                    "shadow_only": True,
                 },
             )
             return True
@@ -652,6 +734,8 @@ class ContinuousLearningEngine:
                 scope=scope,
                 category="memory_change",
                 pattern_key=kind,
+                evidence_weight=0.55,
+                evidence_weight=0.50,
                 evidence={
                     "source_type": source_type,
                     "source_id": source_id,
@@ -679,6 +763,7 @@ class ContinuousLearningEngine:
                 scope=scope,
                 category="event_frequency",
                 pattern_key=event_type,
+                evidence_weight=0.35,
                 evidence={
                     "source_type": source_type,
                     "source_id": source_id,
@@ -720,6 +805,7 @@ class ContinuousLearningEngine:
         pattern_key: str,
         success: bool = False,
         failure: bool = False,
+        evidence_weight: float = 0.5,
         evidence: dict,
     ) -> None:
         with connect() as conn:
@@ -787,7 +873,89 @@ class ContinuousLearningEngine:
                         int(item["id"]),
                     ),
                 )
+            pattern_row = conn.execute(
+                """SELECT id FROM learning_patterns
+                   WHERE scope=? AND category=? AND pattern_key=?""",
+                (scope, category, pattern_key[:240]),
+            ).fetchone()
+            if pattern_row is not None:
+                self._update_evidence_metrics(
+                    conn=conn,
+                    pattern_id=int(pattern_row["id"]),
+                    scope=scope,
+                    source_type=str(evidence.get("source_type") or "unknown"),
+                    weight=evidence_weight,
+                    success=success,
+                    failure=failure,
+                )
             conn.commit()
+
+    @staticmethod
+    def _update_evidence_metrics(
+        *,
+        conn,
+        pattern_id: int,
+        scope: str,
+        source_type: str,
+        weight: float,
+        success: bool,
+        failure: bool,
+    ) -> None:
+        weight = max(0.05, min(1.0, float(weight)))
+        row = conn.execute(
+            """SELECT * FROM learning_evidence_metrics
+               WHERE pattern_id=?""",
+            (pattern_id,),
+        ).fetchone()
+        if row is None:
+            sources = [source_type]
+            weighted_observations = weight
+            weighted_successes = weight if success else 0.0
+            weighted_failures = weight if failure else 0.0
+        else:
+            item = dict(row)
+            sources = json.loads(item.get("source_types_json") or "[]")
+            if source_type not in sources:
+                sources.append(source_type)
+            weighted_observations = float(item["weighted_observations"]) + weight
+            weighted_successes = float(item["weighted_successes"]) + (
+                weight if success else 0.0
+            )
+            weighted_failures = float(item["weighted_failures"]) + (
+                weight if failure else 0.0
+            )
+
+        diversity_bonus = min(0.12, max(0, len(sources) - 1) * 0.04)
+        evidence_confidence = min(
+            1.0,
+            0.35 + min(0.53, weighted_observations / 10.0) + diversity_bonus,
+        )
+        conn.execute(
+            """INSERT INTO learning_evidence_metrics(
+                   pattern_id, scope, weighted_observations,
+                   weighted_successes, weighted_failures,
+                   evidence_confidence, source_types_json,
+                   last_signal_weight, updated_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(pattern_id) DO UPDATE SET
+                   weighted_observations=excluded.weighted_observations,
+                   weighted_successes=excluded.weighted_successes,
+                   weighted_failures=excluded.weighted_failures,
+                   evidence_confidence=excluded.evidence_confidence,
+                   source_types_json=excluded.source_types_json,
+                   last_signal_weight=excluded.last_signal_weight,
+                   updated_at=CURRENT_TIMESTAMP""",
+            (
+                pattern_id,
+                scope,
+                round(weighted_observations, 4),
+                round(weighted_successes, 4),
+                round(weighted_failures, 4),
+                round(evidence_confidence, 4),
+                json.dumps(sources[-8:], ensure_ascii=False),
+                weight,
+            ),
+        )
 
     def _ensure_state(self, *, scope: str) -> dict:
         with connect() as conn:
@@ -940,6 +1108,32 @@ class ContinuousLearningEngine:
                 "tool_name": item.get("tool_name"),
                 "status": item.get("status"),
             }
+        if source_type == "self_reflection":
+            return {
+                "mode": item.get("mode"),
+                "quality_score": item.get("quality_score"),
+                "confidence_score": item.get("confidence_score"),
+                "error_count": item.get("error_count"),
+                "correction_signal": bool(item.get("correction_signal")),
+                "weak_spots": json.loads(item.get("weak_spots_json") or "[]"),
+            }
+        if source_type == "context_budget":
+            return {
+                "mode": item.get("mode"),
+                "token_budget": item.get("token_budget"),
+                "estimated_tokens_before": item.get("estimated_tokens_before"),
+                "estimated_tokens_after": item.get("estimated_tokens_after"),
+                "trimmed_chars": item.get("trimmed_chars"),
+            }
+        if source_type == "experiment":
+            return {
+                "experiment_id": item.get("experiment_id"),
+                "baseline_score": item.get("baseline_score"),
+                "candidate_score": item.get("candidate_score"),
+                "details": ContinuousLearningEngine._safe_metadata(
+                    json.loads(item.get("details_json") or "{}")
+                ),
+            }
         return {}
 
     @staticmethod
@@ -990,6 +1184,14 @@ class ContinuousLearningEngine:
             return 0.95 if status != "success" else 0.75
         if source_type == "performance":
             return 0.75 if item.get("budget_status") == "over_budget" else default
+        if source_type == "self_reflection":
+            quality = float(item.get("quality_score") or 0.0)
+            correction = bool(item.get("correction_signal"))
+            return 0.98 if correction else (0.90 if quality < 0.60 else default)
+        if source_type == "context_budget":
+            return 0.80 if int(item.get("trimmed_chars") or 0) > 0 else default
+        if source_type == "experiment":
+            return 0.55
         return default
 
     @staticmethod

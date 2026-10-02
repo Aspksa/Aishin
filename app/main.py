@@ -47,6 +47,7 @@ async def lifespan(_: FastAPI):
         planner=engine.planner,
         sensors=engine.sensors,
         proactive=engine.proactive_intelligence,
+        research=engine.research,
     )
     heartbeat_task = asyncio.create_task(heartbeat.run())
     engine.continuous_learning.prepare_start()

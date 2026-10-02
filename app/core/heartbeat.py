@@ -2,6 +2,7 @@ import asyncio
 
 from .events import EventBus
 from .planner import Planner
+from .sensors import SensorHub
 from .state import StateManager
 
 
@@ -11,11 +12,13 @@ class Heartbeat:
         interval_seconds: int = 60,
         *,
         planner: Planner | None = None,
+        sensors: SensorHub | None = None,
     ):
         self.interval_seconds = interval_seconds
         self.state = StateManager()
         self.events = EventBus()
         self.planner = planner
+        self.sensors = sensors
         self._stop = asyncio.Event()
 
     async def run(self):
@@ -55,6 +58,27 @@ class Heartbeat:
                                 ],
                             },
                             importance=0.7,
+                        )
+
+                if self.sensors is not None:
+                    readings = self.sensors.scan(
+                        scope=state.current_scope,
+                        persist=True,
+                    )
+                    attention = [
+                        item
+                        for item in readings
+                        if item["status"] not in {"ok"}
+                    ]
+                    if attention:
+                        self.events.emit(
+                            "sensors.attention",
+                            scope=state.current_scope,
+                            payload={
+                                "count": len(attention),
+                                "items": attention[:10],
+                            },
+                            importance=0.65,
                         )
 
             try:

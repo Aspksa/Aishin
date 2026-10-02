@@ -49,27 +49,40 @@ class ContinuousLearningEngine:
         self._last_mode: dict[str, str] = {}
 
     async def run(self) -> None:
-        while not self._stop.is_set():
-            try:
-                state = self.state.load()
-                scope = state.current_scope or "personal"
-                await asyncio.to_thread(self.run_cycle, scope=scope)
-            except Exception as exc:
+        last_scope = "personal"
+        try:
+            while not self._stop.is_set():
                 try:
-                    self._set_worker_status(
-                        scope="personal",
-                        status="error",
-                        reason=str(exc)[:300],
+                    state = self.state.load()
+                    last_scope = state.current_scope or "personal"
+                    await asyncio.to_thread(
+                        self.run_cycle,
+                        scope=last_scope,
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    try:
+                        self._set_worker_status(
+                            scope=last_scope,
+                            status="error",
+                            reason=str(exc)[:300],
+                        )
+                    except Exception:
+                        pass
 
+                try:
+                    await asyncio.wait_for(
+                        self._stop.wait(),
+                        timeout=self.interval_seconds,
+                    )
+                except asyncio.TimeoutError:
+                    pass
+        finally:
             try:
-                await asyncio.wait_for(
-                    self._stop.wait(),
-                    timeout=self.interval_seconds,
+                self._set_worker_status(
+                    scope=last_scope,
+                    status="stopped",
                 )
-            except asyncio.TimeoutError:
+            except Exception:
                 pass
 
     def stop(self) -> None:
@@ -288,6 +301,40 @@ class ContinuousLearningEngine:
             item["evidence"] = json.loads(item.pop("evidence_json") or "[]")
             result.append(item)
         return result
+
+    def prompt_block(self, *, scope: str) -> str:
+        patterns = [
+            item
+            for item in self.patterns(scope=scope, limit=30)
+            if int(item.get("observations", 0)) >= 2
+            and item.get("category") in {
+                "logic_strategy_feedback",
+                "tool_execution",
+                "performance_bottleneck",
+            }
+        ][:8]
+
+        if not patterns:
+            return (
+                "Continuous Learning: подтверждённых operational patterns "
+                "пока недостаточно. Не придумывай опыт."
+            )
+
+        lines = [
+            "Continuous Learning: накопленный operational experience.",
+            "Это опыт системы, а не факты о мире и не разрешение на действие.",
+            "Используй его только как слабую подсказку; текущие evidence, "
+            "Permission Gate и Verification имеют приоритет.",
+        ]
+        for item in patterns:
+            lines.append(
+                f"- {item['category']}:{item['pattern_key']} "
+                f"observations={item['observations']}, "
+                f"score={float(item['score']):.2f}, "
+                f"successes={item['successes']}, "
+                f"failures={item['failures']}"
+            )
+        return "\n".join(lines)
 
     def queue(self, *, scope: str, limit: int = 50) -> list[dict]:
         with connect() as conn:

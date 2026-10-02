@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 from .cloudru import CloudRuProvider
-from .provider import AIReply
+from .provider import AIReply, EmbeddingReply
 
 
 class AIManager:
@@ -31,3 +31,33 @@ class AIManager:
             model="",
             available=False,
         )
+
+
+    def embed(self, texts: list[str]) -> EmbeddingReply:
+        if self.mode in {"cloudru", "cloud.ru"}:
+            return self.cloudru.embed(texts)
+        return EmbeddingReply(
+            vectors=[],
+            provider=self.mode,
+            model="",
+            dimensions=0,
+            available=False,
+            error="Embedding-провайдер не настроен",
+        )
+
+    def embedding_health(self) -> dict:
+        if self.mode in {"cloudru", "cloud.ru"}:
+            base = self.cloudru.health()
+            return {
+                "available": base.get("available", False),
+                "provider": self.cloudru.name,
+                "model": self.cloudru.embedding_model,
+                "dimensions": self.cloudru.embedding_dimensions,
+                "configured": bool(self.cloudru.api_key),
+                "error": base.get("error"),
+            }
+        return {
+            "available": False,
+            "provider": self.mode,
+            "error": "Embedding-провайдер не настроен",
+        }

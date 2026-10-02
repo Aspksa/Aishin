@@ -56,16 +56,29 @@ class ProactiveDecisionLoop:
     def evaluate(self, *, scope: str) -> DecisionEvaluation:
         readings = self.sensors.scan(scope=scope, persist=False)
         notices = self.planner.inspect(scope=scope)
-        before = {
-            item["id"]
-            for item in list_proactive_decisions(scope, status="pending", limit=500)
+        pending_before = list_proactive_decisions(
+            scope,
+            status="pending",
+            limit=500,
+        )
+        before = {item["id"] for item in pending_before}
+        pending_fingerprints = {
+            item["fingerprint"] for item in pending_before
         }
 
         for notice in notices:
-            proposal = self._proposal_for_notice(notice, scope=scope)
+            fingerprint = self._notice_fingerprint(notice, scope=scope)
+            if fingerprint in pending_fingerprints:
+                continue
+            proposal = self._proposal_for_notice(
+                notice,
+                scope=scope,
+                fingerprint=fingerprint,
+            )
             if proposal is None:
                 continue
             self._store_proposal(scope=scope, **proposal)
+            pending_fingerprints.add(fingerprint)
 
         # Sensor-level attention that is not already represented by planner notices.
         for reading in readings:
@@ -82,6 +95,8 @@ class ProactiveDecisionLoop:
                 reading["status"],
                 scope,
             )
+            if fingerprint in pending_fingerprints:
+                continue
             create_proactive_decision(
                 scope=scope,
                 fingerprint=fingerprint,
@@ -271,11 +286,31 @@ class ProactiveDecisionLoop:
             )
         return "\n".join(lines)
 
+    def _notice_fingerprint(
+        self,
+        notice: PlannerNotice,
+        *,
+        scope: str,
+    ) -> str:
+        if notice.goal_id is not None:
+            identity = f"goal:{notice.goal_id}"
+        elif notice.task_id is not None:
+            identity = f"task:{notice.task_id}"
+        else:
+            identity = notice.message
+        return self._fingerprint(
+            "planner",
+            notice.code,
+            identity,
+            scope,
+        )
+
     def _proposal_for_notice(
         self,
         notice: PlannerNotice,
         *,
         scope: str,
+        fingerprint: str,
     ) -> dict | None:
         common = {
             "source": f"planner:{notice.code}",
@@ -312,11 +347,7 @@ class ProactiveDecisionLoop:
             )
             return {
                 **common,
-                "fingerprint": self._fingerprint(
-                    notice.code,
-                    str(notice.goal_id),
-                    scope,
-                ),
+                "fingerprint": fingerprint,
                 "title": f"Добавить следующий шаг для цели «{goal['title']}»",
                 "rationale": notice.message,
                 "tool_name": "planner.create_task",
@@ -333,12 +364,7 @@ class ProactiveDecisionLoop:
         }:
             return {
                 **common,
-                "fingerprint": self._fingerprint(
-                    notice.code,
-                    str(notice.task_id),
-                    notice.message,
-                    scope,
-                ),
+                "fingerprint": fingerprint,
                 "title": notice.message,
                 "rationale": (
                     "Айшин обнаружила состояние задачи, которое требует "

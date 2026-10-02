@@ -1,6 +1,8 @@
 const logo = window.AISHIN_LOGO;
 document.getElementById("brand-logo").src = logo;
 document.getElementById("hero-logo").src = logo;
+const chatLogo = document.getElementById("chat-logo");
+if (chatLogo) chatLogo.src = logo;
 
 const pages = {
   assistant: {
@@ -47,7 +49,23 @@ const messages = document.getElementById("messages");
 function addMessage(text, who) {
   const el = document.createElement("div");
   el.className = `message ${who}`;
-  el.textContent = text;
+
+  if (who === "aishin") {
+    const avatar = document.createElement("div");
+    avatar.className = "message-avatar";
+    const img = document.createElement("img");
+    img.src = logo;
+    img.alt = "";
+    avatar.appendChild(img);
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+    el.append(avatar, bubble);
+  } else {
+    el.textContent = text;
+  }
+
   messages.appendChild(el);
   messages.scrollTop = messages.scrollHeight;
 }
@@ -93,6 +111,37 @@ const pendingCount = document.getElementById("pending-count");
 const approvedCount = document.getElementById("approved-count");
 const sensorState = document.getElementById("sensor-state");
 const refreshApproval = document.getElementById("refresh-approval");
+
+function humanLearningMode(mode) {
+  const names = {
+    REALTIME: "в разговоре",
+    BACKGROUND: "учу в фоне",
+    IDLE: "спокойно",
+    MAINTENANCE: "обслуживание"
+  };
+  return names[mode] || "спокойно";
+}
+
+function humanMetaStatus(status) {
+  const names = {
+    confident: "уверена",
+    cautious: "проверяю",
+    needs_verification: "нужна перепроверка",
+    insufficient_data: "мало данных"
+  };
+  return names[status] || "спокойно";
+}
+
+function humanLogicMode(mode) {
+  const names = {
+    FAST: "быстро",
+    DEEP: "глубоко",
+    VERIFY: "перепроверяю",
+    PLAN: "планирую",
+    DIAGNOSE: "диагностика"
+  };
+  return names[mode] || "ожидание";
+}
 
 function formatPriority(value) {
   const numeric = Number(value || 0);
@@ -319,8 +368,18 @@ function renderLivingBrain(state, sensors, pending, approved) {
   const events = state.recent_events || [];
   const actions = state.tools?.recent_actions || [];
 
-  document.getElementById("brain-focus-value").textContent =
-    runtime.focus || runtime.activity || "waiting";
+  const focusText = runtime.focus || runtime.activity || "ожидание";
+  document.getElementById("brain-focus-value").textContent = focusText;
+
+  const simpleFocus = document.getElementById("simple-focus");
+  if (simpleFocus) {
+    const focusNames = {
+      conversation: "разговор",
+      waiting: "ожидаю",
+      idle: "спокойно"
+    };
+    simpleFocus.textContent = focusNames[focusText] || focusText;
+  }
 
   const attentionSensors = sensors.filter((item) => item.status !== "ok");
   const activeDecisions = [...pending, ...approved];
@@ -337,6 +396,24 @@ function renderLivingBrain(state, sensors, pending, approved) {
   const verification = state.working_memory?.verification || null;
   const performance = state.working_memory?.performance || (state.performance || [])[0] || null;
   const continuousLearning = state.continuous_learning || null;
+
+  const learningStatusSimple = continuousLearning?.status || {};
+  const trustedSimple = (continuousLearning?.patterns || []).filter(
+    (item) => item.lifecycle === "trusted"
+  ).length;
+  const simpleMode = document.getElementById("simple-mode");
+  const simpleLearning = document.getElementById("simple-learning");
+  const simpleTrusted = document.getElementById("simple-trusted");
+  if (simpleMode) simpleMode.textContent = humanLearningMode(learningStatusSimple.mode);
+  if (simpleLearning) {
+    simpleLearning.textContent =
+      learningStatusSimple.worker_status === "error"
+        ? "нужна проверка"
+        : humanLearningMode(learningStatusSimple.mode);
+  }
+  if (simpleTrusted) {
+    simpleTrusted.textContent = `${trustedSimple} проверенных`;
+  }
 
   setBrainNode(
     "sensors",
@@ -369,7 +446,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
     Boolean(logic),
     Boolean(logic?.unresolved?.length),
     logic
-      ? `${logic.mode} · complexity ${Math.round(Number(logic.complexity || 0) * 100)}%`
+      ? `${humanLogicMode(logic.mode)} · сложность ${Math.round(Number(logic.complexity || 0) * 100)}%`
       : "режим ещё не выбран"
   );
 
@@ -387,8 +464,8 @@ function renderLivingBrain(state, sensors, pending, approved) {
     Boolean(causal),
     Boolean(causal?.unresolved?.length),
     causal
-      ? `${causal.claims?.length || 0} claims · ${causal.unresolved?.length || 0} unresolved`
-      : "причинных claims нет"
+      ? `${causal.claims?.length || 0} связей · ${causal.unresolved?.length || 0} требуют проверки`
+      : "причинные связи не требуются"
   );
 
   setBrainNode(
@@ -396,7 +473,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
     Boolean(hypotheses),
     Boolean(hypotheses?.selected_test && Object.keys(hypotheses.selected_test).length),
     hypotheses
-      ? `${hypotheses.hypotheses?.length || 0} hypotheses · ${hypotheses.stop_reason || "testing"}`
+      ? `${hypotheses.hypotheses?.length || 0} гипотез · анализ выполнен`
       : "гипотезы ещё не строились"
   );
 
@@ -405,8 +482,8 @@ function renderLivingBrain(state, sensors, pending, approved) {
     Boolean(learning),
     false,
     learning?.feedback?.applied
-      ? `${learning.feedback.outcome} · reliability ${Math.round(Number(learning.feedback.reliability || 0) * 100)}%`
-      : `${learning?.strategies?.length || 0} learned strategies`
+      ? `обратная связь учтена · надёжность ${Math.round(Number(learning.feedback.reliability || 0) * 100)}%`
+      : `${learning?.strategies?.length || 0} изученных стратегий`
   );
 
   setBrainNode(
@@ -414,8 +491,8 @@ function renderLivingBrain(state, sensors, pending, approved) {
     Boolean(counterfactual),
     Boolean(counterfactual?.unresolved?.length),
     counterfactual
-      ? `${counterfactual.scenarios?.length || 0} scenarios · ${counterfactual.unresolved?.length || 0} unresolved`
-      : "what-if ещё не выполнялся"
+      ? `${counterfactual.scenarios?.length || 0} вариантов · ${counterfactual.unresolved?.length || 0} требуют проверки`
+      : "альтернативы ещё не требовались"
   );
 
   setBrainNode(
@@ -432,8 +509,8 @@ function renderLivingBrain(state, sensors, pending, approved) {
     Boolean(actionSelection?.selected && Object.keys(actionSelection.selected).length),
     ["approval_required", "blocked_by_permission"].includes(actionSelection?.selection_state),
     actionSelection?.selected
-      ? `${Math.round(Number(actionSelection.selected.utility || 0) * 100)}% · ${actionSelection.selection_state}`
-      : "кандидат ещё не выбран"
+      ? `полезность ${Math.round(Number(actionSelection.selected.utility || 0) * 100)}% · вариант выбран`
+      : "действие ещё не выбиралось"
   );
 
   const activeApprovals = (executionGuard.approvals || []).filter(
@@ -445,9 +522,9 @@ function renderLivingBrain(state, sensors, pending, approved) {
     activeApprovals.length > 0 || Boolean(latestAttempt),
     activeApprovals.length > 0,
     activeApprovals.length
-      ? `${activeApprovals.length} one-shot approval`
+      ? `${activeApprovals.length} ждут подтверждения`
       : latestAttempt
-        ? `last: ${latestAttempt.status}`
+        ? `последнее действие: ${latestAttempt.status}`
         : "нет активных разрешений"
   );
 
@@ -466,9 +543,21 @@ function renderLivingBrain(state, sensors, pending, approved) {
     Boolean(learningStatus),
     learningStatus?.worker_status === "error",
     learningStatus
-      ? `${learningStatus.mode || "IDLE"} · queue ${learningStatus.queue?.pending || 0} · trusted ${(continuousLearning?.patterns || []).filter((item) => item.lifecycle === "trusted").length}`
-      : "worker ещё не запускался"
+      ? `${humanLearningMode(learningStatus.mode)} · очередь ${learningStatus.queue?.pending || 0} · проверено ${(continuousLearning?.patterns || []).filter((item) => item.lifecycle === "trusted").length}`
+      : "самообучение ещё не запускалось"
   );
+
+  const simpleSteps = {
+    context: document.getElementById("simple-step-context"),
+    memory: document.getElementById("simple-step-memory"),
+    reason: document.getElementById("simple-step-reason"),
+    answer: document.getElementById("simple-step-answer")
+  };
+  Object.values(simpleSteps).forEach((el) => el?.classList.remove("active"));
+  if (contextTrace) simpleSteps.context?.classList.add("active");
+  if (memories.length) simpleSteps.memory?.classList.add("active");
+  if (logic || meta) simpleSteps.reason?.classList.add("active");
+  if (runtime.activity === "conversation") simpleSteps.answer?.classList.add("active");
 
   const metaStatus = meta?.status || "нет оценки";
   const metaAttention = ["needs_verification", "insufficient_data"].includes(metaStatus);
@@ -477,7 +566,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
     Boolean(meta),
     metaAttention,
     meta
-      ? `${metaStatus} · ${Math.round(Number(meta.confidence || 0) * 100)}%`
+      ? `${humanMetaStatus(metaStatus)} · ${Math.round(Number(meta.confidence || 0) * 100)}%`
       : "оценка ещё не выполнялась"
   );
   setBrainNode(
@@ -524,7 +613,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
       memoryStream.appendChild(
         brainStreamItem(
           memory.kind || "memory",
-          `${memory.content || ""} · confidence ${confidence}%`
+          `${memory.content || ""} · уверенность ${confidence}%`
         )
       );
     });
@@ -544,7 +633,7 @@ function renderLivingBrain(state, sensors, pending, approved) {
       eventStream.appendChild(
         brainStreamItem(
           event.event_type || "event",
-          `importance ${Number(event.importance || 0).toFixed(2)} · ${event.created_at || ""}`
+          `важность ${Number(event.importance || 0).toFixed(2)} · ${event.created_at || ""}`
         )
       );
     });
@@ -562,7 +651,7 @@ function showDecisionReasoning(decision) {
     "",
     `Источник: ${decision.source || "core"}`,
     `Приоритет: ${Math.round(Number(decision.priority || 0) * 100)}%`,
-    `Confidence: ${Math.round(Number(decision.confidence || 0) * 100)}%`,
+    `Уверенность: ${Math.round(Number(decision.confidence || 0) * 100)}%`,
     `Инструмент: ${humanTool(decision.tool_name)}`
   ];
 

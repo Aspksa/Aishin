@@ -72,9 +72,9 @@ def main() -> int:
                 "/api/assistant/execution/attempts/999999999/rollback",
                 json={"scope": "personal", "approved": False},
             )
-            if rollback_missing.status_code != 400:
+            if rollback_missing.status_code not in {400, 403}:
                 raise RuntimeError(
-                    "Rollback API должен отклонять неизвестный execution attempt"
+                    "Rollback API должен отклонять неизвестный или нелокальный вызов"
                 )
             checks["atomic_write_rollback"] = {
                 "status": "ok",

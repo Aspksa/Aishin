@@ -6,6 +6,9 @@ from ..personality import personality
 from .cognition import Cognition
 from .events import EventBus
 from .memory import MemoryCandidate, MemorySystem
+from .graph import KnowledgeGraph
+from .observer import Observer
+from .permissions import PermissionGate
 from .state import StateManager
 
 
@@ -18,8 +21,12 @@ class AishinEngine:
         self.state = StateManager()
         self.cognition = Cognition(self.memory)
         self.ai = AIManager()
+        self.graph = KnowledgeGraph()
+        self.permissions = PermissionGate()
+        self.observer = Observer(self.state, self.events)
 
     def startup(self) -> None:
+        self.permissions.bootstrap()
         state = self.state.load()
         state.status = "awake"
         state.activity = "startup"
@@ -38,6 +45,8 @@ class AishinEngine:
             "identity": personality.public_summary(),
             "state": state.to_dict(),
             "ai": self.ai.health(),
+            "permissions": {k: self.permissions.mode(k) for k in self.permissions.SAFE_DEFAULTS},
+            "observations": [o.__dict__ for o in self.observer.inspect()],
             "recent_events": self.events.recent(limit=10),
             "recent_memories": self.memory.recent(scope=state.current_scope, limit=8),
             "recent_messages": recent_messages(limit=10, scope=state.current_scope),

@@ -83,8 +83,14 @@ class Metacognition:
             if semantic_used:
                 evidence_score += 0.10
         else:
-            missing.append("Нет релевантных воспоминаний в рабочем контексте.")
-            reasons.append("Рабочая память не дала прямой опоры.")
+            if intent in self.HIGH_STAKES_INTENTS:
+                missing.append("Нет релевантных воспоминаний в рабочем контексте.")
+                reasons.append("Рабочая память не дала прямой опоры.")
+            else:
+                reasons.append(
+                    "Для обычного разговора отсутствие персональной памяти "
+                    "само по себе не считается ошибкой данных."
+                )
 
         entities = int(graph_stats.get("entities", 0) or 0)
         relations = int(graph_stats.get("relations", 0) or 0)
@@ -144,6 +150,8 @@ class Metacognition:
         elif confidence >= 0.72:
             status = "confident"
         elif confidence >= 0.42:
+            status = "cautious"
+        elif intent == "conversation":
             status = "cautious"
         else:
             status = "insufficient_data"

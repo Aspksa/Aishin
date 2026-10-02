@@ -48,6 +48,9 @@ class ContinuousLearningEngine:
         self._stop = asyncio.Event()
         self._last_mode: dict[str, str] = {}
 
+    def prepare_start(self) -> None:
+        self._stop.clear()
+
     async def run(self) -> None:
         last_scope = "personal"
         try:

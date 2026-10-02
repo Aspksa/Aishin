@@ -441,6 +441,25 @@ class CommunicationIntelligenceEngine:
                 + " | ".join(recent)
             )
 
+        phrase_category = self._phrase_category(plan)
+        phrase_examples = personality.phrase_style_examples(
+            phrase_category,
+            limit=2,
+        )
+        phrase_rules = personality.phrase_rules()
+        if phrase_examples:
+            parts.append(
+                "Стилевые примеры библиотеки для этой ситуации "
+                f"({phrase_category}). Не копируй их механически; "
+                "используй только как ориентир голоса:\n- "
+                + "\n- ".join(phrase_examples)
+            )
+        if phrase_rules:
+            parts.append(
+                "Правила фразовой библиотеки: "
+                + "; ".join(phrase_rules[:10])
+            )
+
         style = speech.get("style") or []
         if style:
             parts.append("Канонический стиль: " + ", ".join(style) + ".")
@@ -645,6 +664,12 @@ class CommunicationIntelligenceEngine:
                 "profile_schema_version": personality.profile.get(
                     "schema", {}
                 ).get("version"),
+                "phrase_library_version": (
+                    (personality.phrase_library.get("schema") or {}).get(
+                        "version"
+                    )
+                    if personality.phrase_library else None
+                ),
                 "canonical_traits": personality.profile.get(
                     "personality", {}
                 ).get("traits", []),
@@ -937,6 +962,26 @@ class CommunicationIntelligenceEngine:
         if signals["frustration_signal"]["active"]:
             return "rare"
         return "rare"
+
+    @staticmethod
+    def _phrase_category(plan: CommunicationPlan) -> str:
+        if plan.user_signals.get("fatigue_signal", {}).get("active"):
+            return "user_tired"
+        if plan.user_need == "correction":
+            return "own_error"
+        if plan.strategy == "respectful_correction":
+            return "disagreement"
+        if plan.strategy == "proactive_warning":
+            return "serious_risk"
+        if plan.strategy == "investigate":
+            return "uncertainty"
+        if plan.strategy == "personal_warmth":
+            return "quiet_personal"
+        if plan.strategy in {"teach", "clarification_recovery", "compare"}:
+            return "complex_task"
+        if plan.strategy == "collaborate":
+            return "task_received"
+        return "task_received"
 
     def _persona_runtime(
         self,

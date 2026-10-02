@@ -735,7 +735,6 @@ class ContinuousLearningEngine:
                 category="memory_change",
                 pattern_key=kind,
                 evidence_weight=0.55,
-                evidence_weight=0.50,
                 evidence={
                     "source_type": source_type,
                     "source_id": source_id,
@@ -749,6 +748,7 @@ class ContinuousLearningEngine:
                 scope=scope,
                 category="graph_change",
                 pattern_key=kind,
+                evidence_weight=0.50,
                 evidence={
                     "source_type": source_type,
                     "source_id": source_id,

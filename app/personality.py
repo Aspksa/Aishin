@@ -7,6 +7,7 @@ from typing import Any
 DATA_DIR = Path(__file__).parent / "data"
 CANONICAL_PROFILE_PATH = DATA_DIR / "AISHIN_PERSONALITY_PROFILE.json"
 LEGACY_PROFILE_PATH = DATA_DIR / "aishin_personality.json"
+PHRASE_LIBRARY_PATH = DATA_DIR / "AISHIN_PHRASE_LIBRARY_RU.json"
 
 _REQUIRED_TOP_LEVEL = {
     "schema",
@@ -27,6 +28,23 @@ class AishinPersonality:
     def __init__(self, path: Path | None = None) -> None:
         self.path = self._resolve_path(path)
         self.profile: dict[str, Any] = self._load_and_validate()
+        self.phrase_library: dict[str, Any] = self._load_phrase_library()
+
+    @staticmethod
+    def _load_phrase_library() -> dict[str, Any]:
+        if not PHRASE_LIBRARY_PATH.is_file():
+            return {}
+        with PHRASE_LIBRARY_PATH.open("r", encoding="utf-8") as file:
+            payload = json.load(file)
+        if not isinstance(payload, dict):
+            raise ValueError("Библиотека фраз Айшин должна быть JSON-объектом")
+        schema = payload.get("schema") or {}
+        if schema.get("name") != "aishin_phrase_library":
+            raise ValueError("Некорректная schema.name библиотеки фраз Айшин")
+        character = payload.get("character") or {}
+        if character.get("name") != "Айшин":
+            raise ValueError("Некорректная character.name библиотеки фраз Айшин")
+        return payload
 
     @staticmethod
     def _resolve_path(path: Path | None) -> Path:
@@ -120,7 +138,47 @@ class AishinPersonality:
             "priority_rules": self.profile["runtime_personality_kernel"]["priority_rules"],
             "profile_source": self.source,
             "profile_schema_version": self.profile["schema"].get("version"),
+            "phrase_library_version": (
+                (self.phrase_library.get("schema") or {}).get("version")
+                if self.phrase_library else None
+            ),
         }
+
+    def phrase_style_examples(
+        self,
+        category: str,
+        *,
+        limit: int = 3,
+    ) -> list[str]:
+        item = (
+            (self.phrase_library.get("categories") or {}).get(category)
+            if self.phrase_library
+            else None
+        )
+        if not isinstance(item, dict):
+            return []
+        lines = item.get("lines") or []
+        return [
+            str(line).strip()
+            for line in lines
+            if str(line).strip()
+        ][: max(0, min(int(limit), 5))]
+
+    def phrase_rules(self) -> list[str]:
+        voice = self.phrase_library.get("voice") if self.phrase_library else {}
+        return [
+            str(item).strip()
+            for item in (voice or {}).get("rules", [])
+            if str(item).strip()
+        ]
+
+    def phrase_selection_logic(self) -> dict[str, Any]:
+        value = (
+            self.phrase_library.get("selection_logic")
+            if self.phrase_library
+            else {}
+        )
+        return dict(value or {})
 
     def phrase(self, key: str, default: str = "") -> str:
         return self.profile.get("phrases", {}).get(key, default)

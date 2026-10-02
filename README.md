@@ -426,7 +426,7 @@ Live Brain содержит отдельный узел `Verification`, кото
 SQLite:
 - добавлен `app/migrations.py`;
 - таблица `schema_migrations` хранит применённые миграции;
-- текущая версия схемы: `3`;
+- текущая версия схемы: `4`;
 - `init_db()` автоматически применяет недостающие миграции;
 - self-check проверяет schema version, `PRAGMA foreign_keys=ON` и `PRAGMA integrity_check`.
 
@@ -483,3 +483,40 @@ API:
 Live Brain содержит отдельный узел Logic Engine и отображает текущий mode/complexity.
 
 Это развитие текущей версии `0.0.3`; номер версии не меняется.
+
+
+## Context Orchestrator
+Logic Engine выбирает, как думать; Context Orchestrator решает, какой объём данных попадёт в финальный prompt Cloud.ru.
+
+Бюджеты по режимам:
+- `FAST`: history=4, memories=4, graph=0, planner=2;
+- `DEEP`: history=8, memories=8, graph=8, planner=5;
+- `VERIFY`: history=6, memories=12, graph=12, verification=8;
+- `PLAN`: history=6, memories=6, graph=6, planner=12;
+- `DIAGNOSE`: history=8, memories=10, graph=8, verification=8, sensors=6.
+
+Сначала Cognition собирает рабочий минимальный контекст для выбора Logic Mode. После Logic/Verification финальный system prompt пересобирается с нуля Context Orchestrator под выбранный mode. Исходные данные при этом не удаляются из памяти — ограничивается только конкретный prompt.
+
+Каждая сборка сохраняется в `context_traces`: mode, budget, выбранные memory/entity/planner IDs и приблизительный размер prompt.
+
+API:
+- `GET /api/assistant/context-traces`
+
+## Causal Reasoning
+Causal Reasoning консервативно отделяет:
+- `observed` — связь наблюдается;
+- `temporal` — одно событие было раньше/позже другого;
+- `contributory` — фактор мог способствовать;
+- `causal_candidate` — есть явная причинная формулировка и evidence, но причинность ещё не доказана.
+
+Причинный confidence ограничен сверху и снижается при противоречиях. Если evidence не поддерживает одновременно причину и следствие, система сохраняет это как гипотезу/неопределённость, а не как факт.
+
+История сохраняется в `causal_assessments`.
+
+API:
+- `GET /api/assistant/causal`
+
+Live Brain показывает отдельные узлы Context и Causal.
+
+Schema migration: `4`.
+Версия приложения остаётся `0.0.3`.

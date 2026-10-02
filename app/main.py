@@ -41,6 +41,7 @@ async def lifespan(_: FastAPI):
         interval_seconds=60,
         planner=engine.planner,
         sensors=engine.sensors,
+        proactive=engine.proactive,
     )
     heartbeat_task = asyncio.create_task(heartbeat.run())
     try:
@@ -120,6 +121,12 @@ class ToolInvoke(BaseModel):
 
 class PermissionUpdate(BaseModel):
     mode: str
+
+
+class DecisionAction(BaseModel):
+    scope: str = 'personal'
+    execute: bool = False
+    reason: str = ''
 
 
 @app.get('/', response_class=HTMLResponse)
@@ -485,6 +492,85 @@ def assistant_permission_update(
         'capability': capability,
         'mode': engine.permissions.mode(capability),
     }
+
+
+@app.post('/api/assistant/proactive/evaluate')
+def assistant_proactive_evaluate(scope: str = 'personal') -> dict:
+    return engine.proactive.evaluate(scope=scope).to_dict()
+
+
+@app.get('/api/assistant/proactive/pending')
+def assistant_proactive_pending(
+    scope: str = 'personal',
+    limit: int = 100,
+) -> list[dict]:
+    return engine.proactive.pending(
+        scope=scope,
+        limit=max(1, min(limit, 300)),
+    )
+
+
+@app.get('/api/assistant/proactive/history')
+def assistant_proactive_history(
+    scope: str = 'personal',
+    status: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.proactive.history(
+        scope=scope,
+        status=status,
+        limit=max(1, min(limit, 300)),
+    )
+
+
+@app.post('/api/assistant/proactive/{decision_id}/approve')
+def assistant_proactive_approve(
+    decision_id: int,
+    payload: DecisionAction,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.proactive.approve(
+            decision_id,
+            scope=payload.scope.strip() or 'personal',
+            execute=payload.execute,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post('/api/assistant/proactive/{decision_id}/reject')
+def assistant_proactive_reject(
+    decision_id: int,
+    payload: DecisionAction,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.proactive.reject(
+            decision_id,
+            scope=payload.scope.strip() or 'personal',
+            reason=payload.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post('/api/assistant/proactive/{decision_id}/execute')
+def assistant_proactive_execute(
+    decision_id: int,
+    payload: DecisionAction,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.proactive.execute(
+            decision_id,
+            scope=payload.scope.strip() or 'personal',
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get('/api/assistant/memory')

@@ -578,6 +578,17 @@ def assistant_proactive_execute(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.get('/api/assistant/performance')
+def assistant_performance(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
+    return engine.performance.recent(
+        scope=scope,
+        limit=max(1, min(limit, 100)),
+    )
+
+
 @app.get('/api/assistant/cognitive-traces')
 def assistant_cognitive_traces(
     scope: str = 'personal',

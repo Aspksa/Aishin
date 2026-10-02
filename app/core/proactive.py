@@ -231,6 +231,11 @@ class ProactiveDecisionLoop:
                 "approval": approval or {},
             },
         )
+        self.lifecycle.mark_disposition(
+            scope=scope,
+            fingerprint=decision["fingerprint"],
+            disposition="approved",
+        )
         self.events.emit(
             "proactive.decision.approved",
             scope=scope,
@@ -263,6 +268,11 @@ class ProactiveDecisionLoop:
             status="rejected",
             execution={"reason": reason.strip()},
         )
+        self.lifecycle.mark_disposition(
+            scope=scope,
+            fingerprint=decision["fingerprint"],
+            disposition="rejected",
+        )
         self.events.emit(
             "proactive.decision.rejected",
             scope=scope,
@@ -271,6 +281,44 @@ class ProactiveDecisionLoop:
                 "reason": reason.strip(),
             },
             importance=0.4,
+        )
+        result = get_proactive_decision(decision_id, scope)
+        return result or {}
+
+    def acknowledge(
+        self,
+        decision_id: int,
+        *,
+        scope: str,
+        reason: str = "",
+    ) -> dict:
+        decision = get_proactive_decision(decision_id, scope)
+        if not decision:
+            raise ValueError("decision not found in scope")
+        if decision["status"] != "pending":
+            raise ValueError("only pending decisions can be acknowledged")
+        if decision.get("tool_name"):
+            raise ValueError("executable decision must be approved or rejected")
+
+        update_proactive_decision(
+            decision_id,
+            scope=scope,
+            status="acknowledged",
+            execution={"reason": reason.strip()},
+        )
+        self.lifecycle.mark_disposition(
+            scope=scope,
+            fingerprint=decision["fingerprint"],
+            disposition="acknowledged",
+        )
+        self.events.emit(
+            "proactive.decision.acknowledged",
+            scope=scope,
+            payload={
+                "decision_id": decision_id,
+                "reason": reason.strip(),
+            },
+            importance=0.35,
         )
         result = get_proactive_decision(decision_id, scope)
         return result or {}
@@ -309,6 +357,15 @@ class ProactiveDecisionLoop:
             scope=scope,
             status="executed" if success else ("pending" if stale else "failed"),
             execution=execution,
+        )
+        self.lifecycle.mark_disposition(
+            scope=scope,
+            fingerprint=decision["fingerprint"],
+            disposition=(
+                "executed"
+                if success
+                else ("stale_pending" if stale else "failed")
+            ),
         )
         self.events.emit(
             "proactive.decision.executed"

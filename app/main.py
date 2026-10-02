@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 from .core.engine import AishinEngine
@@ -113,8 +113,9 @@ class StatusUpdate(BaseModel):
 
 class ToolInvoke(BaseModel):
     scope: str = 'personal'
-    arguments: dict = {}
+    arguments: dict = Field(default_factory=dict)
     dry_run: bool = True
+    approved: bool = False
 
 
 class PermissionUpdate(BaseModel):
@@ -439,12 +440,19 @@ def assistant_tools() -> list[dict]:
 
 
 @app.post('/api/assistant/tools/{tool_name:path}')
-def assistant_tool_invoke(tool_name: str, payload: ToolInvoke) -> dict:
+def assistant_tool_invoke(
+    tool_name: str,
+    payload: ToolInvoke,
+    request: Request,
+) -> dict:
+    if not payload.dry_run or payload.approved:
+        _local_only(request)
     return engine.tools.invoke(
         tool_name,
         scope=payload.scope.strip() or 'personal',
         arguments=payload.arguments,
         dry_run=payload.dry_run,
+        approved=payload.approved,
     )
 
 
@@ -463,7 +471,9 @@ def assistant_tool_history(
 def assistant_permission_update(
     capability: str,
     payload: PermissionUpdate,
+    request: Request,
 ) -> dict:
+    _local_only(request)
     if capability not in engine.permissions.SAFE_DEFAULTS:
         raise HTTPException(status_code=400, detail='Неизвестная capability')
     try:

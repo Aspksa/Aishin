@@ -129,6 +129,49 @@ def main() -> int:
                 "matches": len(graph_items),
             }
 
+            learning_status = client.get(
+                "/api/assistant/continuous-learning/status",
+                params={"scope": "personal"},
+            )
+            if learning_status.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/continuous-learning/status returned HTTP "
+                    f"{learning_status.status_code}"
+                )
+            learning_data = learning_status.json()
+            if learning_data.get("mode") not in {
+                "REALTIME", "BACKGROUND", "IDLE", "MAINTENANCE"
+            }:
+                raise RuntimeError("Continuous Learning вернул неизвестный mode")
+
+            learning_cycles = client.get(
+                "/api/assistant/continuous-learning/cycles",
+                params={"scope": "personal", "limit": 2},
+            )
+            if learning_cycles.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/continuous-learning/cycles returned HTTP "
+                    f"{learning_cycles.status_code}"
+                )
+
+            learning_patterns = client.get(
+                "/api/assistant/continuous-learning/patterns",
+                params={"scope": "personal", "limit": 2},
+            )
+            if learning_patterns.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/continuous-learning/patterns returned HTTP "
+                    f"{learning_patterns.status_code}"
+                )
+
+            checks["continuous_learning"] = {
+                "status": "ok",
+                "mode": learning_data.get("mode"),
+                "worker_status": learning_data.get("worker_status"),
+                "cycles": len(learning_cycles.json()),
+                "patterns": len(learning_patterns.json()),
+            }
+
             performance = client.get(
                 "/api/assistant/performance",
                 params={"scope": "personal", "limit": 1},

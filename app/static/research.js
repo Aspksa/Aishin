@@ -95,7 +95,7 @@ function renderGate(data){
 function renderHistory(items){
   const svg=q("#research-history");if(!svg)return;
   items=(items||[]).slice(0,50).reverse();
-  if(items.length<2){svg.innerHTML='<text x="450" y="85" text-anchor="middle" fill="#9a908c" font-size="9">История исследований ещё накапливается</text>';return;}
+  if(items.length<2){svg.innerHTML='<text x="450" y="85" text-anchor="middle" fill="#9a908c" font-size="11">История исследований ещё накапливается</text>';return;}
   const w=900,h=170,px=32,py=20,uw=w-px*2,uh=h-py*2;
   const values=items.map(x=>n((x.summary&&x.summary.state&&x.summary.state.research_score)||0));
   const min=Math.max(0,Math.min(...values)-4),max=Math.min(100,Math.max(...values)+8||10);

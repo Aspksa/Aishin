@@ -514,14 +514,15 @@ class ResponseGroundingScorer:
             )
 
         if tool_result:
-            content = str(tool_result.get("content") or "").strip()
+            output = tool_result.get("output") or tool_result
+            content = str(output.get("content") or "").strip()
             if content:
                 tool = str(
                     tool_result.get("tool")
                     or tool_result.get("tool_name")
                     or "tool"
                 )
-                path = str(tool_result.get("path") or "")
+                path = str(output.get("path") or "")
                 sources.append(
                     {
                         "key": f"tool:{tool}:{path}",

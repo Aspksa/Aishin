@@ -104,6 +104,7 @@
           '<div class="brain-flow-meta">',
             '<div><span>request</span><strong id="lb-flow-request">—</strong></div>',
             '<div><span>время</span><strong id="lb-flow-elapsed">—</strong></div>',
+            '<div><span>параллельно</span><strong id="lb-flow-concurrency">0</strong></div>',
             '<div class="brain-flow-legend" aria-label="Легенда состояний">',
               '<span class="executing"><i></i>сейчас</span>',
               '<span class="recent"><i></i>недавно</span>',
@@ -194,7 +195,17 @@
       running: "выполняется",
       completed: "завершено",
       fallback: "завершено · fallback",
-      error: "ошибка"
+      error: "ошибка",
+      executed: "выполнено",
+      executed_read_only: "выполнено · read-only",
+      execution_failed: "ошибка исполнения",
+      approval_required: "нужно подтверждение",
+      blocked_by_permission: "заблокировано разрешениями",
+      proposal_only: "только предложение",
+      arguments_unresolved: "аргументы не подтверждены",
+      preview_failed: "preview не прошёл",
+      no_candidate: "кандидат не выбран",
+      unknown_tool: "неизвестный инструмент"
     })[String(value || "")] || String(value || "ожидание");
   }
 
@@ -306,6 +317,12 @@
     setText("#lb-current-phase", "фаза: " + (topology.current_phase || pulse.phase || "idle"));
     setText("#lb-flow-request", topology.request_id ? String(topology.request_id).slice(0,12) : "—");
     setText("#lb-flow-elapsed", topology.elapsed_ms == null ? "—" : (n(topology.elapsed_ms) + " мс"));
+    setText(
+      "#lb-flow-concurrency",
+      n(topology.active_requests) + (
+        n(topology.active_requests) === 1 ? " запрос" : " запросов"
+      )
+    );
     setText("#lb-events-hour", compact(pulse.events_1h));
     setText("#lb-events-5m", compact(pulse.events_5m) + " за 5 минут");
 

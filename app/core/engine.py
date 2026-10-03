@@ -465,6 +465,16 @@ class AishinEngine:
                     limit=20,
                 ),
             },
+            "response_grounding": {
+                "summary": self.response_grounding.summary(
+                    scope=effective_scope,
+                    limit=100,
+                ),
+                "recent": self.response_grounding.recent(
+                    scope=effective_scope,
+                    limit=20,
+                ),
+            },
             "learning_planner": {
                 "open": self.learning_planner.open_plans(
                     scope=effective_scope,

@@ -95,26 +95,89 @@ class Metacognition:
                 )
 
         external_evidence = external_evidence or []
+        independent_support_groups: set[str] = set()
+        if memory_count:
+            independent_support_groups.add("memory")
+
         if external_evidence:
-            external_scores = []
+            weighted_scores: list[tuple[float, float]] = []
+            source_groups: dict[str, float] = {}
+            derived_types = {
+                "verification",
+                "trusted_claim",
+                "knowledge_graph",
+                "messages",
+            }
             for item in external_evidence[:16]:
+                source_type = str(
+                    item.get("source_type")
+                    or item.get("source")
+                    or "external"
+                ).casefold()
+                source_ref = str(item.get("source_ref") or "").strip()
+                group = str(item.get("source_group") or "").strip()
+                if source_type in {"memory", "semantic_memory"}:
+                    group = "memory"
+                elif not group and item.get("document_id") is not None:
+                    group = f"document:{item.get('document_id')}"
+                elif not group:
+                    group = (
+                        f"{source_type}:{source_ref}"
+                        if source_ref
+                        else source_type
+                    )
+
+                try:
+                    independence = max(
+                        0.0,
+                        min(1.0, float(item.get("independence", 1.0))),
+                    )
+                except (TypeError, ValueError):
+                    independence = 1.0
+
                 score = item.get("confidence")
                 if score is None:
                     score = item.get("retrieval_score")
                 try:
-                    external_scores.append(
-                        max(0.0, min(1.0, float(score or 0.0)))
+                    normalized = max(
+                        0.0,
+                        min(1.0, float(score or 0.0)),
                     )
                 except (TypeError, ValueError):
-                    continue
-            evidence_score += min(0.22, 0.04 * len(external_evidence))
-            if external_scores:
+                    normalized = 0.0
+
+                weighted_scores.append((normalized, independence))
+                source_groups[group] = max(
+                    source_groups.get(group, 0.0),
+                    independence,
+                )
+
+                if (
+                    independence >= 0.75
+                    and source_type not in derived_types
+                ):
+                    independent_support_groups.add(group)
+
+            effective_group_mass = sum(source_groups.values())
+            evidence_score += min(
+                0.22,
+                0.08 * effective_group_mass,
+            )
+            weight_total = sum(weight for _, weight in weighted_scores)
+            if weighted_scores and weight_total > 0:
                 evidence_score += 0.18 * (
-                    sum(external_scores) / len(external_scores)
+                    sum(
+                        score * weight
+                        for score, weight in weighted_scores
+                    )
+                    / weight_total
                 )
             reasons.append(
                 "Внешних grounded evidence в контексте: "
-                f"{len(external_evidence)}."
+                f"{len(external_evidence)}; "
+                f"source groups: {len(source_groups)}; "
+                "независимых первичных опор: "
+                f"{len(independent_support_groups)}."
             )
 
         if external_contradictions:
@@ -171,11 +234,11 @@ class Metacognition:
 
         if (
             intent in self.HIGH_STAKES_INTENTS
-            and memory_count + len(external_evidence) < 2
+            and len(independent_support_groups) < 2
         ):
             missing.append(
                 "Для проверки или действия недостаточно независимых "
-                "доказательных опор."
+                "первичных доказательных опор."
             )
             evidence_score -= 0.10
 

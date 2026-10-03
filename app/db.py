@@ -897,12 +897,22 @@ def log_memory_change(scope: str, memory_id: int | None, action: str, reason: st
         return int(cur.lastrowid)
 
 
-def recent_memory_changes(limit: int = 30) -> list[dict]:
+def recent_memory_changes(
+    limit: int = 30,
+    scope: str | None = None,
+) -> list[dict]:
     with connect() as conn:
-        rows = conn.execute(
-            "SELECT * FROM memory_changes ORDER BY id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        if scope is None:
+            rows = conn.execute(
+                "SELECT * FROM memory_changes ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM memory_changes
+                   WHERE scope=? ORDER BY id DESC LIMIT ?""",
+                (scope, limit),
+            ).fetchall()
     result = []
     for row in rows:
         item = dict(row)

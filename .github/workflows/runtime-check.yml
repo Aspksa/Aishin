@@ -2,7 +2,7 @@ name: Aishin Runtime Check
 
 on:
   push:
-    branches: [main, integration/00.00.13-response-grounding]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

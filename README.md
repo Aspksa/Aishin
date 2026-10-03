@@ -3,7 +3,7 @@
 Aishin — проект личной AI-помощницы Айшин (Айши).
 
 ## Версия
-`0.0.12` — Brain Wiring & Real-Time Neural Observatory: связанное когнитивное ядро, scope isolation, Document Evidence и живая телеметрия выполнения.
+`0.0.13` — Response Grounding: доказательная привязка финального ответа к evidence/provenance поверх закрытого Brain Wiring & Real-Time Neural Observatory 0.0.12.
 
 ## Что уже заложено
 - ядро на Python/FastAPI;
@@ -33,6 +33,7 @@ Aishin — проект личной AI-помощницы Айшин (Айши)
 - **Tool Registry** — контролируемые инструменты с permission gate, dry-run, явным approval и журналом действий;
 - **Proactive Decision Loop** — сенсоры → оценка → предложение → approval/reject → контролируемое выполнение;
 - **Real-Time Neural Observatory** — настоящая 24-узловая карта прохождения запроса с состояниями `executing / recent / idle / attention`, реальными переходами и лёгким SSE-потоком без тяжёлого polling;
+- **Response Grounding** — generation-time policy + детерминированный post-response аудит: claims сопоставляются только с evidence текущего запроса, учитываются provenance/source groups, точные числа и отрицание; слабая опора попадает в Self Reflection, Continuous Learning и Live Brain;
 - **Metacognition** — детерминированная оценка достаточности данных, confidence, evidence score, противоречий и необходимости перепроверки перед ответом;
 - **Verification Engine** — автоматическая перепроверка памяти, semantic memory, Knowledge Graph, сенсоров и явно указанных файлов проекта с повторной оценкой confidence до финального ответа;
 - permission gate для будущих автономных действий;

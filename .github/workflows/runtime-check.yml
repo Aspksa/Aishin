@@ -2,7 +2,7 @@ name: Aishin Runtime Check
 
 on:
   push:
-    branches: [main]
+    branches: [main, release/00.00.12-browser-visual-qa]
   workflow_dispatch:
 
 permissions:
@@ -50,6 +50,19 @@ jobs:
 
       - name: FastAPI runtime smoke
         run: python scripts/runtime_smoke.py
+
+      - name: Browser visual smoke
+        if: runner.os == 'Linux'
+        run: python scripts/browser_ui_smoke.py
+
+      - name: Upload browser visual artifacts
+        if: runner.os == 'Linux' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-ui-${{ github.sha }}
+          path: artifacts/browser-smoke
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Launcher check-only
         if: runner.os == 'Windows'

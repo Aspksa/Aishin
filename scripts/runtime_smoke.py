@@ -341,6 +341,112 @@ def main() -> int:
                 "real_time_nodes": 24,
             }
 
+            meta_scope = "smoke:metacognition-independence"
+            same_document_meta = engine.metacognition.assess(
+                scope=meta_scope,
+                intent="verification",
+                recalled_memories=[],
+                semantic_used=False,
+                planner_notices=[],
+                sensor_readings=[],
+                graph_stats={},
+                external_evidence=[
+                    {
+                        "source": "document",
+                        "source_type": "document",
+                        "source_group": "document:101",
+                        "confidence": 0.98,
+                        "independence": 1.0,
+                    },
+                    {
+                        "source": "document",
+                        "source_type": "document",
+                        "source_group": "document:101",
+                        "confidence": 0.97,
+                        "independence": 1.0,
+                    },
+                ],
+            )
+            if same_document_meta.status == "confident":
+                raise RuntimeError(
+                    "Два chunks одного документа не должны давать "
+                    "high-stakes confident"
+                )
+            if not any(
+                "недостаточно независимых первичных" in item
+                for item in same_document_meta.missing_data
+            ):
+                raise RuntimeError(
+                    "Metacognition должна видеть один document source group"
+                )
+
+            two_document_meta = engine.metacognition.assess(
+                scope=meta_scope,
+                intent="verification",
+                recalled_memories=[],
+                semantic_used=False,
+                planner_notices=[],
+                sensor_readings=[],
+                graph_stats={},
+                external_evidence=[
+                    {
+                        "source": "document",
+                        "source_type": "document",
+                        "source_group": "document:201",
+                        "confidence": 0.98,
+                        "independence": 1.0,
+                    },
+                    {
+                        "source": "document",
+                        "source_type": "document",
+                        "source_group": "document:202",
+                        "confidence": 0.97,
+                        "independence": 1.0,
+                    },
+                ],
+            )
+            if any(
+                "недостаточно независимых первичных" in item
+                for item in two_document_meta.missing_data
+            ):
+                raise RuntimeError(
+                    "Два независимых документа должны удовлетворять "
+                    "source-group boundary"
+                )
+
+            duplicated_memory_meta = engine.metacognition.assess(
+                scope=meta_scope,
+                intent="action",
+                recalled_memories=[
+                    {
+                        "id": 1,
+                        "confidence": 1.0,
+                        "retrieval_score": 1.0,
+                        "kind": "fact",
+                        "tags": [],
+                    }
+                ],
+                semantic_used=True,
+                planner_notices=[],
+                sensor_readings=[],
+                graph_stats={},
+                external_evidence=[
+                    {
+                        "source": "research",
+                        "source_type": "semantic_memory",
+                        "source_ref": "1",
+                        "source_group": "memory",
+                        "confidence": 1.0,
+                        "independence": 1.0,
+                    }
+                ],
+            )
+            if duplicated_memory_meta.status == "confident":
+                raise RuntimeError(
+                    "Одна память через lexical+semantic не должна "
+                    "считаться двумя независимыми high-stakes опорами"
+                )
+
             proactive_conditions = client.get(
                 "/api/assistant/proactive/conditions",
                 params={"scope": "personal", "limit": 1},

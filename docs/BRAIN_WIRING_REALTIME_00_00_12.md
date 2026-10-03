@@ -10,7 +10,7 @@ Database schema: 23
 
 Live Brain Export: 10
 
-Brain Flow Runtime: aishin-brain-flow-v1
+Brain Flow Runtime: aishin-brain-flow-v2
 
 Action Execution Bridge: aishin-action-execution-bridge-v1
 
@@ -527,3 +527,26 @@ SSE существует внутри текущего FastAPI процесса;
 Cloud.ru остаётся текущим AI provider. Подключение отдельного локального Ollama provider не является частью 00.00.12.
 
 Account, Mobile и Workspace остаются отдельными продуктовыми модулями и не объявляются завершёнными этим релизом.
+
+
+## Browser Visual QA
+
+CI 00.00.12 дополнительно запускает настоящий headless Chrome на Linux runner.
+
+Проверяются:
+
+- реальный FastAPI startup;
+- загрузка HTML/CSS/JavaScript;
+- динамическая вставка Neural Observatory;
+- наличие live topology после выполнения JavaScript;
+- desktop viewport 1440×1000;
+- mobile viewport 390×844.
+
+Создаются artifacts:
+
+- desktop-1440x1000.png;
+- mobile-390x844.png;
+- desktop-dom.html;
+- uvicorn.log.
+
+Это не заменяет ручной UI/UX review, но ловит класс ошибок, которые невозможно обнаружить только через node --check и HTML-contract тест.

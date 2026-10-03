@@ -275,12 +275,36 @@ def main() -> int:
             )
 
             assert_mobile(driver)
-            mobile = ARTIFACTS / "mobile-390x844.png"
-            if not driver.save_screenshot(str(mobile)):
-                raise RuntimeError("Mobile screenshot was not created.")
-            if mobile.stat().st_size < 8_000:
+            mobile_overview = (
+                ARTIFACTS / "mobile-overview-390x844.png"
+            )
+            if not driver.save_screenshot(str(mobile_overview)):
                 raise RuntimeError(
-                    "Mobile screenshot is unexpectedly small."
+                    "Mobile overview screenshot was not created."
+                )
+            if mobile_overview.stat().st_size < 8_000:
+                raise RuntimeError(
+                    "Mobile overview screenshot is unexpectedly small."
+                )
+
+            topology = driver.find_element(
+                By.ID, "live-brain-topology"
+            )
+            driver.execute_script(
+                "arguments[0].scrollIntoView({block:'center'});",
+                topology,
+            )
+            time.sleep(0.35)
+            mobile_map = (
+                ARTIFACTS / "mobile-brain-map-390x844.png"
+            )
+            if not driver.save_screenshot(str(mobile_map)):
+                raise RuntimeError(
+                    "Mobile brain-map screenshot was not created."
+                )
+            if mobile_map.stat().st_size < 8_000:
+                raise RuntimeError(
+                    "Mobile brain-map screenshot is unexpectedly small."
                 )
 
             print(

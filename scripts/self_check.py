@@ -227,6 +227,38 @@ def main() -> int:
             "assistant_text_is_not_knowledge_source": True,
         }
 
+        canonical_summary = engine.canonical_facts.summary(
+            scope="personal"
+        )
+        if canonical_summary.get("version") != "aishin-canonical-facts-v1":
+            raise RuntimeError("Canonical Facts version mismatch")
+        with connect() as conn:
+            canonical_tables = {
+                row["name"]
+                for row in conn.execute(
+                    """SELECT name FROM sqlite_master
+                       WHERE type='table' AND name LIKE 'canonical_fact%'"""
+                ).fetchall()
+            }
+        required_canonical_tables = {
+            "canonical_facts",
+            "canonical_fact_values",
+            "canonical_fact_evidence",
+            "canonical_fact_links",
+            "canonical_fact_events",
+        }
+        if not required_canonical_tables.issubset(canonical_tables):
+            raise RuntimeError(
+                "Canonical Facts schema tables are incomplete"
+            )
+        checks["canonical_facts"] = {
+            "status": "ok",
+            "summary": canonical_summary,
+            "strict_identity_not_semantic_merge": True,
+            "derived_lineage_is_not_independent_evidence": True,
+            "tables": sorted(required_canonical_tables),
+        }
+
         merged_graph_data = _merge_graph_data(
             {
                 "role": "личная AI-помощница",

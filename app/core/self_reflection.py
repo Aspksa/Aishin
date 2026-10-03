@@ -45,6 +45,7 @@ class SelfReflectionMetrics:
         verification: dict,
         decision_quality: dict,
         performance: dict,
+        response_grounding: dict | None = None,
     ) -> ReflectionResult:
         weak: list[str] = []
         errors = 0
@@ -75,6 +76,22 @@ class SelfReflectionMetrics:
         if dq and dq < 0.55:
             weak.append("decision_basis")
 
+        grounding = response_grounding or {}
+        grounding_applicable = bool(grounding.get("applicable"))
+        grounding_score = grounding.get("overall")
+        grounding_value = (
+            float(grounding_score)
+            if grounding_applicable and grounding_score is not None
+            else None
+        )
+        unsupported_claims = int(
+            grounding.get("claims_unsupported") or 0
+        )
+        if grounding_value is not None and grounding_value < 0.55:
+            weak.append("response_grounding")
+        if grounding_applicable and unsupported_claims > 0:
+            weak.append("unsupported_response_claims")
+
         budget_status = str(performance.get("budget_status") or "")
         if budget_status == "over_budget":
             weak.append("latency")
@@ -96,6 +113,9 @@ class SelfReflectionMetrics:
         penalties += 0.08 if budget_status == "over_budget" else 0.0
         if dq:
             penalties += max(0.0, 0.60 - dq) * 0.25
+        if grounding_value is not None:
+            penalties += max(0.0, 0.65 - grounding_value) * 0.30
+            penalties += min(0.10, unsupported_claims * 0.02)
 
         quality = round(max(0.0, min(1.0, 1.0 - penalties)), 4)
         confidence = round(
@@ -108,6 +128,9 @@ class SelfReflectionMetrics:
             "provider_available": provider_ok,
             "metacognition_confidence": meta_conf,
             "decision_quality": dq,
+            "response_grounding": grounding_value,
+            "grounding_applicable": grounding_applicable,
+            "unsupported_response_claims": unsupported_claims,
             "unresolved_count": unresolved,
             "contradiction_count": conflicts,
             "latency_ms": total_ms,

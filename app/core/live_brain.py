@@ -12,7 +12,7 @@ class LiveBrainRuntime:
     signals, quality metrics, graph structure and subsystem activity.
     """
 
-    VERSION = "aishin-live-brain-v4"
+    VERSION = "aishin-live-brain-v5"
     TRACE_POLICY = (
         "Без скрытой цепочки рассуждений: показываются только источники, "
         "проверки, выбранный режим, уверенность, метрики и итоговые сигналы."

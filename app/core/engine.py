@@ -1320,6 +1320,13 @@ class AishinEngine:
         context.system_prompt += "\n\n" + self.logic.prompt_block(logic_trace)
         context.system_prompt += (
             "\n\n"
+            + self.response_grounding.prompt_block(
+                evidence=logic_trace.evidence,
+                contradictions=logic_trace.contradictions,
+            )
+        )
+        context.system_prompt += (
+            "\n\n"
             + self.cognitive_intelligence.prompt_block(cognitive_route)
         )
         context.system_prompt += "\n\n" + self.hypotheses.prompt_block(hypothesis_run)

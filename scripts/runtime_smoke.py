@@ -1102,6 +1102,42 @@ def main() -> int:
                 raise RuntimeError(
                     "Knowledge Lifecycle должен сохранять audit transitions"
                 )
+            if not any(
+                isinstance(item.get("evidence"), list)
+                and item.get("evidence")
+                and item["evidence"][0].get("source_group")
+                for item in lifecycle_api_data.get("claims") or []
+            ):
+                raise RuntimeError(
+                    "Knowledge claims API должен возвращать evidence provenance"
+                )
+            hypothesis_api_rows = lifecycle_api_data.get("hypotheses") or []
+            if not any(
+                item.get("state") == "confirmed"
+                and len(item.get("evidence") or []) >= 3
+                for item in hypothesis_api_rows
+            ):
+                raise RuntimeError(
+                    "Confirmed hypothesis должен раскрывать independent evidence"
+                )
+            supersede_api = client.post(
+                (
+                    "/api/assistant/knowledge-lifecycle/claims/"
+                    f"{int(contradicted[0]['id'])}/supersede"
+                ),
+                json={
+                    "scope": lifecycle_scope,
+                    "new_claim_id": int(replacement_claims[0]["id"]),
+                    "reason": "runtime_idempotent_supersession_check",
+                },
+            )
+            if (
+                supersede_api.status_code != 200
+                or supersede_api.json().get("state") != "superseded"
+            ):
+                raise RuntimeError(
+                    "Guarded knowledge supersession API недоступен или неидемпотентен"
+                )
 
             project_lifecycle = client.get(
                 "/api/assistant/knowledge-lifecycle",

@@ -28,7 +28,9 @@ Document Intelligence теперь выполняет retrieval до Metacogniti
 
 ## Research → Logic
 
-После Verification Research Intelligence может собрать дополнительные evidence. Прямые document chunks, текущая memory/semantic-memory и verification текущего запроса дедуплицируются по происхождению и не могут повторно изображать независимую опору. Новое действительно отдельное Research evidence и открытые contradictions пересчитывают Metacognition и входят в Logic до Causal, Hypotheses и Decision Quality.\n\nMetacognition считает не количество chunks, а независимые source groups. Несколько chunks одного документа — одна доказательная группа. Для high-stakes режимов verification/action статус confident запрещён, пока нет минимум двух независимых первичных опор.
+После Verification Research Intelligence может собрать дополнительные evidence. Прямые document chunks, текущая memory/semantic-memory и verification текущего запроса дедуплицируются по происхождению и не могут повторно изображать независимую опору. Новое действительно отдельное Research evidence и открытые contradictions пересчитывают Metacognition и входят в Logic до Causal, Hypotheses и Decision Quality.
+
+Metacognition считает не количество chunks, а независимые source groups. Несколько chunks одного документа — одна доказательная группа. Для high-stakes режимов verification/action статус confident запрещён, пока нет минимум двух независимых первичных опор.
 
 ## Action Selection → Execution
 
@@ -47,7 +49,9 @@ ActionExecutionBridge соединяет Action Selection с PermissionGate, Too
 
 BrainFlowRuntime v2 — лёгкая runtime telemetry в памяти процесса. Состояния: executing, recent, idle, attention.
 
-Каждый request хранится отдельно по (scope, request_id). Параллельные запросы не перезаписывают друг друга. Активные запросы никогда не удаляются history-pruning; лимит применяется только к завершённой истории.\n\nDependency graph отражает реальные архитектурные связи, а не декоративный порядок вызовов. Во время текущей фазы executing получают только те входящие dependency edges, чьи source-модули действительно уже участвовали в данном request. Критические edges включают:
+Каждый request хранится отдельно по (scope, request_id). Параллельные запросы не перезаписывают друг друга. Активные запросы никогда не удаляются history-pruning; лимит применяется только к завершённой истории.
+
+Dependency graph отражает реальные архитектурные связи, а не декоративный порядок вызовов. Во время текущей фазы executing получают только те входящие dependency edges, чьи source-модули действительно уже участвовали в данном request. Критические edges включают:
 
 - Memory → Context
 - Graph → Context
@@ -72,7 +76,9 @@ BrainFlowRuntime v2 — лёгкая runtime telemetry в памяти проц�
 
 ## Scope isolation
 
-UI поддерживает personal и project:aishin. Scope передаётся в chat, Live Brain, Development, Intelligence, Proactive Intelligence, Evolution, Research, Communication, Documents, state и mutation/approval actions. Верхняя панель показывает активный контекст.\n\ncurrent_scope остаётся только runtime/UI-сигналом последней активности и больше не используется как источник выбора данных для фоновых контуров. Startup, Heartbeat и Continuous Learning получают явный набор runtime scopes и обслуживают personal и project:aishin раздельно. Diagnostic recent_events и memory_changes также фильтруются по explicit scope. Обновление runtime state синхронизировано внутри процесса, поэтому параллельные interaction не должны терять interaction_count.
+UI поддерживает personal и project:aishin. Scope передаётся в chat, Live Brain, Development, Intelligence, Proactive Intelligence, Evolution, Research, Communication, Documents, state и mutation/approval actions. Верхняя панель показывает активный контекст.
+
+current_scope остаётся только runtime/UI-сигналом последней активности и больше не используется как источник выбора данных для фоновых контуров. Startup, Heartbeat и Continuous Learning получают явный набор runtime scopes и обслуживают personal и project:aishin раздельно. Diagnostic recent_events и memory_changes также фильтруются по explicit scope. Обновление runtime state синхронизировано внутри процесса, поэтому параллельные interaction не должны терять interaction_count.
 
 ## Document lineage
 

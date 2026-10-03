@@ -856,6 +856,65 @@ def main() -> int:
                     "в contradicted"
                 )
 
+            engine.knowledge_lifecycle.observe_reasoning(
+                request_id="knowledge-lifecycle-4",
+                scope=lifecycle_scope,
+                evidence=[
+                    {
+                        "source_type": "document",
+                        "source_ref": "doc-new-a",
+                        "source_group": "document:new-a",
+                        "content": "Обновлённый регламент устанавливает лимит топлива 130 литров.",
+                        "confidence": 0.93,
+                    },
+                    {
+                        "source_type": "research",
+                        "source_ref": "manual-new-b",
+                        "source_group": "manual:new-b",
+                        "content": "Обновлённый регламент устанавливает лимит топлива 130 литров.",
+                        "confidence": 0.89,
+                    },
+                ],
+                contradictions=[],
+                hypothesis_run={
+                    "run_id": None,
+                    "hypotheses": [],
+                    "selected_test": {},
+                },
+                verification={
+                    "ran": True,
+                    "unresolved": [],
+                    "consistency": {"conflicts": []},
+                },
+            )
+            replacement_claims = [
+                item
+                for item in engine.knowledge_lifecycle.claims(
+                    scope=lifecycle_scope,
+                    state="verified",
+                    limit=20,
+                )
+                if "130" in str(item.get("statement") or "")
+            ]
+            if len(replacement_claims) != 1:
+                raise RuntimeError(
+                    "Replacement knowledge must be verified before supersession"
+                )
+            superseded = engine.knowledge_lifecycle.supersede_claim(
+                scope=lifecycle_scope,
+                old_claim_id=int(contradicted[0]["id"]),
+                new_claim_id=int(replacement_claims[0]["id"]),
+                reason="new_regulation_replaces_previous_limit",
+            )
+            if (
+                superseded.get("state") != "superseded"
+                or int(superseded.get("superseded_by_id") or 0)
+                != int(replacement_claims[0]["id"])
+            ):
+                raise RuntimeError(
+                    "Knowledge supersession must preserve replacement linkage"
+                )
+
             hypothesis_lifecycle_scope = "smoke:hypothesis-lifecycle"
             hypothesis_run = {
                 "run_id": None,
@@ -902,6 +961,89 @@ def main() -> int:
                 raise RuntimeError(
                     "Высокий confidence без независимой evidence не должен "
                     "подтверждать гипотезу"
+                )
+
+            confirmed_hypothesis_run = {
+                "run_id": None,
+                "hypotheses": [
+                    {
+                        "key": "fuel-limit-cause",
+                        "title": "Лимит задан действующим регламентом",
+                        "confidence": 0.78,
+                        "supporting": [
+                            "Источник A подтверждает действующий регламент 120 литров",
+                            "Источник B подтверждает действующий регламент 120 литров",
+                            "Источник C подтверждает действующий регламент 120 литров",
+                        ],
+                        "opposing": [],
+                        "status": "leading",
+                    }
+                ],
+                "selected_test": {},
+            }
+            engine.knowledge_lifecycle.observe_reasoning(
+                request_id="hypothesis-lifecycle-2",
+                scope=hypothesis_lifecycle_scope,
+                evidence=[
+                    {
+                        "source_type": "document",
+                        "source_ref": "hd1",
+                        "source_group": "document:hd1",
+                        "content": "Источник A подтверждает действующий регламент 120 литров",
+                        "confidence": 0.92,
+                    },
+                    {
+                        "source_type": "research",
+                        "source_ref": "hr2",
+                        "source_group": "research:hr2",
+                        "content": "Источник B подтверждает действующий регламент 120 литров",
+                        "confidence": 0.88,
+                    },
+                    {
+                        "source_type": "memory",
+                        "source_ref": "hm3",
+                        "source_group": "memory:hm3",
+                        "content": "Источник C подтверждает действующий регламент 120 литров",
+                        "confidence": 0.86,
+                    },
+                ],
+                contradictions=[],
+                hypothesis_run=confirmed_hypothesis_run,
+                verification={
+                    "ran": True,
+                    "unresolved": [],
+                    "consistency": {"conflicts": []},
+                },
+            )
+            confirmed_hypotheses = engine.knowledge_lifecycle.hypotheses(
+                scope=hypothesis_lifecycle_scope,
+                state="confirmed",
+                limit=10,
+            )
+            if len(confirmed_hypotheses) != 1:
+                raise RuntimeError(
+                    "Three independent support groups + clean Verification "
+                    "must allow hypothesis confirmation"
+                )
+
+            learning_cycle = engine.continuous_learning.run_cycle(
+                scope=lifecycle_scope,
+            )
+            lifecycle_patterns = [
+                item
+                for item in engine.continuous_learning.patterns(
+                    scope=lifecycle_scope,
+                    limit=100,
+                )
+                if item.get("category") == "knowledge_lifecycle"
+            ]
+            if not any(
+                item.get("pattern_key") == "knowledge_verified"
+                for item in lifecycle_patterns
+            ):
+                raise RuntimeError(
+                    "Continuous Learning did not ingest evidence-backed "
+                    "knowledge lifecycle events"
                 )
 
             knowledge_api = client.get(

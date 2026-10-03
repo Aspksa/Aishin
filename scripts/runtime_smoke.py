@@ -2168,6 +2168,112 @@ def main() -> int:
                     "Out-of-order upload должен перестроить version lineage"
                 )
 
+            with connect() as conn:
+                lineage_rows = conn.execute(
+                    """SELECT r.source_entity_id, r.target_entity_id,
+                              se.data_json AS source_data,
+                              te.data_json AS target_data
+                       FROM relations r
+                       JOIN entities se ON se.id=r.source_entity_id
+                       JOIN entities te ON te.id=r.target_entity_id
+                       WHERE r.scope=?
+                         AND r.relation_type='supersedes_document'""",
+                    (document_scope,),
+                ).fetchall()
+            lineage_pairs = set()
+            for row in lineage_rows:
+                source_data = json.loads(row["source_data"] or "{}")
+                target_data = json.loads(row["target_data"] or "{}")
+                lineage_pairs.add(
+                    (
+                        int(source_data.get("document_id") or -1),
+                        int(target_data.get("document_id") or -1),
+                    )
+                )
+            if (
+                reverse_2026.document_id,
+                reverse_2025.document_id,
+            ) not in lineage_pairs:
+                raise RuntimeError(
+                    "Knowledge Graph должен перестроить supersedes_document "
+                    "при out-of-order загрузке"
+                )
+
+            engine.research.register_source(
+                scope=document_scope,
+                source_key="smoke:manual:fuel-policy",
+                source_type="manual_reference",
+                label="Контрольная справка по ГСМ",
+                independent_group="manual:fuel-policy",
+                trust_prior=0.91,
+                enabled=True,
+                auto_read=True,
+                metadata={
+                    "content": (
+                        "Норма расхода топлива должна проверяться по "
+                        "действующей редакции регламента ГСМ и первичным "
+                        "путевым листам."
+                    )
+                },
+            )
+            full_message = client.post(
+                "/api/assistant/message",
+                json={
+                    "scope": document_scope,
+                    "message": (
+                        "Проверь норму расхода топлива по действующей "
+                        "редакции регламента и укажи противоречия."
+                    ),
+                },
+            )
+            if full_message.status_code != 200:
+                raise RuntimeError(
+                    "Полный cognitive pipeline с Document + Research "
+                    f"вернул HTTP {full_message.status_code}: "
+                    f"{full_message.text[:300]}"
+                )
+            full_message_data = full_message.json()
+            full_logic_evidence = (
+                full_message_data.get("logic", {}).get("evidence") or []
+            )
+            if not any(
+                item.get("source") == "document"
+                for item in full_logic_evidence
+            ):
+                raise RuntimeError(
+                    "Полный cognitive pipeline потерял document evidence"
+                )
+            if not any(
+                item.get("source") == "research"
+                for item in full_logic_evidence
+            ):
+                raise RuntimeError(
+                    "Research Evidence не дошёл до Logic Engine"
+                )
+            full_flow = engine.brain_flow.snapshot(scope=document_scope)
+            if full_flow.get("status") not in {"completed", "fallback"}:
+                raise RuntimeError(
+                    "Полный cognitive pipeline не закрыл real-time BrainFlow"
+                )
+            safe_document_brain = engine.live_brain.snapshot(
+                scope=document_scope,
+                event_limit=40,
+                graph_limit=20,
+            )
+            safe_trace = safe_document_brain.get("safe_trace") or {}
+            if int(safe_trace.get("document_sources") or 0) < 1:
+                raise RuntimeError(
+                    "Safe Trace не показывает document grounding"
+                )
+            if int(safe_trace.get("research_logic_evidence") or 0) < 1:
+                raise RuntimeError(
+                    "Safe Trace не показывает Research -> Logic evidence"
+                )
+            if "execution_executed" not in safe_trace:
+                raise RuntimeError(
+                    "Safe Trace должна различать выбор и факт исполнения"
+                )
+
             checks["document_intelligence"] = {
                 "status": "ok",
                 "version": document_dashboard.get("version"),
@@ -2186,6 +2292,10 @@ def main() -> int:
                 "prompt_injection_boundary": True,
                 "reprocess_linkage": True,
                 "out_of_order_lineage": True,
+                "graph_lineage_rebuild": True,
+                "full_cognitive_pipeline": True,
+                "research_to_logic": True,
+                "safe_trace_grounding": True,
                 "documents": len(
                     document_dashboard.get("documents") or []
                 ),

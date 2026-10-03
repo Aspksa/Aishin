@@ -1457,6 +1457,50 @@ def main() -> int:
                     confidence=0.96,
                 )
 
+                mixed_a_v1 = insert_document(
+                    sha="3" * 64,
+                    filename="mixed-a-v1.txt",
+                    family="mixed-family-a",
+                    rank=1,
+                )
+                mixed_a_v2 = insert_document(
+                    sha="4" * 64,
+                    filename="mixed-a-v2.txt",
+                    family="mixed-family-a",
+                    rank=2,
+                    previous=mixed_a_v1,
+                )
+                mixed_b = insert_document(
+                    sha="5" * 64,
+                    filename="mixed-b.txt",
+                    family="mixed-family-b",
+                    rank=1,
+                )
+                insert_fact(
+                    document_id=mixed_a_v1,
+                    fact_key="mixed_limit:has_value",
+                    subject="Mixed limit",
+                    value="20 units",
+                    normalized="20 units",
+                    confidence=0.95,
+                )
+                insert_fact(
+                    document_id=mixed_a_v2,
+                    fact_key="mixed_limit:has_value",
+                    subject="Mixed limit",
+                    value="30 units",
+                    normalized="30 units",
+                    confidence=0.95,
+                )
+                insert_fact(
+                    document_id=mixed_b,
+                    fact_key="mixed_limit:has_value",
+                    subject="Mixed limit",
+                    value="30 units",
+                    normalized="30 units",
+                    confidence=0.95,
+                )
+
                 meta_a = insert_document(
                     sha="1" * 64,
                     filename="meta-a.txt",
@@ -1800,6 +1844,54 @@ def main() -> int:
                     "Independent conflicting structured values must remain conflicted"
                 )
 
+            mixed_fact = next(
+                (
+                    item
+                    for item in canonical_facts
+                    if "mixed_limit:has_value"
+                    in item.get("canonical_key", "")
+                ),
+                None,
+            )
+            if (
+                not mixed_fact
+                or mixed_fact.get("state") != "verified"
+                or mixed_fact.get("current_value") != "30 units"
+                or int(mixed_fact.get("independent_groups") or 0) != 2
+                or int(mixed_fact.get("active_values") or 0) != 1
+            ):
+                raise RuntimeError(
+                    "Historical evidence in one family must not create a "
+                    "false cross-family conflict"
+                )
+            mixed_old = next(
+                (
+                    item
+                    for item in mixed_fact.get("values") or []
+                    if item.get("display_value") == "20 units"
+                ),
+                None,
+            )
+            if not mixed_old or mixed_old.get("state") != "superseded":
+                raise RuntimeError(
+                    "Old mixed-family value must remain audited as superseded"
+                )
+            mixed_current_groups = {
+                str(evidence.get("independence_group"))
+                for value in mixed_fact.get("values") or []
+                if value.get("display_value") == "30 units"
+                for evidence in value.get("evidence") or []
+                if evidence.get("active") and evidence.get("is_independent")
+            }
+            if mixed_current_groups != {
+                "document_family:mixed-family-a",
+                "document_family:mixed-family-b",
+            }:
+                raise RuntimeError(
+                    "Current mixed value must retain exactly two current "
+                    "independent document families"
+                )
+
             generic_dates = [
                 item
                 for item in canonical_facts
@@ -2001,6 +2093,7 @@ def main() -> int:
                 "research_memory_graph_lineage": True,
                 "derived_sources_do_not_self_confirm": True,
                 "history_audited": True,
+                "evidence_level_version_pruning": True,
                 "idempotent_sync": True,
             }
 

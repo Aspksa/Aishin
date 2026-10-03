@@ -194,6 +194,24 @@ def main() -> int:
                 "schema_present": bool(state_data.get("state")),
             }
 
+            scoped_state = client.get(
+                "/api/assistant/state",
+                params={"scope": "project:aishin"},
+            )
+            if scoped_state.status_code != 200:
+                raise RuntimeError("Scoped state endpoint недоступен")
+            if (
+                scoped_state.json().get("state", {}).get("current_scope")
+                != "project:aishin"
+            ):
+                raise RuntimeError(
+                    "UI scope должен доходить до engine.snapshot без смешивания"
+                )
+            checks["scope_isolation"] = {
+                "status": "ok",
+                "project_scope": "project:aishin",
+            }
+
             tools = client.get("/api/assistant/tools")
             if tools.status_code != 200:
                 raise RuntimeError(
@@ -228,6 +246,99 @@ def main() -> int:
             checks["tools"] = {
                 "status": "ok",
                 "count": len(tools.json()),
+            }
+
+            bridge_scope = "smoke:execution-bridge"
+            read_selection = SimpleNamespace(
+                selected=SimpleNamespace(
+                    matched_tool="project.read_text",
+                )
+            )
+            read_bridge = engine.action_execution.prepare(
+                scope=bridge_scope,
+                query="прочитать файл README.md",
+                selection=read_selection,
+                decision_quality=0.95,
+                unresolved_count=0,
+            )
+            if (
+                read_bridge.state != "executed_read_only"
+                or not read_bridge.executed
+                or read_bridge.result.get("status") != "success"
+            ):
+                raise RuntimeError(
+                    "Action Selection -> ToolRegistry read-only bridge "
+                    "не выполнился безопасно"
+                )
+
+            write_selection = SimpleNamespace(
+                selected=SimpleNamespace(
+                    matched_tool="project.write_text",
+                )
+            )
+            write_bridge = engine.action_execution.prepare(
+                scope=bridge_scope,
+                query="изменить файл README.md",
+                selection=write_selection,
+                decision_quality=0.95,
+                unresolved_count=0,
+            )
+            if write_bridge.executed or write_bridge.state != (
+                "arguments_unresolved"
+            ):
+                raise RuntimeError(
+                    "Execution bridge не должен додумывать mutating arguments"
+                )
+
+            flow_scope = "smoke:brain-flow"
+            flow_request = "smoke-flow-1"
+            engine.brain_flow.begin(
+                request_id=flow_request,
+                scope=flow_scope,
+                intent="verification",
+            )
+            engine.brain_flow.phase(
+                request_id=flow_request,
+                scope=flow_scope,
+                phase="documents",
+                detail={"chunks": 2},
+            )
+            flow_running = engine.brain_flow.snapshot(scope=flow_scope)
+            executing = [
+                node
+                for node in flow_running.get("nodes") or []
+                if node.get("status") == "executing"
+            ]
+            if (
+                flow_running.get("status") != "running"
+                or len(executing) != 1
+                or executing[0].get("id") != "documents"
+            ):
+                raise RuntimeError(
+                    "BrainFlow должен показывать только реально выполняемую фазу"
+                )
+            engine.brain_flow.phase(
+                request_id=flow_request,
+                scope=flow_scope,
+                phase="metacognition",
+            )
+            engine.brain_flow.finish(
+                request_id=flow_request,
+                scope=flow_scope,
+            )
+            flow_done = engine.brain_flow.snapshot(scope=flow_scope)
+            if flow_done.get("status") != "completed":
+                raise RuntimeError(
+                    "BrainFlow не зафиксировал завершение запроса"
+                )
+            if len(flow_done.get("nodes") or []) != 24:
+                raise RuntimeError("BrainFlow node contract нарушен")
+
+            checks["brain_wiring"] = {
+                "status": "ok",
+                "read_only_execution": True,
+                "mutating_guess_blocked": True,
+                "real_time_nodes": 24,
             }
 
             proactive_conditions = client.get(

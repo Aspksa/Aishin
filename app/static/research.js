@@ -2,6 +2,10 @@
 "use strict";
 let payload=null,loading=false;
 
+function scopeValue(){return window.AISHIN_SCOPE?.get?.()||"personal";}
+function scopeUrl(url){return window.AISHIN_SCOPE?.url?.(url)||url;}
+function fetchScope(url,options){return window.fetch(scopeUrl(url),options);}
+
 const q=(s)=>document.querySelector(s);
 const n=(v)=>Number.isFinite(Number(v))?Number(v):0;
 const esc=(v)=>String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
@@ -56,8 +60,9 @@ function renderConflicts(items){
   items=(items||[]).filter(x=>x.status==="open");
   if(!items.length){host.innerHTML='<div class="research-empty">Открытых противоречий нет.</div>';return;}
   host.innerHTML=items.slice(0,24).map(x=>
-    '<article class="research-conflict"><div><strong>Contradiction #'+x.id+'</strong><small>claim C'+(x.claim_id||"—")+' · '+esc(x.contradiction_type)+' · severity '+pct01(x.severity)+'</small><div class="research-tagrow"><span class="research-tag conflicted">'+esc(x.status)+'</span><span class="research-tag">E'+(x.left_evidence_id||"—")+' ↔ E'+(x.right_evidence_id||"—")+'</span></div></div></article>'
+    '<article class="research-conflict"><div><strong>Contradiction #'+x.id+'</strong><small>claim C'+(x.claim_id||"—")+' · '+esc(x.contradiction_type)+' · severity '+pct01(x.severity)+'</small><div class="research-tagrow"><span class="research-tag conflicted">'+esc(x.status)+'</span><span class="research-tag">E'+(x.left_evidence_id||"—")+' ↔ E'+(x.right_evidence_id||"—")+'</span></div></div><div><button type="button" data-research-resolve="'+x.id+'">Разрешить</button></div></article>'
   ).join("");
+  host.querySelectorAll("[data-research-resolve]").forEach(btn=>btn.addEventListener("click",()=>resolveConflict(Number(btn.dataset.researchResolve))));
 }
 
 function renderSources(items){
@@ -117,7 +122,7 @@ function render(data){
 function load(){
   if(loading)return Promise.resolve(payload);
   loading=true;
-  return fetch("/api/assistant/research?scope=personal&gap_limit=80&session_limit=50&claim_limit=100&evidence_limit=100&cycle_limit=60",{cache:"no-store"})
+  return fetchScope("/api/assistant/research?scope=personal&gap_limit=80&session_limit=50&claim_limit=100&evidence_limit=100&cycle_limit=60",{cache:"no-store"})
     .then(r=>{if(!r.ok)throw new Error("Research HTTP "+r.status);return r.json();})
     .then(render).catch(err=>{const h=q("#research-gaps");if(h&&!payload)h.innerHTML='<div class="research-empty">'+esc(err.message||err)+'</div>';})
     .finally(()=>{loading=false;});
@@ -129,17 +134,33 @@ function researchGap(id){
   runQuery(gap.question,id,true);
 }
 function runQuery(question,gapId,synthesize){
-  return fetch("/api/assistant/research/query",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({scope:"personal",question:question,gap_id:gapId||null,synthesize:synthesize!==false})})
+  return fetchScope("/api/assistant/research/query",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({scope:scopeValue(),question:question,gap_id:gapId||null,synthesize:synthesize!==false})})
     .then(r=>{if(!r.ok)throw new Error("Research query HTTP "+r.status);return r.json();})
     .then(()=>load()).catch(err=>window.alert("Исследование не выполнено: "+(err.message||err)));
 }
+function resolveConflict(id){
+  const resolution=window.prompt(
+    "Укажите подтверждённое разрешение противоречия. Оно будет сохранено в Evidence Ledger:",
+    ""
+  );
+  if(!resolution||!resolution.trim())return;
+  fetchScope("/api/assistant/research/contradictions/"+encodeURIComponent(id)+"/resolve",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({scope:scopeValue(),resolution:resolution.trim()})
+  })
+    .then(async r=>{const body=await r.json().catch(()=>({}));if(!r.ok)throw new Error(body.detail||("Resolve HTTP "+r.status));return body;})
+    .then(()=>load())
+    .catch(err=>window.alert("Противоречие не разрешено: "+(err.message||err)));
+}
+
 function manualQuery(){
   const input=q("#research-query");const text=(input&&input.value||"").trim();if(!text)return;
   runQuery(text,null,true).then(()=>{if(input)input.value="";});
 }
 function cycle(){
   const b=q("#research-cycle");if(b){b.disabled=true;b.textContent="Исследую…";}
-  fetch("/api/assistant/research/cycle",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({scope:"personal",max_sessions:2,synthesize:false})})
+  fetchScope("/api/assistant/research/cycle",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({scope:scopeValue(),max_sessions:2,synthesize:false})})
     .then(r=>{if(!r.ok)throw new Error("Research cycle HTTP "+r.status);return r.json();})
     .then(()=>load()).catch(err=>window.alert("Цикл исследований не выполнен: "+(err.message||err)))
     .finally(()=>{if(b){b.disabled=false;b.textContent="Исследовать пробелы";}});

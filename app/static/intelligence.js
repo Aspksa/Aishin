@@ -391,7 +391,7 @@
 
   function boot() {
     build();
-    load();
+    if (q("#development-module")?.classList.contains("active")) load();
 
     var open = q("#development-open");
     if (open) {
@@ -403,7 +403,9 @@
     var form = q("#chat-form");
     if (form) {
       form.addEventListener("submit", function () {
-        setTimeout(load, 2500);
+        if (q("#development-module")?.classList.contains("active")) {
+          setTimeout(load, 2500);
+        }
       });
     }
   }

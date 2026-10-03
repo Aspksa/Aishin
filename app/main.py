@@ -68,7 +68,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.12', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.13', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -219,7 +219,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.12',
+        'version': '0.0.13',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),

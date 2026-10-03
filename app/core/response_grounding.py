@@ -389,7 +389,11 @@ class ResponseGroundingScorer:
             normalized = token.casefold().replace("ё", "е").strip(".,;:()[]{}")
             if not normalized or normalized in cls.STOP_WORDS:
                 continue
-            if len(normalized) <= 2 and not any(ch.isdigit() for ch in normalized):
+            if (
+                len(normalized) <= 2
+                and normalized not in {"не"}
+                and not any(ch.isdigit() for ch in normalized)
+            ):
                 continue
             values.add(cls._stem(normalized))
         return values
@@ -428,15 +432,43 @@ class ResponseGroundingScorer:
             if any(ch.isdigit() for ch in token)
         }
         numeric_bonus = 0.0
+        numeric_match = 1.0
         if numeric_claim:
-            matched = len(numeric_claim & numeric_source) / len(numeric_claim)
-            numeric_bonus = 0.18 * matched
-            if matched == 0.0:
+            numeric_match = (
+                len(numeric_claim & numeric_source) / len(numeric_claim)
+            )
+            numeric_bonus = 0.18 * numeric_match
+            if numeric_match == 0.0:
                 numeric_bonus -= 0.18
-        return max(
+
+        raw_score = max(
             0.0,
-            min(1.0, 0.76 * coverage + 0.24 * precision + numeric_bonus),
+            min(
+                1.0,
+                0.76 * coverage
+                + 0.24 * precision
+                + numeric_bonus,
+            ),
         )
+
+        # Exact details must not be "supported" by a source containing a
+        # different number/version. A partial numeric match may remain partial.
+        if numeric_claim and numeric_match < 1.0:
+            raw_score = min(
+                raw_score,
+                0.38 if numeric_match > 0.0 else 0.22,
+            )
+
+        negative_markers = {
+            "не", "нет", "без", "запрещен", "запрещено",
+            "отсутствует", "невозможно",
+        }
+        claim_negative = bool(claim_tokens & negative_markers)
+        source_negative = bool(source_tokens & negative_markers)
+        if claim_negative != source_negative:
+            raw_score = min(raw_score, 0.22)
+
+        return raw_score
 
     @classmethod
     def _normalize_sources(

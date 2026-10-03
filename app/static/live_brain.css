@@ -518,3 +518,66 @@
     animation: none;
   }
 }
+
+
+.brain-flow-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0 2px;
+  padding: 8px 10px;
+  border: 1px solid rgba(112, 94, 84, .10);
+  border-radius: 13px;
+  background: rgba(250, 247, 245, .72);
+}
+.brain-flow-meta > div:not(.brain-flow-legend) {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 94px;
+}
+.brain-flow-meta > div > span {
+  color: #9a8c84;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.brain-flow-meta > div > strong {
+  color: #493d37;
+  font-size: 11px;
+}
+.brain-flow-legend {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.brain-flow-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #82756e;
+  font-size: 10px;
+  font-weight: 700;
+}
+.brain-flow-legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #b8ada7;
+}
+.brain-flow-legend .executing i { background: #bd603a; box-shadow: 0 0 0 4px rgba(189,96,58,.10); }
+.brain-flow-legend .recent i { background: #cf9a71; }
+.brain-flow-legend .attention i { background: #b83f3c; }
+@media (max-width: 760px) {
+  .brain-flow-meta {
+    align-items: flex-start;
+  }
+  .brain-flow-legend {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 3px;
+  }
+}

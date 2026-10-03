@@ -785,6 +785,7 @@ class AishinEngine:
         )
 
         verification_report = None
+        verification_run_id: int | None = None
         final_memories = context.recalled_memories
 
         if (
@@ -824,7 +825,7 @@ class AishinEngine:
                 external_evidence=document_evidence,
                 external_contradictions=len(document_contradictions),
             )
-            self.verification.record(
+            verification_run_id = self.verification.record(
                 verification_report,
                 scope=scope,
                 query=cleaned,
@@ -904,10 +905,17 @@ class AishinEngine:
                     )
                     for item in document_evidence
                 }
+                final_memory_ids = {
+                    int(item.get("id"))
+                    for item in final_memories
+                    if item.get("id") is not None
+                }
                 for item in research_rows:
                     metadata = item.get("metadata") or {}
                     source_type = str(item.get("source_type") or "research")
                     duplicate_document = False
+                    duplicate_memory = False
+                    duplicate_verification = False
                     if source_type == "document":
                         provenance = metadata.get("provenance") or {}
                         pair = (
@@ -919,7 +927,24 @@ class AishinEngine:
                             ),
                         )
                         duplicate_document = pair in document_refs
-                    if duplicate_document:
+                    elif source_type in {"memory", "semantic_memory"}:
+                        try:
+                            duplicate_memory = (
+                                int(item.get("source_ref")) in final_memory_ids
+                            )
+                        except (TypeError, ValueError):
+                            duplicate_memory = False
+                    elif source_type == "verification":
+                        duplicate_verification = (
+                            verification_run_id is not None
+                            and str(item.get("source_ref") or "")
+                            == str(verification_run_id)
+                        )
+                    if (
+                        duplicate_document
+                        or duplicate_memory
+                        or duplicate_verification
+                    ):
                         continue
                     research_logic_evidence.append(
                         {
@@ -927,6 +952,9 @@ class AishinEngine:
                             "source_type": source_type,
                             "source_ref": item.get("source_ref"),
                             "source_group": item.get("source_group"),
+                            "independence": float(
+                                item.get("independence") or 1.0
+                            ),
                             "confidence": float(
                                 item.get("evidence_score") or 0.0
                             ),

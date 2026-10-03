@@ -111,8 +111,8 @@ def main() -> int:
                 'id="documents-upload-btn"',
                 'id="scope-select"',
                 'value="project:aishin"',
-                '/static/app.js?v=0.0.14',
-                '/static/live_brain.js?v=0.0.14',
+                '/static/app.js?v=0.0.15',
+                '/static/live_brain.js?v=0.0.15',
                 'role="dialog"',
                 'aria-modal="true"',
             )
@@ -162,18 +162,18 @@ def main() -> int:
                     f"/health returned HTTP {health.status_code}: {health.text[:300]}"
                 )
             health_data = health.json()
-            if health_data.get("version") != "0.0.14":
+            if health_data.get("version") != "0.0.15":
                 raise RuntimeError(
-                    "Health должен сообщать Aishin Core 0.0.14"
+                    "Health должен сообщать Aishin Core 0.0.15"
                 )
             with connect() as conn:
                 schema_row = conn.execute(
                     "SELECT MAX(version) AS version FROM schema_migrations"
                 ).fetchone()
             schema_version = int(schema_row["version"] or 0)
-            if schema_version != 25:
+            if schema_version != 26:
                 raise RuntimeError(
-                    f"Ожидалась database schema 25, получено {schema_version}"
+                    f"Ожидалась database schema 26, получено {schema_version}"
                 )
             checks["health"] = {
                 **health_data,

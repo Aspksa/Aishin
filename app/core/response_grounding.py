@@ -309,6 +309,28 @@ class ResponseGroundingScorer:
         )
         return result
 
+    def prompt_block(
+        self,
+        *,
+        evidence: list[dict],
+        contradictions: list[dict] | None = None,
+    ) -> str:
+        """Generation-time grounding policy; evidence itself stays in its source blocks."""
+        evidence_count = len(evidence or [])
+        contradiction_count = len(contradictions or [])
+        return "\n".join(
+            [
+                "Response Grounding policy.",
+                f"available_evidence={evidence_count}; contradictions={contradiction_count}.",
+                "Фактические утверждения должны опираться на доступные evidence/provenance.",
+                "Точные даты, суммы, версии, номера и количества нельзя изменять или додумывать.",
+                "Отрицание и противоположное утверждение не считаются эквивалентной опорой.",
+                "Если evidence недостаточно или противоречиво, прямо обозначь неопределённость "
+                "и необходимость проверки вместо уверенного утверждения.",
+                "Не придумывай источник, provenance, документ, память или результат инструмента.",
+            ]
+        )
+
     def recent(self, *, scope: str, limit: int = 30) -> list[dict]:
         with connect() as conn:
             rows = conn.execute(

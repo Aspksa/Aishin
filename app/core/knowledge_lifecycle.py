@@ -158,6 +158,27 @@ class KnowledgeLifecycleEngine:
                     "SELECT COUNT(*) FROM knowledge_evidence WHERE scope=?", (scope,)
                 ).fetchone()[0]
             )
+            studied_documents = int(
+                conn.execute(
+                    """SELECT COUNT(*) FROM documents
+                       WHERE scope=? AND status='studied'""",
+                    (scope,),
+                ).fetchone()[0]
+            )
+            grounded_document_facts = int(
+                conn.execute(
+                    """SELECT COUNT(*) FROM document_facts
+                       WHERE scope=? AND status='grounded'""",
+                    (scope,),
+                ).fetchone()[0]
+            )
+            trusted_research_claims = int(
+                conn.execute(
+                    """SELECT COUNT(*) FROM research_claims
+                       WHERE scope=? AND status='trusted'""",
+                    (scope,),
+                ).fetchone()[0]
+            )
         claim_states = {key: claims.get(key, 0) for key in self.CLAIM_STATES}
         hypothesis_states = {
             key: hypotheses.get(key, 0) for key in self.HYPOTHESIS_STATES
@@ -168,6 +189,9 @@ class KnowledgeLifecycleEngine:
             "claims": claim_states,
             "hypotheses": hypothesis_states,
             "evidence_count": evidence_count,
+            "studied_documents": studied_documents,
+            "grounded_document_facts": grounded_document_facts,
+            "trusted_research_claims": trusted_research_claims,
             "verified_knowledge": claim_states["verified"],
             "contradicted_knowledge": claim_states["contradicted"],
             "confirmed_hypotheses": hypothesis_states["confirmed"],
@@ -190,7 +214,29 @@ class KnowledgeLifecycleEngine:
                     "SELECT * FROM knowledge_claims WHERE scope=? ORDER BY id DESC LIMIT ?",
                     (scope, limit),
                 ).fetchall()
-        return [dict(row) for row in rows]
+            items = [dict(row) for row in rows]
+            ids = [int(item["id"]) for item in items]
+            evidence_by_claim: dict[int, list[dict]] = {cid: [] for cid in ids}
+            if ids:
+                placeholders = ",".join("?" for _ in ids)
+                evidence_rows = conn.execute(
+                    f"""SELECT * FROM knowledge_evidence
+                        WHERE claim_id IN ({placeholders})
+                        ORDER BY id DESC""",
+                    tuple(ids),
+                ).fetchall()
+                for row in evidence_rows:
+                    item = dict(row)
+                    claim_id = int(item["claim_id"])
+                    if len(evidence_by_claim[claim_id]) >= 12:
+                        continue
+                    item["provenance"] = json.loads(
+                        item.pop("provenance_json") or "{}"
+                    )
+                    evidence_by_claim[claim_id].append(item)
+        for item in items:
+            item["evidence"] = evidence_by_claim.get(int(item["id"]), [])
+        return items
 
     def supersede_claim(
         self,
@@ -270,7 +316,31 @@ class KnowledgeLifecycleEngine:
                     "SELECT * FROM hypothesis_registry WHERE scope=? ORDER BY id DESC LIMIT ?",
                     (scope, limit),
                 ).fetchall()
-        return [dict(row) for row in rows]
+            items = [dict(row) for row in rows]
+            ids = [int(item["id"]) for item in items]
+            evidence_by_hypothesis: dict[int, list[dict]] = {
+                hid: [] for hid in ids
+            }
+            if ids:
+                placeholders = ",".join("?" for _ in ids)
+                evidence_rows = conn.execute(
+                    f"""SELECT * FROM hypothesis_evidence
+                        WHERE hypothesis_id IN ({placeholders})
+                        ORDER BY id DESC""",
+                    tuple(ids),
+                ).fetchall()
+                for row in evidence_rows:
+                    item = dict(row)
+                    hypothesis_id = int(item["hypothesis_id"])
+                    if len(evidence_by_hypothesis[hypothesis_id]) >= 12:
+                        continue
+                    evidence_by_hypothesis[hypothesis_id].append(item)
+        for item in items:
+            item["evidence"] = evidence_by_hypothesis.get(
+                int(item["id"]),
+                [],
+            )
+        return items
 
     def transitions(self, *, scope: str, limit: int = 80) -> list[dict]:
         with connect() as conn:

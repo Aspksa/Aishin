@@ -7,7 +7,7 @@
 - Aishin Core: 0.0.12
 - Database schema: 23
 - Live Brain: aishin-live-brain-v3
-- Brain Flow: aishin-brain-flow-v1
+- Brain Flow: aishin-brain-flow-v2
 - Live Brain Export: 10
 
 ## Наблюдаемый cognitive pipeline
@@ -28,7 +28,7 @@ Document Intelligence теперь выполняет retrieval до Metacogniti
 
 ## Research → Logic
 
-После Verification Research Intelligence может собрать дополнительные evidence. Прямые document chunks не дублируются как независимая опора. Новое Research evidence и открытые contradictions пересчитывают Metacognition и входят в Logic до Causal, Hypotheses и Decision Quality.
+После Verification Research Intelligence может собрать дополнительные evidence. Прямые document chunks, текущая memory/semantic-memory и verification текущего запроса дедуплицируются по происхождению и не могут повторно изображать независимую опору. Новое действительно отдельное Research evidence и открытые contradictions пересчитывают Metacognition и входят в Logic до Causal, Hypotheses и Decision Quality.\n\nMetacognition считает не количество chunks, а независимые source groups. Несколько chunks одного документа — одна доказательная группа. Для high-stakes режимов verification/action статус confident запрещён, пока нет минимум двух независимых первичных опор.
 
 ## Action Selection → Execution
 
@@ -45,9 +45,9 @@ ActionExecutionBridge соединяет Action Selection с PermissionGate, Too
 
 ## Real-Time Brain Flow
 
-BrainFlowRuntime — лёгкая runtime telemetry в памяти процесса. Состояния: executing, recent, idle, attention.
+BrainFlowRuntime v2 — лёгкая runtime telemetry в памяти процесса. Состояния: executing, recent, idle, attention.
 
-Dependency graph отражает реальные архитектурные связи, а не декоративный порядок вызовов. Критические edges включают:
+Каждый request хранится отдельно по (scope, request_id). Параллельные запросы не перезаписывают друг друга. Активные запросы никогда не удаляются history-pruning; лимит применяется только к завершённой истории.\n\nDependency graph отражает реальные архитектурные связи, а не декоративный порядок вызовов. Во время текущей фазы executing получают только те входящие dependency edges, чьи source-модули действительно уже участвовали в данном request. Критические edges включают:
 
 - Memory → Context
 - Graph → Context
@@ -68,11 +68,11 @@ Dependency graph отражает реальные архитектурные с
 
 ## Real-time transport и нагрузка
 
-Добавлены lightweight pulse и SSE stream. Частый тяжёлый engine.snapshot устранён из real-time цикла: полный dashboard обновляется редко, а живая карта получает компактную telemetry.
+Добавлены lightweight pulse и SSE stream. Частый тяжёлый engine.snapshot устранён из real-time цикла: полный dashboard обновляется редко, а живая карта получает компактную telemetry. Горячий SSE-цикл проверяет sequence через in-memory BrainFlow и обращается к DB-метрикам только при фактическом изменении topology или heartbeat.
 
 ## Scope isolation
 
-UI поддерживает personal и project:aishin. Scope передаётся в chat, Live Brain, Development, Intelligence, Proactive Intelligence, Evolution, Research, Communication, Documents, state и mutation/approval actions. Верхняя панель показывает активный контекст.
+UI поддерживает personal и project:aishin. Scope передаётся в chat, Live Brain, Development, Intelligence, Proactive Intelligence, Evolution, Research, Communication, Documents, state и mutation/approval actions. Верхняя панель показывает активный контекст.\n\ncurrent_scope остаётся только runtime/UI-сигналом последней активности и больше не используется как источник выбора данных для фоновых контуров. Startup, Heartbeat и Continuous Learning получают явный набор runtime scopes и обслуживают personal и project:aishin раздельно. Diagnostic recent_events и memory_changes также фильтруются по explicit scope. Обновление runtime state синхронизировано внутри процесса, поэтому параллельные interaction не должны терять interaction_count.
 
 ## Document lineage
 
@@ -112,7 +112,7 @@ scripts/ui_contract_check.py проверяет duplicate ids, static assets, ca
 
 ## Runtime Smoke
 
-scripts/runtime_smoke.py проверяет health 0.0.12, schema 23, scope isolation, ToolRegistry, safe read-only execution, mutation approval boundary, topology 24 nodes, critical edges, Live Brain pulse/export, TXT/DOCX/XLSX/PDF/image ingestion, OCR honesty, provenance, duplicate SHA, contradictions, document retrieval, Document → Logic, Research → Logic, prompt-injection boundary, reprocess linkage, out-of-order lineage, Graph supersedes rebuild и полный HTTP message pipeline.
+scripts/runtime_smoke.py проверяет health 0.0.12, schema 23, explicit scope isolation, scoped events/memory changes, atomic runtime-state updates, background runtime scopes, ToolRegistry, safe read-only execution, mutation approval boundary, concurrent BrainFlow requests, dependency-edge truth, active-request retention, topology 24 nodes, отсутствие stale executing после completion, Live Brain pulse/export, independent evidence groups, high-stakes confidence guard, TXT/DOCX/XLSX/PDF/image ingestion, OCR honesty, provenance, duplicate SHA, contradictions, document retrieval, Document → Logic, Research → Logic, prompt-injection boundary, reprocess linkage, out-of-order lineage, Graph supersedes rebuild и полный HTTP message pipeline.
 
 ## CI
 

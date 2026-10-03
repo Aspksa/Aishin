@@ -773,16 +773,21 @@ class ContinuousLearningEngine:
 
         if source_type == "knowledge_lifecycle":
             event_type = str(payload.get("event_type") or kind)
+            if event_type in {
+                "response_grounding_ok",
+                "response_grounding_risk",
+            }:
+                # response_grounding_runs already supplies this signal directly;
+                # do not count the lifecycle audit copy as a second observation.
+                return False
             positive = {
                 "knowledge_verified",
                 "correction_confirmed",
                 "hypothesis_confirmed",
-                "response_grounding_ok",
             }
             negative = {
                 "error_detected",
                 "hypothesis_rejected",
-                "response_grounding_risk",
             }
             self._observe_pattern(
                 scope=scope,

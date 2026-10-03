@@ -51,15 +51,21 @@ class KnowledgeLifecycleEngine:
             )
             claim_ids.append(claim_id)
             self._claim_evidence(scope, claim_id, request_id, source, "support")
-            if verification_ok:
-                with connect() as conn:
+
+        unique_claim_ids = set(claim_ids)
+        if verification_ok and unique_claim_ids:
+            with connect() as conn:
+                for claim_id in unique_claim_ids:
                     conn.execute(
-                        "UPDATE knowledge_claims SET verification_passes=verification_passes+1 WHERE id=?",
+                        """UPDATE knowledge_claims
+                           SET verification_passes=verification_passes+1,
+                               updated_at=CURRENT_TIMESTAMP
+                           WHERE id=?""",
                         (claim_id,),
                     )
-                    conn.commit()
+                conn.commit()
 
-        for claim_id in set(claim_ids):
+        for claim_id in unique_claim_ids:
             claim = self._claim(claim_id)
             if not claim:
                 continue
@@ -69,7 +75,7 @@ class KnowledgeLifecycleEngine:
                         scope, claim_id, request_id, source, "contradict"
                     )
 
-        claims = [self._recompute_claim(cid) for cid in set(claim_ids)]
+        claims = [self._recompute_claim(cid) for cid in unique_claim_ids]
         claims = [item for item in claims if item]
         hypotheses = self._observe_hypotheses(
             request_id=request_id,

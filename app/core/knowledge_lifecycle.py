@@ -192,6 +192,71 @@ class KnowledgeLifecycleEngine:
                 ).fetchall()
         return [dict(row) for row in rows]
 
+    def supersede_claim(
+        self,
+        *,
+        scope: str,
+        old_claim_id: int,
+        new_claim_id: int,
+        reason: str,
+    ) -> dict:
+        if int(old_claim_id) == int(new_claim_id):
+            raise ValueError("Old and new claim must be different.")
+        with connect() as conn:
+            old = conn.execute(
+                "SELECT * FROM knowledge_claims WHERE id=? AND scope=?",
+                (int(old_claim_id), scope),
+            ).fetchone()
+            new = conn.execute(
+                "SELECT * FROM knowledge_claims WHERE id=? AND scope=?",
+                (int(new_claim_id), scope),
+            ).fetchone()
+        if not old or not new:
+            raise ValueError("Knowledge claim not found in requested scope.")
+        if str(new["state"]) not in {"supported", "verified"}:
+            raise ValueError(
+                "Replacement claim must be supported or verified before superseding."
+            )
+        if str(old["state"]) == "superseded":
+            return self._claim(int(old_claim_id)) or {}
+
+        clean_reason = " ".join(str(reason or "").split())[:700]
+        if not clean_reason:
+            clean_reason = "explicit_knowledge_replacement"
+        previous_state = str(old["state"])
+        with connect() as conn:
+            conn.execute(
+                """UPDATE knowledge_claims
+                   SET state='superseded', superseded_by_id=?,
+                       superseded_at=CURRENT_TIMESTAMP,
+                       updated_at=CURRENT_TIMESTAMP
+                   WHERE id=? AND scope=?""",
+                (int(new_claim_id), int(old_claim_id), scope),
+            )
+            conn.commit()
+        self._transition(
+            scope,
+            int(old_claim_id),
+            previous_state,
+            "superseded",
+            clean_reason,
+            {"superseded_by_id": int(new_claim_id)},
+        )
+        self._learning_event(
+            scope,
+            "knowledge_superseded",
+            "knowledge_claim",
+            int(old_claim_id),
+            f"claim superseded by {int(new_claim_id)}",
+            float(new["confidence"] or 0.0),
+            {
+                "previous_state": previous_state,
+                "new_claim_id": int(new_claim_id),
+                "reason": clean_reason,
+            },
+        )
+        return self._claim(int(old_claim_id)) or {}
+
     def hypotheses(self, *, scope: str, state: str | None = None, limit: int = 50) -> list[dict]:
         limit = max(1, min(int(limit), 500))
         with connect() as conn:

@@ -1580,13 +1580,25 @@ async function refreshDashboard(evaluate = false) {
 refreshApproval.addEventListener("click", () => refreshDashboard(true));
 
 const technicalBrain = document.querySelector(".technical-brain");
+
+function syncTechnicalBrainHash() {
+  if (!technicalBrain || window.location.hash !== "#technical-brain") return;
+  technicalBrain.open = true;
+  requestAnimationFrame(() => {
+    renderNeuralLinks();
+    technicalBrain.scrollIntoView({ block: "start", behavior: "auto" });
+  });
+}
+
 technicalBrain?.addEventListener("toggle", () => {
   if (technicalBrain.open) {
     refreshDashboard(false);
     requestAnimationFrame(renderNeuralLinks);
   }
 });
+window.addEventListener("hashchange", syncTechnicalBrainHash);
 window.addEventListener("resize", () => requestAnimationFrame(renderNeuralLinks));
+syncTechnicalBrainHash();
 
 async function liveRefreshLoop() {
   if (!document.hidden) {

@@ -520,6 +520,74 @@
 }
 
 
+.brain-flow-inspector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 42px;
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid rgba(112,94,84,.12);
+  border-radius: 12px;
+  background: rgba(252,249,247,.92);
+  color: #786a63;
+  font-size: 10px;
+}
+.brain-flow-inspector strong {
+  color: #3e342f;
+  font-size: 11px;
+}
+.brain-flow-inspector span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.brain-flow-inspector span + span {
+  padding-left: 8px;
+  border-left: 1px solid rgba(112,94,84,.10);
+}
+.brain-flow-inspector b {
+  color: #5a4b44;
+  font-weight: 800;
+}
+.brain-flow-inspector-status {
+  padding: 4px 7px !important;
+  border: 0 !important;
+  border-radius: 999px;
+  background: #f0ece9;
+  font-weight: 800;
+}
+.brain-flow-inspector-status.executing {
+  color: #9b482b;
+  background: #fff0e6;
+}
+.brain-flow-inspector-status.recent {
+  color: #8f673f;
+  background: #fff6ec;
+}
+.brain-flow-inspector-status.attention {
+  color: #9d3735;
+  background: #fff0ef;
+}
+.brain-flow-node[tabindex="0"] {
+  cursor: pointer;
+  outline: none;
+}
+.brain-flow-node[tabindex="0"]:focus rect {
+  stroke: #7e5f50;
+  stroke-width: 2.3;
+}
+@media (max-width: 760px) {
+  .brain-flow-inspector {
+    align-items: flex-start;
+  }
+  .brain-flow-inspector span + span {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
 .brain-flow-meta {
   display: flex;
   align-items: center;

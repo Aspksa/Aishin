@@ -268,14 +268,16 @@
 
   function boot() {
     build();
-    load();
+    if (q("#development-module")?.classList.contains("active")) load();
     var open = q("#development-open");
     if (open) open.addEventListener("click", function () {
       setTimeout(load, 120);
     });
     var form = q("#chat-form");
     if (form) form.addEventListener("submit", function () {
-      setTimeout(load, 2200);
+      if (q("#development-module")?.classList.contains("active")) {
+        setTimeout(load, 2200);
+      }
     });
   }
 

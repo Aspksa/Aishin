@@ -480,6 +480,12 @@ class ContinuousLearningEngine:
             ("graph_changes", "graph_changes", "action", 0.60),
             ("execution", "execution_attempts", "status", 0.90),
             ("self_reflection", "self_reflection_runs", "mode", 0.90),
+            (
+                "response_grounding",
+                "response_grounding_runs",
+                "status",
+                0.90,
+            ),
             ("context_budget", "context_budget_reports", "mode", 0.65),
             ("experiment", "experiment_observations", "experiment_id", 0.55),
         )
@@ -711,6 +717,58 @@ class ContinuousLearningEngine:
                     "correction_signal": bool(payload.get("correction_signal")),
                 },
             )
+            return True
+
+        if source_type == "response_grounding":
+            if not bool(payload.get("applicable")):
+                return False
+            score = payload.get("overall")
+            if score is None:
+                return False
+            grounding = float(score)
+            unsupported = int(
+                payload.get("claims_unsupported") or 0
+            )
+            band = (
+                "strong"
+                if grounding >= 0.78
+                else "weak"
+                if grounding < 0.52
+                else "mixed"
+            )
+            self._observe_pattern(
+                scope=scope,
+                category="response_grounding",
+                pattern_key=band,
+                success=band == "strong",
+                failure=band == "weak",
+                evidence_weight=0.90,
+                evidence={
+                    "source_type": source_type,
+                    "source_id": source_id,
+                    "grounding": grounding,
+                    "claim_coverage": payload.get(
+                        "claim_coverage"
+                    ),
+                    "provenance_coverage": payload.get(
+                        "provenance_coverage"
+                    ),
+                    "unsupported_claims": unsupported,
+                },
+            )
+            if unsupported:
+                self._observe_pattern(
+                    scope=scope,
+                    category="response_grounding_risk",
+                    pattern_key="unsupported_claims",
+                    failure=True,
+                    evidence_weight=0.90,
+                    evidence={
+                        "source_type": source_type,
+                        "source_id": source_id,
+                        "unsupported_claims": unsupported,
+                    },
+                )
             return True
 
         if source_type == "context_budget":
@@ -1139,6 +1197,23 @@ class ContinuousLearningEngine:
                 "correction_signal": bool(item.get("correction_signal")),
                 "weak_spots": json.loads(item.get("weak_spots_json") or "[]"),
             }
+        if source_type == "response_grounding":
+            return {
+                "status": item.get("status"),
+                "applicable": bool(item.get("applicable")),
+                "overall": item.get("overall"),
+                "claim_coverage": item.get("claim_coverage"),
+                "provenance_coverage": item.get(
+                    "provenance_coverage"
+                ),
+                "source_diversity": item.get("source_diversity"),
+                "claims_total": item.get("claims_total"),
+                "claims_supported": item.get("claims_supported"),
+                "claims_partial": item.get("claims_partial"),
+                "claims_unsupported": item.get(
+                    "claims_unsupported"
+                ),
+            }
         if source_type == "context_budget":
             return {
                 "mode": item.get("mode"),
@@ -1210,6 +1285,19 @@ class ContinuousLearningEngine:
             quality = float(item.get("quality_score") or 0.0)
             correction = bool(item.get("correction_signal"))
             return 0.98 if correction else (0.90 if quality < 0.60 else default)
+        if source_type == "response_grounding":
+            if not bool(item.get("applicable")):
+                return 0.40
+            score = item.get("overall")
+            value = float(score) if score is not None else 0.0
+            unsupported = int(
+                item.get("claims_unsupported") or 0
+            )
+            return (
+                0.98
+                if value < 0.52 or unsupported > 0
+                else default
+            )
         if source_type == "context_budget":
             return 0.80 if int(item.get("trimmed_chars") or 0) > 0 else default
         if source_type == "experiment":

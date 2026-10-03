@@ -2957,9 +2957,9 @@ def main() -> int:
             export_data = live_brain_export.json()
             if export_data.get("format") != "AISHIN_LIVE_BRAIN_EXPORT":
                 raise RuntimeError("Live Brain export format несовместим")
-            if int(export_data.get("format_version") or 0) != 10:
+            if int(export_data.get("format_version") or 0) != 11:
                 raise RuntimeError(
-                    "Live Brain export format должен быть version 10"
+                    "Live Brain export format должен быть version 11"
                 )
             if not isinstance(
                 live_brain_data.get("cognitive_intelligence"),

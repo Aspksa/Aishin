@@ -234,7 +234,7 @@ function boot(){
   q("#documents-modal")?.addEventListener("click",e=>{if(e.target.id==="documents-modal")closeModal();});
   document.addEventListener("keydown",trapModalFocus);
   q("#documents-reprocess")?.addEventListener("click",reprocess);
-  load();
+  if(q("#documents-module")?.classList.contains("active"))load();
 }
 window.AISHIN_DOCUMENTS_REFRESH=load;
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();

@@ -161,7 +161,7 @@
 }
 .live-brain-columns {
   display: grid;
-  grid-template-columns: 1.35fr .85fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   margin-top: 12px;
 }
@@ -186,7 +186,7 @@
 }
 .live-brain-topology {
   width: 100%;
-  height: 330px;
+  height: clamp(440px, 52vw, 560px);
   display: block;
 }
 .live-brain-edge {
@@ -501,15 +501,16 @@
   50% { opacity: 1; }
 }
 @media (max-width: 760px) {
-  .live-brain-topology {
-    min-height: 360px;
-  }
   .live-brain-panel:has(.live-brain-topology) {
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-gutter: stable;
   }
   .live-brain-topology {
     width: 900px;
     max-width: none;
+    height: 520px;
+    min-height: 520px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

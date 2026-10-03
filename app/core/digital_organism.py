@@ -1143,6 +1143,17 @@ class DigitalOrganismFoundation:
     # ------------------------------------------------------------------
 
     def dashboard(self, *, scope: str = "personal") -> dict:
+        with connect() as conn:
+            autobiography_total = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM organism_autobiography"
+                ).fetchone()[0]
+            )
+            runtime_sessions = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM organism_runtime_sessions"
+                ).fetchone()[0]
+            )
         return {
             "version": self.VERSION,
             "scientific_boundary": (
@@ -1153,7 +1164,11 @@ class DigitalOrganismFoundation:
             "inner_time": self.inner_time(scope=scope),
             "development_state": self.development_state(),
             "continuity": self.continuity_summary(),
-            "autobiography": self.autobiography(limit=12),
+            "autobiography": {
+                "total": autobiography_total,
+                "recent": self.autobiography(limit=12),
+            },
+            "runtime_sessions": runtime_sessions,
         }
 
     def prompt_block(self, *, scope: str = "personal") -> str:

@@ -4,6 +4,18 @@
   var current = null;
   var loading = false;
   var lastLoadedAt = 0;
+  var eventSource = null;
+  var reconnectTimer = null;
+  var lastPulseSequence = -1;
+  var lastFinishedSequence = -1;
+
+  function scopeValue() {
+    return window.AISHIN_SCOPE?.get?.() || "personal";
+  }
+
+  function scopeUrl(url) {
+    return window.AISHIN_SCOPE?.url?.(url) || url;
+  }
 
   function el(selector) {
     return document.querySelector(selector);
@@ -61,12 +73,13 @@
         '<div class="live-brain-title">',
           '<div id="live-brain-orb" class="live-brain-orb" aria-hidden="true"></div>',
           '<div>',
-            '<p class="overline">AISHIN 00.00.11 · LIVE BRAIN</p>',
+            '<p class="overline">AISHIN 00.00.12 · REAL-TIME BRAIN</p>',
             '<h3>Нейронная обсерватория Айшин</h3>',
-            '<p>Живые события, память, связи, проверки, качество и безопасная техническая трасса.</p>',
+            '<p>Реальные переходы между модулями, текущая выполняемая фаза и безопасная техническая телеметрия в реальном времени.</p>',
           '</div>',
         '</div>',
         '<div class="live-brain-actions">',
+          '<span id="lb-stream-state" class="live-brain-badge">LIVE · подключение…</span>',
           '<span id="live-brain-runtime" class="live-brain-badge">runtime —</span>',
           '<span id="live-brain-status" class="live-brain-status-pill initializing">инициализация</span>',
           '<button id="live-brain-export" class="live-brain-export" type="button">Экспорт JSON</button>',
@@ -87,8 +100,8 @@
       '</div>',
       '<div class="live-brain-columns">',
         '<article class="live-brain-panel">',
-          '<div class="live-brain-panel-head"><strong>24 когнитивных контура</strong><span id="lb-current-phase">фаза: idle</span></div>',
-          '<svg id="live-brain-topology" class="live-brain-topology" viewBox="0 0 720 330" role="img" aria-label="Живая карта когнитивных контуров Айшин"></svg>',
+          '<div class="live-brain-panel-head"><strong>Нервная карта выполнения</strong><span id="lb-current-phase">фаза: idle</span></div>',
+          '<svg id="live-brain-topology" class="live-brain-topology" viewBox="0 0 1080 620" role="img" aria-label="Настоящая карта переходов между модулями Айшин"></svg>',
         '</article>',
         '<article class="live-brain-panel">',
           '<div class="live-brain-panel-head"><strong>Поток событий</strong><span id="lb-event-total">0 всего</span></div>',
@@ -165,36 +178,85 @@
   function renderTopology(data) {
     var svg = el("#live-brain-topology");
     if (!svg) return;
-    var channels = Array.isArray(data.channels) ? data.channels : [];
-    var cx = 360;
-    var cy = 165;
-    var rx = 270;
-    var ry = 118;
-    var edges = [];
-    var nodes = [];
+    var topology = data.topology || {};
+    var nodes = Array.isArray(topology.nodes) ? topology.nodes : [];
+    var edges = Array.isArray(topology.edges) ? topology.edges : [];
+    if (!nodes.length) {
+      svg.innerHTML = '<text x="540" y="310" text-anchor="middle" class="live-brain-topology-empty">Телеметрия нервной карты ещё не поступила</text>';
+      return;
+    }
 
-    channels.forEach(function (channel, index) {
-      var angle = (Math.PI * 2 * index / Math.max(1, channels.length)) - Math.PI / 2;
-      var x = cx + Math.cos(angle) * rx;
-      var y = cy + Math.sin(angle) * ry;
-      var status = channel.status || "idle";
-      var edgeClass = status === "active" ? "live-brain-edge active" : "live-brain-edge";
-      edges.push('<line class="' + edgeClass + '" x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '"></line>');
-      nodes.push(
-        '<g><circle class="live-brain-node-dot ' + esc(status) + '" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="13"><title>' +
-        esc(channel.label + " — " + channel.detail) + '</title></circle>' +
-        '<text class="live-brain-node-index" x="' + x.toFixed(1) + '" y="' + (y - 2).toFixed(1) + '">' + String(channel.index).padStart(2, "0") + '</text>' +
-        '<text class="live-brain-node-label" x="' + x.toFixed(1) + '" y="' + (y + 24).toFixed(1) + '">' + esc(channel.label) + '</text></g>'
-      );
+    var width = 1080;
+    var height = 620;
+    var padX = 58;
+    var padY = 58;
+    var layerValues = nodes.map(function (item) { return Number(item.layer || 0); });
+    var maxLayer = Math.max.apply(null, layerValues.concat([1]));
+    var grouped = {};
+    nodes.forEach(function (node) {
+      var layer = Number(node.layer || 0);
+      if (!grouped[layer]) grouped[layer] = [];
+      grouped[layer].push(node);
     });
 
-    var phase = (data.pulse && data.pulse.phase) || "idle";
-    svg.innerHTML = edges.join("") +
-      '<circle class="live-brain-core-ring" cx="' + cx + '" cy="' + cy + '" r="56"></circle>' +
-      '<circle class="live-brain-core-ring" cx="' + cx + '" cy="' + cy + '" r="43" opacity=".55"></circle>' +
-      '<text class="live-brain-core-text" x="' + cx + '" y="' + (cy - 2) + '">АЙШИН</text>' +
-      '<text class="live-brain-core-sub" x="' + cx + '" y="' + (cy + 13) + '">' + esc(phase) + '</text>' +
-      nodes.join("");
+    var positions = {};
+    Object.keys(grouped).forEach(function (layerKey) {
+      var layer = Number(layerKey);
+      var items = grouped[layer];
+      var x = padX + (width - padX * 2) * (layer / Math.max(1, maxLayer));
+      items.forEach(function (node, index) {
+        var count = items.length;
+        var y = count === 1
+          ? height / 2
+          : padY + (height - padY * 2) * ((index + 1) / (count + 1));
+        positions[node.id] = {x:x, y:y};
+      });
+    });
+
+    var defs = [
+      '<defs>',
+      '<marker id="lb-arrow-idle" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z"></path></marker>',
+      '<marker id="lb-arrow-recent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z"></path></marker>',
+      '<marker id="lb-arrow-executing" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z"></path></marker>',
+      '</defs>'
+    ].join("");
+
+    var edgeSvg = edges.map(function (edge) {
+      var a = positions[edge.source];
+      var b = positions[edge.target];
+      if (!a || !b) return "";
+      var dx = Math.max(30, Math.abs(b.x - a.x) * 0.42);
+      var d = "M" + a.x.toFixed(1) + "," + a.y.toFixed(1) +
+        " C" + (a.x + dx).toFixed(1) + "," + a.y.toFixed(1) +
+        " " + (b.x - dx).toFixed(1) + "," + b.y.toFixed(1) +
+        " " + b.x.toFixed(1) + "," + b.y.toFixed(1);
+      var status = edge.status || "idle";
+      return '<path class="brain-wire ' + esc(status) + '" d="' + d +
+        '" marker-end="url(#lb-arrow-' + (status === "executing" ? "executing" : status === "recent" ? "recent" : "idle") + ')">' +
+        '<title>' + esc(edge.source + " → " + edge.target + " · " + (edge.label || "") +
+        " · " + status + " · " + n(edge.count) + " переходов") + '</title></path>';
+    }).join("");
+
+    var nodeSvg = nodes.map(function (node) {
+      var p = positions[node.id];
+      if (!p) return "";
+      var status = node.status || "idle";
+      var w = 88;
+      var h = 44;
+      var label = String(node.label || node.id);
+      var short = label.length > 16 ? label.slice(0, 15) + "…" : label;
+      var age = node.age_ms == null ? "" : " · " + Math.round(n(node.age_ms)) + " ms";
+      return '<g class="brain-flow-node ' + esc(status) + '" transform="translate(' +
+        (p.x - w / 2).toFixed(1) + ',' + (p.y - h / 2).toFixed(1) + ')">' +
+        '<rect width="' + w + '" height="' + h + '" rx="12"></rect>' +
+        '<circle cx="11" cy="11" r="4"></circle>' +
+        '<text class="brain-flow-node-label" x="' + (w / 2) + '" y="22">' + esc(short) + '</text>' +
+        '<text class="brain-flow-node-state" x="' + (w / 2) + '" y="35">' + esc(status) + '</text>' +
+        '<title>' + esc(label + " · " + status + age + " · visits=" + n(node.visits)) + '</title>' +
+        '</g>';
+    }).join("");
+
+    svg.innerHTML = defs + edgeSvg + nodeSvg;
   }
 
   function renderLegacyChannels(data) {
@@ -202,13 +264,54 @@
     channels.forEach(function (channel) {
       var node = document.querySelector('[data-brain-node="' + channel.id + '"]');
       if (!node) return;
-      node.classList.toggle("active", channel.status === "active");
+      node.classList.toggle("active", channel.status === "executing");
+      node.classList.toggle("recent", channel.status === "recent");
       node.classList.toggle("attention", channel.status === "attention");
       var detail = node.querySelector("em");
       if (detail) detail.textContent = channel.detail || "ожидание";
     });
     if (data.pulse) {
       setText("#brain-focus-value", data.pulse.phase || "idle");
+    }
+  }
+
+  function renderRealtimePulse(data) {
+    if (!data) return;
+    var pulse = data.pulse || {};
+    var topology = data.topology || {};
+    lastPulseSequence = Number(topology.sequence ?? pulse.sequence ?? lastPulseSequence);
+    setText("#lb-current-phase", "фаза: " + (topology.current_phase || pulse.phase || "idle"));
+    setText("#lb-events-hour", compact(pulse.events_1h));
+    setText("#lb-events-5m", compact(pulse.events_5m) + " за 5 минут");
+
+    var executing = (topology.nodes || []).filter(function (node) {
+      return node.status === "executing";
+    }).length;
+    var attention = (topology.nodes || []).filter(function (node) {
+      return node.status === "attention";
+    }).length;
+    setText("#lb-active-channels", executing + "/24");
+    setText("#lb-attention-channels", attention + " требуют внимания");
+
+    var stream = el("#lb-stream-state");
+    if (stream) {
+      var status = topology.status || "idle";
+      var elapsed = topology.elapsed_ms == null ? "" : " · " + n(topology.elapsed_ms) + " ms";
+      stream.textContent = "LIVE · " + status + elapsed;
+      stream.classList.toggle("executing", status === "running");
+      stream.classList.toggle("attention", status === "error");
+    }
+
+    renderTopology({topology: topology, pulse: pulse});
+
+    var sequence = Number(topology.sequence || 0);
+    if (
+      topology.status &&
+      topology.status !== "running" &&
+      sequence !== lastFinishedSequence
+    ) {
+      lastFinishedSequence = sequence;
+      window.setTimeout(function () { loadBrain(true); }, 120);
     }
   }
 
@@ -442,7 +545,7 @@
     if (loading) return Promise.resolve(current);
     if (!force && Date.now() - lastLoadedAt < 1800) return Promise.resolve(current);
     loading = true;
-    return fetch("/api/assistant/live-brain?scope=personal&event_limit=50&graph_limit=20", {
+    return fetch(scopeUrl("/api/assistant/live-brain?scope=personal&event_limit=50&graph_limit=20"), {
       cache: "no-store"
     })
       .then(function (response) {
@@ -472,7 +575,7 @@
   }
 
   function exportBrain() {
-    fetch("/api/assistant/live-brain/export?scope=personal", { cache: "no-store" })
+    fetch(scopeUrl("/api/assistant/live-brain/export?scope=personal"), { cache: "no-store" })
       .then(function (response) {
         if (!response.ok) throw new Error("Export HTTP " + response.status);
         return response.json();
@@ -496,6 +599,46 @@
       });
   }
 
+  function closeStream() {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  }
+
+  function connectStream() {
+    closeStream();
+    if (document.hidden || typeof EventSource === "undefined") return;
+    var streamState = el("#lb-stream-state");
+    if (streamState) streamState.textContent = "LIVE · подключение…";
+    eventSource = new EventSource(
+      scopeUrl("/api/assistant/live-brain/stream?scope=personal")
+    );
+    eventSource.addEventListener("open", function () {
+      if (streamState) {
+        streamState.textContent = "LIVE · подключено";
+        streamState.classList.remove("attention");
+      }
+    });
+    eventSource.addEventListener("pulse", function (event) {
+      try {
+        renderRealtimePulse(JSON.parse(event.data));
+      } catch (error) {
+        console.error("Live Brain pulse:", error);
+      }
+    });
+    eventSource.addEventListener("error", function () {
+      if (streamState) {
+        streamState.textContent = "LIVE · переподключение";
+        streamState.classList.add("attention");
+      }
+    });
+  }
+
   function boot() {
     ensureObservatory();
     ensureDevelopmentStrip();
@@ -511,22 +654,42 @@
     var form = el("#chat-form");
     if (form) {
       form.addEventListener("submit", function () {
-        setTimeout(function () { loadBrain(true); }, 250);
-        setTimeout(function () { loadBrain(true); }, 1600);
+        // The live stream shows execution immediately; the full snapshot is
+        // refreshed once the request finishes.
+        window.setTimeout(function () { loadBrain(true); }, 2500);
       });
     }
 
     var developmentOpen = el("#development-open");
     if (developmentOpen) {
       developmentOpen.addEventListener("click", function () {
-        setTimeout(function () { loadBrain(true); }, 80);
+        window.setTimeout(function () { loadBrain(true); }, 80);
       });
     }
 
+    document.addEventListener("aishin:scope-change", function () {
+      lastFinishedSequence = -1;
+      loadBrain(true);
+      connectStream();
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) closeStream();
+      else {
+        connectStream();
+        loadBrain(false);
+      }
+    });
+
+    window.AISHIN_LIVE_BRAIN_REFRESH = function () {
+      loadBrain(true);
+      connectStream();
+    };
+
     loadBrain(true);
+    connectStream();
     window.setInterval(function () {
       if (shouldRefresh()) loadBrain(false);
-    }, 5000);
+    }, 45000);
   }
 
   if (document.readyState === "loading") {

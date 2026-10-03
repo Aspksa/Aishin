@@ -705,9 +705,14 @@ class KnowledgeLifecycleEngine:
 
     @classmethod
     def _best_source(cls, text: str, sources: list[dict]) -> dict | None:
+        normalized = cls._normalized_text(text)
+        for source in sources:
+            if cls._normalized_text(source.get("content") or "") == normalized:
+                return source
         ranked = sorted(
             ((cls._similarity(text, x.get("content") or ""), x) for x in sources),
-            key=lambda pair: pair[0], reverse=True,
+            key=lambda pair: pair[0],
+            reverse=True,
         )
         return ranked[0][1] if ranked and ranked[0][0] >= 0.16 else None
 
@@ -725,9 +730,16 @@ class KnowledgeLifecycleEngine:
         }
 
     @staticmethod
-    def _hash(text: str) -> str:
-        normalized = " ".join(str(text or "").casefold().replace("ё", "е").split())
-        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    def _normalized_text(text: str) -> str:
+        return " ".join(
+            str(text or "").casefold().replace("ё", "е").split()
+        )
+
+    @classmethod
+    def _hash(cls, text: str) -> str:
+        return hashlib.sha256(
+            cls._normalized_text(text).encode("utf-8")
+        ).hexdigest()
 
     @staticmethod
     def _verification_passed(verification: dict | None) -> bool:

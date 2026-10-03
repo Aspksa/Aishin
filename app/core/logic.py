@@ -512,6 +512,10 @@ class LogicEngine:
         for item in additional_evidence[:12]:
             safe = {
                 "source": str(item.get("source") or "external"),
+                "source_type": item.get("source_type"),
+                "source_ref": item.get("source_ref"),
+                "source_group": item.get("source_group"),
+                "independence": item.get("independence"),
                 "confidence": item.get("confidence"),
                 "retrieval_score": item.get("retrieval_score"),
                 "content": str(item.get("content") or "")[:700],

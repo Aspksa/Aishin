@@ -213,6 +213,7 @@ class DigitalOrganismFoundation:
             allow_transition=True,
         )
         snapshot = self.create_snapshot(snapshot_type="startup")
+        self._set_continuity_status("active_session")
 
         self._emit(
             "digital_organism.started",
@@ -1013,6 +1014,12 @@ class DigitalOrganismFoundation:
             status = "state_mismatch_after_clean_shutdown"
         elif manifest_valid is True:
             status = "verified_clean_continuity"
+        elif (
+            self.boot_session_id
+            and str(latest.get("boot_session_id") or "")
+            == self.boot_session_id
+        ):
+            status = "active_session_unsealed"
         else:
             status = "unclean_gap"
 

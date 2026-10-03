@@ -2404,6 +2404,21 @@ def main() -> int:
             concurrent_running = engine.brain_flow.snapshot(
                 scope=concurrency_scope
             )
+            executing_pairs = {
+                (item.get("source"), item.get("target"))
+                for item in concurrent_running.get("edges") or []
+                if item.get("status") == "executing"
+            }
+            if ("memory", "context") not in executing_pairs:
+                raise RuntimeError(
+                    "BrainFlow должен подсвечивать фактическую dependency "
+                    "Memory -> Context, а не только порядок вызовов"
+                )
+            if ("graph", "context") in executing_pairs:
+                raise RuntimeError(
+                    "BrainFlow не должен подсвечивать dependency, которая "
+                    "не выполнялась в выбранном request"
+                )
             if int(concurrent_running.get("active_requests") or 0) != 2:
                 raise RuntimeError(
                     "BrainFlow должен хранить два параллельных request "
@@ -2438,6 +2453,54 @@ def main() -> int:
             if int(concurrent_finished.get("active_requests") or 0) != 0:
                 raise RuntimeError(
                     "BrainFlow должен закрыть все завершённые request"
+                )
+
+            pressure_scope = "smoke:brain-flow-pressure"
+            pressure_ids = [
+                f"pressure-{index}"
+                for index in range(
+                    engine.brain_flow.MAX_REQUESTS_PER_SCOPE + 4
+                )
+            ]
+            for pressure_id in pressure_ids:
+                engine.brain_flow.begin(
+                    request_id=pressure_id,
+                    scope=pressure_scope,
+                    intent="stress",
+                )
+            pressure_running = engine.brain_flow.snapshot(
+                scope=pressure_scope
+            )
+            if int(pressure_running.get("active_requests") or 0) != len(
+                pressure_ids
+            ):
+                raise RuntimeError(
+                    "BrainFlow не должен удалять активные request даже "
+                    "при превышении history limit"
+                )
+            if len(
+                engine.brain_flow.running_request_ids(scope=pressure_scope)
+            ) != len(pressure_ids):
+                raise RuntimeError(
+                    "BrainFlow потерял идентификаторы активных request"
+                )
+            for pressure_id in pressure_ids:
+                engine.brain_flow.finish(
+                    request_id=pressure_id,
+                    scope=pressure_scope,
+                )
+            pressure_finished = engine.brain_flow.snapshot(
+                scope=pressure_scope
+            )
+            if int(pressure_finished.get("active_requests") or 0) != 0:
+                raise RuntimeError(
+                    "BrainFlow pressure test оставил активные request"
+                )
+            if int(pressure_finished.get("recent_requests") or 0) > (
+                engine.brain_flow.MAX_REQUESTS_PER_SCOPE
+            ):
+                raise RuntimeError(
+                    "BrainFlow должен ограничивать только завершённую историю"
                 )
 
             live_brain_export = client.get(

@@ -112,6 +112,7 @@ def assert_desktop(driver: webdriver.Chrome) -> None:
         "Нервная карта выполнения",
         "brain-flow-legend",
         'id="lb-node-inspector"',
+        'id="lb-wiring-score"',
         "AISHIN 00.00.12 · REAL-TIME BRAIN",
     ):
         if marker not in source:

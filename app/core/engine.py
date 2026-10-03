@@ -523,7 +523,10 @@ class AishinEngine:
                 contradiction_limit=40,
                 run_limit=30,
             ),
-            "memory_changes": self.memory.recent_changes(\n                limit=12,\n                scope=effective_scope,\n            ),
+            "memory_changes": self.memory.recent_changes(
+                limit=12,
+                scope=effective_scope,
+            ),
             "recent_messages": recent_messages(
                 limit=10,
                 scope=effective_scope,

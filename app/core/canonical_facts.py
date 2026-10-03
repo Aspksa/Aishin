@@ -500,11 +500,26 @@ class CanonicalFactsEngine:
         for row in rows:
             item = dict(row)
             family = str(item.get("family_key") or "").strip()
-            identity = family or f"document-{int(item['document_id'])}"
-            canonical_key = (
-                f"document:{self._key_part(identity)}:"
-                f"{self._key_part(str(item['fact_key']))}"
+            fact_type = str(item.get("fact_type") or "statement")
+            subject = str(item.get("subject") or "").strip()
+            structured = (
+                fact_type in {"key_value", "ai_grounded"}
+                and subject.casefold() != "document"
             )
+            if structured:
+                # Atomic structured facts may fuse across independent document
+                # families because fact_key is derived from subject+predicate.
+                canonical_key = (
+                    f"fact:{self._key_part(str(item['fact_key']))}"
+                )
+            else:
+                # Generic metadata such as mentions_date/amount/email is not
+                # globally unique. Keep it inside document lineage/family.
+                identity = family or f"document-{int(item['document_id'])}"
+                canonical_key = (
+                    f"document:{self._key_part(identity)}:"
+                    f"{self._key_part(str(item['fact_key']))}"
+                )
             fact_id, value_id = self._upsert_fact_value(
                 scope=scope,
                 canonical_key=canonical_key,
@@ -1284,9 +1299,21 @@ class CanonicalFactsEngine:
 
         if contradiction_groups and average_contradiction >= 0.55:
             state = "conflicted"
-        elif support_groups >= 2 and average_support >= 0.72:
+        elif (
+            support_groups >= 3
+            and average_support >= 0.72
+        ) or (
+            support_groups >= 2
+            and average_support >= 0.85
+        ):
             state = "verified"
-        elif support_groups >= 1 and average_support >= 0.55:
+        elif (
+            support_groups >= 2
+            and average_support >= 0.60
+        ) or (
+            support_groups >= 1
+            and average_support >= 0.85
+        ):
             state = "supported"
         else:
             state = "observed"

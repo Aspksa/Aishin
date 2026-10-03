@@ -531,16 +531,20 @@ Account, Mobile и Workspace остаются отдельными продук�
 
 ## Browser Visual QA
 
-CI 00.00.12 дополнительно запускает настоящий headless Chrome на Linux runner.
+CI 00.00.12 дополнительно запускает настоящий headless Chrome через Selenium на Linux runner.
 
 Проверяются:
 
 - реальный FastAPI startup;
 - загрузка HTML/CSS/JavaScript;
+- deep-link #technical-brain и автоматическое раскрытие диагностики;
 - динамическая вставка Neural Observatory;
-- наличие live topology после выполнения JavaScript;
+- наличие не менее 20 узлов live topology после выполнения JavaScript;
+- клик по SVG-узлу и обновление интерактивного инспектора;
 - desktop viewport 1440×1000;
-- mobile viewport 390×844.
+- mobile viewport 390×844;
+- отсутствие document-level горизонтального overflow на мобильном экране;
+- сохранение широкой topology внутри собственного scroll-контейнера.
 
 Создаются artifacts:
 
@@ -550,3 +554,24 @@ CI 00.00.12 дополнительно запускает настоящий hea
 - uvicorn.log.
 
 Это не заменяет ручной UI/UX review, но ловит класс ошибок, которые невозможно обнаружить только через node --check и HTML-contract тест.
+
+
+## Инспектор узлов
+
+Каждый узел real-time topology доступен мышью, касанием и клавиатурой.
+
+После выбора показываются:
+
+- имя технической стадии;
+- observable status;
+- количество проходов текущего request;
+- возраст последнего сигнала;
+- безопасные агрегированные detail-поля.
+
+Текущая executing stage выбирается автоматически, если пользователь ещё не выбрал другой узел.
+
+Deep-link:
+
+#technical-brain
+
+открывает техническую диагностику напрямую и используется browser visual QA.

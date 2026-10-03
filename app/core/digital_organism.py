@@ -133,6 +133,7 @@ class DigitalOrganismFoundation:
     # ------------------------------------------------------------------
 
     def startup(self) -> dict:
+        self.boot_session_id = uuid.uuid4().hex
         created = self._ensure_identity_state()
         if created:
             self.record_episode(
@@ -156,7 +157,6 @@ class DigitalOrganismFoundation:
             )
 
         validation = self.inspect_continuity()
-        self.boot_session_id = uuid.uuid4().hex
         self._record_validation(validation)
         self._open_session(validation)
 
@@ -1036,6 +1036,53 @@ class DigitalOrganismFoundation:
             ),
         }
 
+    def continuity_summary(self) -> dict:
+        identity = self._identity_state()
+        with connect() as conn:
+            latest_snapshot = conn.execute(
+                """SELECT id, snapshot_type, previous_state_hash, state_hash,
+                          identity_hash, data_manifest_hash, created_at
+                   FROM organism_continuity_snapshots
+                   ORDER BY id DESC LIMIT 1"""
+            ).fetchone()
+            snapshot_count = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM organism_continuity_snapshots"
+                ).fetchone()[0]
+            )
+            latest_validation = conn.execute(
+                """SELECT id, status, chain_valid, identity_valid,
+                          manifest_valid, created_at
+                   FROM organism_continuity_validations
+                   ORDER BY id DESC LIMIT 1"""
+            ).fetchone()
+        validation = dict(latest_validation) if latest_validation else None
+        if validation:
+            validation["chain_valid"] = bool(validation["chain_valid"])
+            validation["identity_valid"] = bool(validation["identity_valid"])
+            validation["manifest_valid"] = (
+                None
+                if validation["manifest_valid"] is None
+                else bool(validation["manifest_valid"])
+            )
+        return {
+            "name": "AISHIN_CONTINUOUS_SELF",
+            "status": str(identity.get("continuity_status") or "genesis"),
+            "snapshot_count": snapshot_count,
+            "latest_snapshot": (
+                dict(latest_snapshot) if latest_snapshot else None
+            ),
+            "latest_validation": validation,
+            "external_trust_root": False,
+            "integrity_model": (
+                "SHA-256 hash chain + identity hash + persisted data manifest"
+            ),
+            "validation_mode": (
+                "full manifest validation on startup or explicit inspection; "
+                "summary reads do not rehash the database"
+            ),
+        }
+
     def continuity_history(
         self,
         *,
@@ -1105,13 +1152,13 @@ class DigitalOrganismFoundation:
             "now": self.now(scope=scope),
             "inner_time": self.inner_time(scope=scope),
             "development_state": self.development_state(),
-            "continuity": self.inspect_continuity(),
+            "continuity": self.continuity_summary(),
             "autobiography": self.autobiography(limit=12),
         }
 
     def prompt_block(self, *, scope: str = "personal") -> str:
         development = self.development_state()
-        continuity = self.inspect_continuity()
+        continuity = self.continuity_summary()
         now = self.now(scope=scope)
         return (
             "AISHIN_DIGITAL_ORGANISM technical state.\n"

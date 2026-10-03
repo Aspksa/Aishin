@@ -111,8 +111,8 @@ def main() -> int:
                 'id="documents-upload-btn"',
                 'id="scope-select"',
                 'value="project:aishin"',
-                '/static/app.js?v=0.0.12',
-                '/static/live_brain.js?v=0.0.12',
+                '/static/app.js?v=0.0.13',
+                '/static/live_brain.js?v=0.0.13',
                 'role="dialog"',
                 'aria-modal="true"',
             )
@@ -162,9 +162,9 @@ def main() -> int:
                     f"/health returned HTTP {health.status_code}: {health.text[:300]}"
                 )
             health_data = health.json()
-            if health_data.get("version") != "0.0.12":
+            if health_data.get("version") != "0.0.13":
                 raise RuntimeError(
-                    "Health должен сообщать Aishin Core 0.0.12"
+                    "Health должен сообщать Aishin Core 0.0.13"
                 )
             with connect() as conn:
                 schema_row = conn.execute(

@@ -397,9 +397,12 @@ class BrainFlowRuntime:
             status = "idle"
             if (
                 running
-                and source == last_transition.get("source")
-                and target == last_transition.get("target")
+                and target == current
+                and bool(runtime)
             ):
+                # phase() activates every architectural dependency that was
+                # actually available when the target stage started. Keep all
+                # of those incoming edges lit while that stage is executing.
                 status = "executing"
             elif age is not None and age <= self.RECENT_SECONDS:
                 status = "recent"

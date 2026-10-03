@@ -55,12 +55,12 @@ def main() -> int:
         file_path = STATIC / Path(parsed.path).name
         if not file_path.is_file():
             missing_assets.append(asset)
-        if parsed.query != "v=0.0.12":
+        if parsed.query != "v=0.0.13":
             stale_assets.append(asset)
     if missing_assets:
         fail(f"Missing static assets: {missing_assets}")
     if stale_assets:
-        fail(f"Static assets without 0.0.12 cache key: {stale_assets}")
+        fail(f"Static assets without 0.0.13 cache key: {stale_assets}")
 
     required_ids = {
         "scope-select",

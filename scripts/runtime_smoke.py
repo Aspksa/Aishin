@@ -2600,6 +2600,56 @@ def main() -> int:
                     "Live Brain knowledge_graph.entities должен быть списком"
                 )
 
+            project_live_brain = client.get(
+                "/api/assistant/live-brain",
+                params={
+                    "scope": "project:aishin",
+                    "event_limit": 20,
+                    "graph_limit": 12,
+                },
+            )
+            if project_live_brain.status_code != 200:
+                raise RuntimeError(
+                    "Project-scope Live Brain endpoint недоступен"
+                )
+            project_live_data = project_live_brain.json()
+            if project_live_data.get("scope") != "project:aishin":
+                raise RuntimeError(
+                    "Live Brain потерял project scope"
+                )
+            project_topology = (
+                project_live_data.get("topology") or {}
+            )
+            if len(project_topology.get("nodes") or []) != 24:
+                raise RuntimeError(
+                    "Пустой project scope обязан показывать "
+                    "полную idle-топологию из 24 узлов"
+                )
+
+            project_pulse = client.get(
+                "/api/assistant/live-brain/pulse",
+                params={"scope": "project:aishin"},
+            )
+            if project_pulse.status_code != 200:
+                raise RuntimeError(
+                    "Project-scope lightweight pulse недоступен"
+                )
+            project_pulse_data = project_pulse.json()
+            if project_pulse_data.get("scope") != "project:aishin":
+                raise RuntimeError(
+                    "Lightweight pulse потерял project scope"
+                )
+            if len(
+                (
+                    project_pulse_data.get("topology")
+                    or {}
+                ).get("nodes")
+                or []
+            ) != 24:
+                raise RuntimeError(
+                    "Project-scope pulse обязан возвращать 24 узла"
+                )
+
             live_brain_pulse = client.get(
                 "/api/assistant/live-brain/pulse",
                 params={"scope": "personal"},

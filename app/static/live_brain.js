@@ -73,7 +73,7 @@
         '<div class="live-brain-title">',
           '<div id="live-brain-orb" class="live-brain-orb" aria-hidden="true"></div>',
           '<div>',
-            '<p class="overline">AISHIN 00.00.12 · REAL-TIME BRAIN</p>',
+            '<p class="overline">AISHIN 00.00.13 · RESPONSE GROUNDING</p>',
             '<h3>Нейронная обсерватория Айшин</h3>',
             '<p>Реальные переходы между модулями, текущая выполняемая фаза и безопасная техническая телеметрия в реальном времени.</p>',
           '</div>',
@@ -97,6 +97,7 @@
         '<article class="live-brain-metric"><span>Исследования</span><strong id="lb-research-score">—</strong><small id="lb-research-status">0 gaps · 0 trusted</small></article>',
         '<article class="live-brain-metric"><span>Общение</span><strong id="lb-communication-score">—</strong><small id="lb-communication-status">0 evidence · persona —</small></article>',
         '<article class="live-brain-metric"><span>Документы</span><strong id="lb-documents-score">—</strong><small id="lb-documents-status">0 studied · 0 OCR</small></article>',
+        '<article class="live-brain-metric"><span>Grounding ответа</span><strong id="lb-grounding-score">—</strong><small id="lb-grounding-status">ещё не измерялся</small></article>',
       '</div>',
       '<div class="live-brain-columns">',
         '<article class="live-brain-panel">',
@@ -399,7 +400,12 @@
       ["Research evidence", String(n(trace.research_logic_evidence))],
       ["Research conflicts", String(n(trace.research_logic_contradictions))],
       ["Перепроверка", trace.verification_ran ? ("да · " + n(trace.verification_unresolved) + " нереш.") : "не требовалась"],
-      ["Качество", pct(trace.decision_quality)],
+      ["Качество выбора", pct(trace.decision_quality)],
+      ["Grounding ответа", trace.grounding_applicable ? pct(trace.response_grounding) : "не применимо"],
+      ["Подтверждено claims", String(n(trace.grounded_claims))],
+      ["Частично claims", String(n(trace.partial_grounded_claims))],
+      ["Без опоры claims", String(n(trace.unsupported_response_claims))],
+      ["Source groups", String(n(trace.grounding_source_groups))],
       ["Исполнение", trace.execution_state ? stateLabel(trace.execution_state) : "—"],
       ["Инструмент", trace.execution_tool || "—"],
       ["Фактически выполнено", trace.execution_executed ? "да" : "нет"],
@@ -525,6 +531,8 @@
     var communicationSummary = communication.summary || {};
     var documents = data.documents || {};
     var documentsSummary = documents.summary || {};
+    var quality = data.quality || {};
+    var grounding = quality.response_grounding || {};
 
     setText("#live-brain-runtime", data.runtime_version || "runtime");
     setText("#live-brain-status", integrity.status || "—");
@@ -549,6 +557,20 @@
     setText("#lb-communication-status", n(communicationSummary.evaluated_turns) + " evidence · persona " + n(communicationSummary.persona_stability).toFixed(0) + "% · explain " + n(communicationSummary.explanation_success).toFixed(0) + "%");
     setText("#lb-documents-score", documentsSummary.ingestion_score == null ? "—" : n(documentsSummary.ingestion_score).toFixed(1) + "%");
     setText("#lb-documents-status", n(documentsSummary.studied_documents) + " studied · " + n(documentsSummary.ocr_required_documents) + " OCR · " + n(documentsSummary.contradiction_count) + " conflicts");
+    setText(
+      "#lb-grounding-score",
+      grounding.applicable && grounding.overall != null
+        ? pct(grounding.overall)
+        : "—"
+    );
+    setText(
+      "#lb-grounding-status",
+      grounding.id
+        ? ((grounding.status || "unscored") + " · " +
+          n(grounding.claims_supported) + " подтверждено · " +
+          n(grounding.claims_unsupported) + " без опоры")
+        : "ещё не измерялся"
+    );
     setText("#lb-current-phase", "фаза: " + (pulse.phase || "idle"));
     setText("#lb-event-total", compact(pulse.events_total) + " всего");
 

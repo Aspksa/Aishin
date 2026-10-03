@@ -101,6 +101,16 @@
       '<div class="live-brain-columns">',
         '<article class="live-brain-panel">',
           '<div class="live-brain-panel-head"><strong>Нервная карта выполнения</strong><span id="lb-current-phase">фаза: idle</span></div>',
+          '<div class="brain-flow-meta">',
+            '<div><span>request</span><strong id="lb-flow-request">—</strong></div>',
+            '<div><span>время</span><strong id="lb-flow-elapsed">—</strong></div>',
+            '<div class="brain-flow-legend" aria-label="Легенда состояний">',
+              '<span class="executing"><i></i>сейчас</span>',
+              '<span class="recent"><i></i>недавно</span>',
+              '<span class="idle"><i></i>ожидание</span>',
+              '<span class="attention"><i></i>внимание</span>',
+            '</div>',
+          '</div>',
           '<svg id="live-brain-topology" class="live-brain-topology" viewBox="0 0 1080 620" role="img" aria-label="Настоящая карта переходов между модулями Айшин"></svg>',
         '</article>',
         '<article class="live-brain-panel">',
@@ -281,6 +291,8 @@
     var topology = data.topology || {};
     lastPulseSequence = Number(topology.sequence ?? pulse.sequence ?? lastPulseSequence);
     setText("#lb-current-phase", "фаза: " + (topology.current_phase || pulse.phase || "idle"));
+    setText("#lb-flow-request", topology.request_id ? String(topology.request_id).slice(0,12) : "—");
+    setText("#lb-flow-elapsed", topology.elapsed_ms == null ? "—" : (n(topology.elapsed_ms) + " мс"));
     setText("#lb-events-hour", compact(pulse.events_1h));
     setText("#lb-events-5m", compact(pulse.events_5m) + " за 5 минут");
 

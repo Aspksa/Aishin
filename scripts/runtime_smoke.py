@@ -2003,6 +2003,169 @@ def main() -> int:
                     "Canonical reasoning evidence must keep derived trust boundary"
                 )
 
+            with connect() as conn:
+                power_c = int(
+                    conn.execute(
+                        """INSERT INTO documents(
+                               scope, sha256, filename, media_type, extension,
+                               size_bytes, storage_path, status, parser,
+                               parser_version, document_type, family_key,
+                               version_label, version_rank, quality_score,
+                               extraction_coverage, studied_at
+                           ) VALUES (
+                               ?, ?, 'power-c.txt', 'text/plain', '.txt',
+                               100, 'smoke/power-c.txt', 'studied',
+                               'runtime_smoke', '1', 'regulation',
+                               'power-source-c', 'v1', 1, 0.96, 1.0,
+                               CURRENT_TIMESTAMP
+                           )""",
+                        (canonical_scope, "6" * 64),
+                    ).lastrowid
+                )
+                conn.execute(
+                    """INSERT INTO document_facts(
+                           scope, document_id, fact_key, subject, predicate,
+                           value, normalized_value, fact_type, confidence,
+                           status, provenance_json
+                       ) VALUES (
+                           ?, ?, 'engine_power:has_value', 'Engine power',
+                           'has_value', '110 kW', '110 kw', 'key_value',
+                           0.96, 'grounded', ?
+                       )""",
+                    (
+                        canonical_scope,
+                        power_c,
+                        json.dumps(
+                            {
+                                "runtime_smoke": True,
+                                "document_id": power_c,
+                            },
+                            ensure_ascii=False,
+                        ),
+                    ),
+                )
+                conn.commit()
+            engine.canonical_facts.sync_scope(scope=canonical_scope)
+            conflicted_power = engine.canonical_facts.fact(
+                int(power_fact["id"]),
+                scope=canonical_scope,
+            )
+            if not conflicted_power or conflicted_power.get("state") != "conflicted":
+                raise RuntimeError(
+                    "New independent conflicting value must invalidate "
+                    "previous canonical verification"
+                )
+            projected_after_conflict = [
+                item
+                for item in engine.knowledge_lifecycle.claims(
+                    scope=canonical_scope,
+                    limit=100,
+                )
+                if item.get("origin_request_id")
+                == f"canonical:{power_fact['canonical_key']}"
+            ]
+            if (
+                not projected_after_conflict
+                or any(
+                    item.get("state") == "verified"
+                    for item in projected_after_conflict
+                )
+                or not any(
+                    item.get("state") == "contradicted"
+                    for item in projected_after_conflict
+                )
+            ):
+                raise RuntimeError(
+                    "Canonical conflict must remove stale verified status "
+                    "from Knowledge Lifecycle"
+                )
+
+            with connect() as conn:
+                conn.execute(
+                    """UPDATE documents SET status='failed',
+                       updated_at=CURRENT_TIMESTAMP
+                       WHERE scope=? AND id IN (?, ?, ?)""",
+                    (
+                        canonical_scope,
+                        power_a,
+                        power_b,
+                        power_c,
+                    ),
+                )
+                conn.commit()
+            engine.canonical_facts.sync_scope(scope=canonical_scope)
+            empty_power = engine.canonical_facts.fact(
+                int(power_fact["id"]),
+                scope=canonical_scope,
+            )
+            if not empty_power or empty_power.get("state") != "empty":
+                raise RuntimeError(
+                    "Canonical fact with no active persisted source must become empty"
+                )
+            projected_after_loss = [
+                item
+                for item in engine.knowledge_lifecycle.claims(
+                    scope=canonical_scope,
+                    limit=100,
+                )
+                if item.get("origin_request_id")
+                == f"canonical:{power_fact['canonical_key']}"
+            ]
+            if (
+                not projected_after_loss
+                or any(
+                    item.get("state") == "verified"
+                    for item in projected_after_loss
+                )
+                or not all(
+                    item.get("state") == "superseded"
+                    for item in projected_after_loss
+                )
+            ):
+                raise RuntimeError(
+                    "Loss of all canonical evidence must supersede stale "
+                    "Knowledge Lifecycle projections"
+                )
+
+            with connect() as conn:
+                conn.execute(
+                    """UPDATE documents SET status='studied',
+                       updated_at=CURRENT_TIMESTAMP
+                       WHERE scope=? AND id IN (?, ?)""",
+                    (canonical_scope, power_a, power_b),
+                )
+                conn.commit()
+            engine.canonical_facts.sync_scope(scope=canonical_scope)
+            restored_power = engine.canonical_facts.fact(
+                int(power_fact["id"]),
+                scope=canonical_scope,
+            )
+            if (
+                not restored_power
+                or restored_power.get("state") != "verified"
+                or restored_power.get("current_value") != "100 kW"
+            ):
+                raise RuntimeError(
+                    "Restored primary sources must restore canonical verification"
+                )
+            projected_after_restore = [
+                item
+                for item in engine.knowledge_lifecycle.claims(
+                    scope=canonical_scope,
+                    limit=100,
+                )
+                if item.get("origin_request_id")
+                == f"canonical:{power_fact['canonical_key']}"
+            ]
+            if not any(
+                item.get("state") == "verified"
+                for item in projected_after_restore
+            ):
+                raise RuntimeError(
+                    "Knowledge Lifecycle must restore verification when "
+                    "canonical primary evidence returns"
+                )
+
             canonical_api = client.get(
                 "/api/assistant/canonical-facts",
                 params={"scope": canonical_scope, "limit": 100},
@@ -2092,6 +2255,8 @@ def main() -> int:
                 "generic_metadata_isolated": True,
                 "research_memory_graph_lineage": True,
                 "derived_sources_do_not_self_confirm": True,
+                "lifecycle_conflict_invalidation": True,
+                "lifecycle_source_loss_invalidation": True,
                 "history_audited": True,
                 "evidence_level_version_pruning": True,
                 "idempotent_sync": True,

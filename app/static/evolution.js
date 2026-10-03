@@ -209,7 +209,7 @@
     if (!svg) return;
     var ordered = cycles.slice(0, 70).reverse();
     if (ordered.length < 2) {
-      svg.innerHTML = '<text x="450" y="88" text-anchor="middle" fill="#9b918c" font-size="9">История эволюции ещё накапливается</text>';
+      svg.innerHTML = '<text x="450" y="88" text-anchor="middle" fill="#9b918c" font-size="11">История эволюции ещё накапливается</text>';
       return;
     }
     var W=900,H=175,px=30,py=18,uw=W-px*2,uh=H-py*2;

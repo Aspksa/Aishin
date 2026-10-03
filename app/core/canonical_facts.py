@@ -1113,14 +1113,20 @@ class CanonicalFactsEngine:
         if not fact:
             return {"changed": False, "lifecycle_linked": False}
 
+        lineage_replacements = self._prune_document_lineage_evidence(
+            fact=dict(fact),
+        )
+
         value_results = []
         for row in values:
-            value_results.append(self._recompute_value(dict(row)))
-
-        self._apply_document_lineage(
-            fact=dict(fact),
-            value_results=value_results,
-        )
+            replacement = lineage_replacements.get(int(row["id"])) or {}
+            value_results.append(
+                self._recompute_value(
+                    dict(row),
+                    superseded_by_value_id=replacement.get("winner_value_id"),
+                    lineage_families=replacement.get("families") or [],
+                )
+            )
 
         with connect() as conn:
             refreshed = [
@@ -1240,7 +1246,13 @@ class CanonicalFactsEngine:
             "lifecycle_linked": lifecycle_linked,
         }
 
-    def _recompute_value(self, value: dict) -> dict:
+    def _recompute_value(
+        self,
+        value: dict,
+        *,
+        superseded_by_value_id: int | None = None,
+        lineage_families: list[str] | None = None,
+    ) -> dict:
         value_id = int(value["id"])
         with connect() as conn:
             rows = conn.execute(
@@ -1339,11 +1351,14 @@ class CanonicalFactsEngine:
         source_types = len({str(row["source_type"]) for row in supports})
         intrinsic_state = state
         old_state = str(value.get("state") or "observed")
-        if old_state == "superseded":
-            # Keep the historical state in storage until document lineage
-            # decides whether this value is still old or has become current
-            # again because a newer source disappeared/reverted.
+        forced_superseded = superseded_by_value_id is not None
+        if forced_superseded:
             state = "superseded"
+        elif old_state == "superseded" and not rows:
+            # Historical value with no currently active source stays historical.
+            state = "superseded"
+        else:
+            state = intrinsic_state
 
         with connect() as conn:
             conn.execute(
@@ -1351,6 +1366,14 @@ class CanonicalFactsEngine:
                    SET state=?, confidence=?, independent_groups=?,
                        source_types=?, active_evidence=?,
                        contradiction_groups=?,
+                       superseded_at=CASE
+                         WHEN ?='superseded' AND superseded_at IS NULL
+                         THEN CURRENT_TIMESTAMP
+                         WHEN ?<>'superseded' THEN NULL
+                         ELSE superseded_at END,
+                       superseded_by_value_id=CASE
+                         WHEN ?='superseded' THEN ?
+                         ELSE NULL END,
                        updated_at=CURRENT_TIMESTAMP
                    WHERE id=?""",
                 (
@@ -1360,17 +1383,27 @@ class CanonicalFactsEngine:
                     source_types,
                     len(rows),
                     contradiction_groups,
+                    state,
+                    state,
+                    state,
+                    superseded_by_value_id,
                     value_id,
                 ),
             )
             conn.commit()
 
-        if old_state != state and old_state != "superseded":
+        if old_state != state:
+            if state == "superseded" and superseded_by_value_id is not None:
+                event_type = "value_superseded_by_document_version"
+            elif old_state == "superseded" and state != "superseded":
+                event_type = "value_reactivated_by_document_lineage"
+            else:
+                event_type = "value_state_changed"
             self._event(
                 scope=str(value["scope"]),
                 fact_id=int(value["fact_id"]),
                 value_id=value_id,
-                event_type="value_state_changed",
+                event_type=event_type,
                 from_state=old_state,
                 to_state=state,
                 details={
@@ -1378,6 +1411,16 @@ class CanonicalFactsEngine:
                     "contradiction_groups": contradiction_groups,
                     "average_support": round(average_support, 4),
                     "average_contradiction": round(average_contradiction, 4),
+                    "superseded_by_value_id": superseded_by_value_id,
+                    "families": list(lineage_families or []),
+                    "ordering": (
+                        "version_rank_or_previous_version"
+                        if event_type in {
+                            "value_superseded_by_document_version",
+                            "value_reactivated_by_document_lineage",
+                        }
+                        else ""
+                    ),
                 },
             )
 
@@ -1392,141 +1435,171 @@ class CanonicalFactsEngine:
             "contradiction_groups": contradiction_groups,
         }
 
-    def _apply_document_lineage(
+    def _prune_document_lineage_evidence(
         self,
         *,
         fact: dict,
-        value_results: list[dict],
-    ) -> None:
+    ) -> dict[int, dict]:
+        """Deactivate superseded document-version evidence before value scoring.
+
+        Lineage is evaluated independently per document family. This prevents an
+        old version in family A from counting as current evidence merely because
+        the same value is still current in family B.
+        """
         if str(fact.get("namespace")) != "document":
-            return
-        active_values = [
-            item
-            for item in value_results
-            if int(item.get("active_evidence") or 0) > 0
-        ]
-        if len(active_values) <= 1:
-            return
+            return {}
 
-        candidates: list[tuple[int, int, int, dict]] = []
-        family_keys: set[str] = set()
-        for value in active_values:
-            evidence = [
-                row
-                for row in self._value_evidence(int(value["id"]))
-                if row.get("active")
-                and row.get("source_type") == "document_fact"
-                and row.get("stance") == "support"
+        with connect() as conn:
+            rows = [
+                dict(row)
+                for row in conn.execute(
+                    """SELECT e.id AS evidence_id, e.value_id,
+                              e.provenance_json
+                       FROM canonical_fact_evidence e
+                       WHERE e.fact_id=? AND e.active=1
+                         AND e.source_type='document_fact'
+                         AND e.stance='support'
+                       ORDER BY e.id""",
+                    (int(fact["id"]),),
+                ).fetchall()
             ]
-            if not evidence:
-                return
-            for row in evidence:
-                provenance = row.get("provenance") or {}
-                family = str(provenance.get("family_key") or "")
-                if not family:
-                    return
-                family_keys.add(family)
-                rank = provenance.get("version_rank")
-                previous_id = provenance.get("previous_version_id")
-                document_id = provenance.get("document_id")
-                if rank is None and previous_id is None:
-                    return
-                candidates.append(
-                    (
-                        int(rank if rank is not None else -1),
-                        int(document_id or 0),
-                        int(value["id"]),
-                        provenance,
-                    )
-                )
+        if len(rows) <= 1:
+            return {}
 
-        if len(family_keys) != 1 or not candidates:
-            return
-
-        max_rank = max(item[0] for item in candidates)
-        latest = [item for item in candidates if item[0] == max_rank]
-        if max_rank < 0:
-            # With no explicit rank, only a direct previous_version_id relation
-            # can establish ordering. Pick a document that points to another
-            # document represented among the candidates.
-            represented = {item[1] for item in candidates}
-            latest = [
-                item
-                for item in candidates
-                if int(item[3].get("previous_version_id") or -1) in represented
-            ]
-        latest_value_ids = {item[2] for item in latest}
-        if len(latest_value_ids) != 1:
-            return
-        winner_id = next(iter(latest_value_ids))
-
-        for value in active_values:
-            value_id = int(value["id"])
-            if value_id == winner_id:
-                if value.get("state") == "superseded":
-                    restored_state = str(
-                        value.get("intrinsic_state") or "observed"
-                    )
-                    with connect() as conn:
-                        conn.execute(
-                            """UPDATE canonical_fact_values
-                               SET state=?,
-                                   superseded_at=NULL,
-                                   superseded_by_value_id=NULL,
-                                   updated_at=CURRENT_TIMESTAMP
-                               WHERE id=?""",
-                            (restored_state, value_id),
-                        )
-                        conn.commit()
-                    self._event(
-                        scope=str(fact["scope"]),
-                        fact_id=int(fact["id"]),
-                        value_id=value_id,
-                        event_type="value_reactivated_by_document_lineage",
-                        from_state="superseded",
-                        to_state=restored_state,
-                        details={
-                            "family_key": next(iter(family_keys)),
-                            "ordering": "version_rank_or_previous_version",
-                        },
-                    )
+        by_family: dict[str, list[dict]] = {}
+        for row in rows:
+            provenance = self._json(row.get("provenance_json"), {})
+            family = str(provenance.get("family_key") or "").strip()
+            document_id = provenance.get("document_id")
+            if not family or document_id is None:
                 continue
+            row["provenance"] = provenance
+            by_family.setdefault(family, []).append(row)
+
+        replacement_candidates: dict[int, dict[int, set[str]]] = {}
+        for family, family_rows in by_family.items():
+            represented = {
+                int(row["provenance"].get("document_id") or 0)
+                for row in family_rows
+            }
+            if len(represented) <= 1:
+                continue
+
+            rank_by_document: dict[int, int | None] = {}
+            previous_by_document: dict[int, int | None] = {}
+            for row in family_rows:
+                provenance = row["provenance"]
+                document_id = int(provenance.get("document_id") or 0)
+                raw_rank = provenance.get("version_rank")
+                try:
+                    rank = int(raw_rank) if raw_rank is not None else None
+                except (TypeError, ValueError):
+                    rank = None
+                rank_by_document[document_id] = rank
+                raw_previous = provenance.get("previous_version_id")
+                try:
+                    previous = (
+                        int(raw_previous)
+                        if raw_previous is not None
+                        else None
+                    )
+                except (TypeError, ValueError):
+                    previous = None
+                previous_by_document[document_id] = previous
+
+            ranked = [
+                (document_id, rank)
+                for document_id, rank in rank_by_document.items()
+                if rank is not None
+            ]
+            latest_documents: set[int] = set()
+            if (
+                len(ranked) == len(represented)
+                and len({rank for _, rank in ranked}) > 1
+            ):
+                max_rank = max(rank for _, rank in ranked)
+                latest_documents = {
+                    document_id
+                    for document_id, rank in ranked
+                    if rank == max_rank
+                }
+            else:
+                referenced_previous = {
+                    previous
+                    for previous in previous_by_document.values()
+                    if previous in represented
+                }
+                leaves = represented - referenced_previous
+                if leaves and len(leaves) < len(represented):
+                    latest_documents = leaves
+
+            if not latest_documents:
+                continue
+
+            latest_value_ids = {
+                int(row["value_id"])
+                for row in family_rows
+                if int(row["provenance"].get("document_id") or 0)
+                in latest_documents
+            }
+            # Conflicting latest versions are ambiguous; retain all evidence.
+            if len(latest_value_ids) != 1:
+                continue
+            winner_value_id = next(iter(latest_value_ids))
+
+            historical_rows = [
+                row
+                for row in family_rows
+                if int(row["provenance"].get("document_id") or 0)
+                not in latest_documents
+            ]
+            if not historical_rows:
+                continue
+
             with connect() as conn:
-                old = conn.execute(
-                    """SELECT state, superseded_by_value_id
-                       FROM canonical_fact_values WHERE id=?""",
-                    (value_id,),
-                ).fetchone()
-                if (
-                    old
-                    and old["state"] == "superseded"
-                    and int(old["superseded_by_value_id"] or 0) == winner_id
-                ):
-                    continue
-                previous_state = str(old["state"] if old else value.get("state") or "")
-                conn.execute(
-                    """UPDATE canonical_fact_values
-                       SET state='superseded',
-                           superseded_at=CURRENT_TIMESTAMP,
-                           superseded_by_value_id=?,
-                           updated_at=CURRENT_TIMESTAMP
-                       WHERE id=?""",
-                    (winner_id, value_id),
-                )
+                for row in historical_rows:
+                    conn.execute(
+                        """UPDATE canonical_fact_evidence
+                           SET active=0, last_seen_at=CURRENT_TIMESTAMP
+                           WHERE id=?""",
+                        (int(row["evidence_id"]),),
+                    )
                 conn.commit()
-            self._event(
-                scope=str(fact["scope"]),
-                fact_id=int(fact["id"]),
-                value_id=value_id,
-                event_type="value_superseded_by_document_version",
-                from_state=previous_state,
-                to_state="superseded",
-                details={
-                    "superseded_by_value_id": winner_id,
-                    "family_key": next(iter(family_keys)),
-                    "ordering": "version_rank_or_previous_version",
-                },
-            )
+
+            for row in historical_rows:
+                loser_value_id = int(row["value_id"])
+                if loser_value_id == winner_value_id:
+                    continue
+                replacement_candidates.setdefault(
+                    loser_value_id,
+                    {},
+                ).setdefault(
+                    winner_value_id,
+                    set(),
+                ).add(family)
+
+        replacements: dict[int, dict] = {}
+        with connect() as conn:
+            for loser_value_id, winners in replacement_candidates.items():
+                active_row = conn.execute(
+                    """SELECT COUNT(*) AS n
+                       FROM canonical_fact_evidence
+                       WHERE value_id=? AND active=1
+                         AND stance='support'""",
+                    (loser_value_id,),
+                ).fetchone()
+                # If another current source still supports this value, it is
+                # not historical globally; keep it active as a competing value.
+                if int(active_row["n"] or 0) > 0:
+                    continue
+                if len(winners) != 1:
+                    continue
+                winner_value_id, families = next(iter(winners.items()))
+                replacements[loser_value_id] = {
+                    "winner_value_id": int(winner_value_id),
+                    "families": sorted(families),
+                }
+        return replacements
 
     def _sync_lifecycle(self, fact_id: int) -> bool:
         if self.knowledge_lifecycle is None:

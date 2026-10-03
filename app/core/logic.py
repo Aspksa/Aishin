@@ -243,16 +243,20 @@ class LogicEngine:
         verification: dict | None,
         graph_stats: dict,
         planner_notices: list[dict],
+        additional_evidence: list[dict] | None = None,
+        additional_contradictions: list[dict] | None = None,
     ) -> LogicTrace:
         evidence = self._build_evidence(
             memories=memories,
             verification=verification,
             graph_stats=graph_stats,
             planner_notices=planner_notices,
+            additional_evidence=additional_evidence or [],
         )
         contradictions = self._collect_contradictions(
             memories=memories,
             verification=verification,
+            additional_contradictions=additional_contradictions or [],
         )
 
         unresolved: list[str] = []
@@ -461,6 +465,7 @@ class LogicEngine:
         verification: dict | None,
         graph_stats: dict,
         planner_notices: list[dict],
+        additional_evidence: list[dict],
     ) -> list[dict]:
         evidence: list[dict] = []
 
@@ -504,6 +509,19 @@ class LogicEngine:
                     }
                 )
 
+        for item in additional_evidence[:12]:
+            safe = {
+                "source": str(item.get("source") or "external"),
+                "confidence": item.get("confidence"),
+                "retrieval_score": item.get("retrieval_score"),
+                "content": str(item.get("content") or "")[:700],
+                "provenance": item.get("provenance") or {},
+            }
+            for key in ("document_id", "chunk_id", "filename"):
+                if item.get(key) is not None:
+                    safe[key] = item.get(key)
+            evidence.append(safe)
+
         return evidence
 
     @staticmethod
@@ -511,6 +529,7 @@ class LogicEngine:
         *,
         memories: list[dict],
         verification: dict | None,
+        additional_contradictions: list[dict],
     ) -> list[dict]:
         conflicts: list[dict] = []
 
@@ -537,6 +556,22 @@ class LogicEngine:
                         "resolution": "unresolved",
                     }
                 )
+
+        for item in additional_contradictions[:12]:
+            conflicts.append(
+                {
+                    "source": str(item.get("source") or "document"),
+                    "summary": str(
+                        item.get("summary")
+                        or item.get("resolution")
+                        or "Document contradiction"
+                    )[:500],
+                    "resolution": str(
+                        item.get("status") or "unresolved"
+                    ),
+                    "contradiction_id": item.get("id"),
+                }
+            )
 
         return conflicts
 

@@ -74,7 +74,7 @@
         '<div class="live-brain-title">',
           '<div id="live-brain-orb" class="live-brain-orb" aria-hidden="true"></div>',
           '<div>',
-            '<p class="overline">AISHIN 00.00.15 · CANONICAL FACTS</p>',
+            '<p class="overline">AISHIN 00.00.16 · DIGITAL ORGANISM</p>',
             '<h3>Нейронная обсерватория Айшин</h3>',
             '<p>Реальные переходы между модулями, текущая выполняемая фаза и безопасная техническая телеметрия в реальном времени.</p>',
           '</div>',
@@ -101,6 +101,7 @@
         '<article class="live-brain-metric"><span>Grounding ответа</span><strong id="lb-grounding-score">—</strong><small id="lb-grounding-status">ещё не измерялся</small></article>',
         '<article class="live-brain-metric"><span>Жизненный цикл знаний</span><strong id="lb-knowledge-verified">0</strong><small id="lb-knowledge-status">0 confirmed hypotheses</small></article>',
         '<article class="live-brain-metric"><span>Канонические факты</span><strong id="lb-canonical-verified">0</strong><small id="lb-canonical-status">0 conflicts · 0 history</small></article>',
+        '<article class="live-brain-metric"><span>Цифровой организм</span><strong id="lb-organism-stage">D0</strong><small id="lb-organism-status">0.000 d · genesis</small></article>',
       '</div>',
       '<div class="live-brain-columns">',
         '<article class="live-brain-panel">',
@@ -585,6 +586,10 @@
     var canonical = data.canonical_facts || {};
     var canonicalSummary = canonical.summary || {};
     var canonicalStates = canonicalSummary.states || {};
+    var organism = data.digital_organism || {};
+    var organismDevelopment = organism.development_state || {};
+    var organismContinuity = organism.continuity || {};
+    var organismAutobiography = organism.autobiography || {};
 
     setText("#live-brain-runtime", data.runtime_version || "runtime");
     setText("#live-brain-status", integrity.status || "—");
@@ -636,6 +641,17 @@
       compact(canonicalStates.conflicted) + " conflicts · " +
       compact(canonicalSummary.superseded_values) + " history · " +
       compact(canonicalSummary.independent_groups) + " evidence groups"
+    );
+    setText(
+      "#lb-organism-stage",
+      organismDevelopment.current_stage || "D0"
+    );
+    setText(
+      "#lb-organism-status",
+      n(organismDevelopment.chronological_age_days).toFixed(3) + " d · " +
+      (organismContinuity.status || "genesis") + " · " +
+      compact(organismContinuity.snapshot_count) + " snapshots · " +
+      compact(organismAutobiography.total) + " episodes"
     );
     setText("#lb-current-phase", "фаза: " + (pulse.phase || "idle"));
     setText("#lb-event-total", compact(pulse.events_total) + " всего");

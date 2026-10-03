@@ -117,7 +117,16 @@ class KnowledgeLifecycleEngine:
             0,
             f"grounding={status}; unsupported={unsupported}",
             float(grounding.get("overall") or 0.0),
-            {"request_id": request_id, "grounding": grounding},
+            {
+                "request_id": request_id,
+                "grounding_status": status,
+                "overall": grounding.get("overall"),
+                "claims_total": grounding.get("claims_total"),
+                "claims_supported": grounding.get("claims_supported"),
+                "claims_partial": grounding.get("claims_partial"),
+                "claims_unsupported": unsupported,
+                "source_groups": grounding.get("source_groups"),
+            },
         )
         return {"recorded": True, "event_id": event_id, "event_type": event_type}
 

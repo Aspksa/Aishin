@@ -312,7 +312,7 @@
     if (svg) {
       var ordered = runs.slice(0, 60).reverse();
       if (ordered.length < 2) {
-        svg.innerHTML = '<text x="450" y="85" text-anchor="middle" fill="#9a908c" font-size="9">История наблюдений ещё накапливается</text>';
+        svg.innerHTML = '<text x="450" y="85" text-anchor="middle" fill="#9a908c" font-size="11">История наблюдений ещё накапливается</text>';
       } else {
         var width = 900, height = 170, px = 32, py = 20;
         var uw = width - px * 2, uh = height - py * 2;

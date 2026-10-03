@@ -301,7 +301,7 @@ class ActionExecutionBridge:
             lowered = text.casefold()
             status = None
             if any(item in lowered for item in ("закры", "готов", "выполн")):
-                status = "done"
+                status = "completed"
             elif any(item in lowered for item in ("блок", "заблок")):
                 status = "blocked"
             elif any(item in lowered for item in ("начать", "работ", "процесс")):

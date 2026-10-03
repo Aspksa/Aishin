@@ -154,6 +154,22 @@ def main() -> int:
     if "45000" not in app_js:
         fail("Heavy dashboard polling guard is missing")
 
+    documents_js = (STATIC / "documents.js").read_text(
+        encoding="utf-8"
+    )
+    for marker in (
+        "trapModalFocus",
+        "modalFocusable",
+        "modalReturnFocus",
+        'setAttribute("aria-hidden","false")',
+        'setAttribute("aria-hidden","true")',
+    ):
+        if marker not in documents_js:
+            fail(
+                f"Document dialog keyboard/accessibility marker missing: "
+                f"{marker}"
+            )
+
     live_js = (STATIC / "live_brain.js").read_text(encoding="utf-8")
     for marker in (
         "new EventSource",

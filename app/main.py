@@ -1858,17 +1858,19 @@ def assistant_message(payload: ChatMessage) -> dict:
     if not text:
         raise HTTPException(status_code=400, detail='Сообщение пустое')
     scope = payload.scope.strip() or 'personal'
+    request_id = engine.new_request_id()
     try:
-        return engine.respond(text, scope=scope)
+        return engine.respond(
+            text,
+            scope=scope,
+            request_id=request_id,
+        )
     except Exception as exc:
-        flow = engine.brain_flow.snapshot(scope=scope)
-        request_id = flow.get('request_id')
-        if request_id and flow.get('status') == 'running':
-            engine.brain_flow.fail(
-                request_id=str(request_id),
-                scope=scope,
-                error=str(exc),
-            )
+        engine.brain_flow.fail(
+            request_id=request_id,
+            scope=scope,
+            error=str(exc),
+        )
         engine.events.emit(
             'response.failed',
             scope=scope,

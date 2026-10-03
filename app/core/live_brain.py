@@ -396,12 +396,20 @@ class LiveBrainRuntime:
             lambda: self.engine.brain_flow.snapshot(scope=scope),
         )
         persisted_phase = self._latest_phase(events)
+        topology_phase = str(topology.get("current_phase") or "")
+        flow_running = topology.get("status") == "running"
         phase = (
-            str(topology.get("current_phase") or "")
-            if topology.get("status") == "running"
-            else persisted_phase
+            topology_phase
+            if flow_running
+            else (persisted_phase or topology_phase)
         )
-        phase_channel = self.PHASE_TO_CHANNEL.get(phase, "")
+        # Persisted events describe what happened. Only an actually running
+        # BrainFlow is allowed to mark a legacy channel as executing.
+        phase_channel = (
+            self.PHASE_TO_CHANNEL.get(topology_phase, "")
+            if flow_running
+            else ""
+        )
         unresolved = self._unresolved_count(trace, verification)
         warning_events = int(event_stats.get("attention_events_1h") or 0)
         proactive_summary = proactive_intelligence.get("summary") or {}

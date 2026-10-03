@@ -1605,9 +1605,17 @@ class CanonicalFactsEngine:
         if self.knowledge_lifecycle is None:
             return False
         fact = self.fact(fact_id, scope=self._scope_for_fact(fact_id))
-        if not fact or not fact.get("current_value_id"):
+        if not fact:
             return False
         if fact.get("state") in {"empty", "conflicted"}:
+            result = self.knowledge_lifecycle.update_canonical_status(
+                scope=str(fact["scope"]),
+                canonical_key=str(fact["canonical_key"]),
+                canonical_state=str(fact.get("state") or "empty"),
+                confidence=float(fact.get("confidence") or 0.0),
+            )
+            return bool(result.get("updated"))
+        if not fact.get("current_value_id"):
             return False
 
         value_id = int(fact["current_value_id"])

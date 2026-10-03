@@ -29,6 +29,11 @@ class BrainWiringAudit:
 
     VERSION = "aishin-brain-wiring-audit-v1"
 
+    def __init__(self) -> None:
+        self._core_modules_cache: set[str] | None = None
+        self._heartbeat_cache: dict[str, Any] | None = None
+        self._performance_cache: dict[str, Any] | None = None
+
     DIRECT = (
         WiringComponent("wiring_audit", "wiring_audit", "BrainWiringAudit"),
         WiringComponent("action_execution", "action_execution", "ActionExecutionBridge"),
@@ -217,7 +222,7 @@ class BrainWiringAudit:
             if not ok:
                 broken.append(item)
 
-        core_modules = self._core_modules()
+        core_modules = self._cached_core_modules()
         covered_modules = {
             spec.module for spec in self.DIRECT + self.NESTED
         } | self.SPECIAL_MODULES
@@ -257,11 +262,11 @@ class BrainWiringAudit:
                 }
             )
 
-        heartbeat = self._heartbeat_contract()
+        heartbeat = self._cached_heartbeat_contract()
         if not heartbeat["ok"]:
             broken.append(heartbeat)
 
-        performance_tracker = self._performance_tracker_contract()
+        performance_tracker = self._cached_performance_tracker_contract()
         if not performance_tracker["ok"]:
             broken.append(performance_tracker)
 
@@ -313,6 +318,27 @@ class BrainWiringAudit:
                 "SelfModel instances are stateless and intentionally instantiated in two context composers.",
             ],
         }
+
+    def invalidate_static_cache(self) -> None:
+        """Invalidate file/source checks after an intentional hot-code change."""
+        self._core_modules_cache = None
+        self._heartbeat_cache = None
+        self._performance_cache = None
+
+    def _cached_core_modules(self) -> set[str]:
+        if self._core_modules_cache is None:
+            self._core_modules_cache = self._core_modules()
+        return set(self._core_modules_cache)
+
+    def _cached_heartbeat_contract(self) -> dict[str, Any]:
+        if self._heartbeat_cache is None:
+            self._heartbeat_cache = self._heartbeat_contract()
+        return dict(self._heartbeat_cache)
+
+    def _cached_performance_tracker_contract(self) -> dict[str, Any]:
+        if self._performance_cache is None:
+            self._performance_cache = self._performance_tracker_contract()
+        return dict(self._performance_cache)
 
     @staticmethod
     def _resolve(root: Any, path: str) -> Any:

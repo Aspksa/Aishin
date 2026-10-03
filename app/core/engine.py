@@ -1611,6 +1611,10 @@ class AishinEngine:
         research_state = self.research.state(scope=scope)
         communication_state = self.communication.state(scope=scope)
         document_state = self.documents.state(scope=scope)
+        organism_development = self.digital_organism.refresh_development(
+            persist_snapshot=False,
+            allow_transition=True,
+        )
         self.events.emit(
             "cognition.phase",
             scope=scope,
@@ -1648,7 +1652,7 @@ class AishinEngine:
                 "focus": digital_now.get("focus"),
                 "active_task": digital_now.get("active_task"),
             },
-            "development_state": self.digital_organism.development_state(),
+            "development_state": organism_development,
             "continuity": self.digital_organism.continuity_summary(),
         }
         request_trace["learning_planner"] = learning_plans
@@ -1745,6 +1749,10 @@ class AishinEngine:
                     "reasoning_evidence_count": len(canonical_logic_evidence),
                     "refreshed": bool(canonical_sync.get("refreshed")),
                 },
+                "digital_organism": {
+                    "development_state": organism_development,
+                    "continuity": self.digital_organism.continuity_summary(),
+                },
                 "performance": performance,
                 "context_budget": context_budget_report.to_dict(),
                 "self_reflection": reflection.to_dict(),
@@ -1826,6 +1834,12 @@ class AishinEngine:
         state.activity = "idle"
         state.focus = "waiting"
         self.state.save(state)
+        final_digital_now = self.digital_organism.update_now(
+            active_scope=scope,
+            focus="waiting",
+            active_task="",
+            expected_next_action="await_user_or_background_event",
+        )
 
         return {
             "reply": reply,
@@ -1868,9 +1882,9 @@ class AishinEngine:
                 "refreshed": bool(canonical_sync.get("refreshed")),
             },
             "digital_organism": {
-                "now": self.digital_organism.now(scope=scope),
-                "development_state": self.digital_organism.development_state(),
-                "continuity": self.digital_organism.inspect_continuity(),
+                "now": final_digital_now,
+                "development_state": organism_development,
+                "continuity": self.digital_organism.continuity_summary(),
             },
             "performance": performance,
             "context_budget": context_budget_report.to_dict(),

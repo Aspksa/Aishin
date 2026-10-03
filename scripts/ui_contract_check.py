@@ -64,6 +64,7 @@ def main() -> int:
 
     required_ids = {
         "scope-select",
+        "scope-context-label",
         "chat-form",
         "development-module",
         "attention-module",
@@ -111,7 +112,21 @@ def main() -> int:
         text = (STATIC / name).read_text(encoding="utf-8")
         if name in scope_required and "AISHIN_SCOPE" not in text:
             fail(f"{name} bypasses active scope")
-        if name != "app.js" and re.search(
+        inline_tiny = [
+            float(match.group(1))
+            for match in re.finditer(
+                r'font-size=["\']([0-9.]+)["\']',
+                text,
+                re.IGNORECASE,
+            )
+            if float(match.group(1)) < 10.0
+        ]
+        if inline_tiny:
+            fail(
+                f"{name} generates unreadable inline SVG font sizes: "
+                f"{inline_tiny}"
+            )
+        if re.search(
             r'JSON\.stringify\(\{\s*scope\s*:\s*["\']personal["\']',
             text,
         ):
@@ -129,6 +144,11 @@ def main() -> int:
         "renderRealtimePulse",
         "executing",
         "recent",
+        "brain-flow-legend",
+        "lb-flow-request",
+        "stateLabel",
+        "Research evidence",
+        "Фактически выполнено",
     ):
         if marker not in live_js:
             fail(f"Live Brain real-time marker missing: {marker}")

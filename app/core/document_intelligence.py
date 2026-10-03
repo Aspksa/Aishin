@@ -126,6 +126,7 @@ class DocumentIntelligenceEngine:
 
     def bootstrap(self, *, scope: str) -> dict:
         self._ensure_state(scope)
+        self._rebuild_all_lineage(scope=scope)
         return self._refresh_state(scope)
 
     def ingest_bytes(
@@ -2458,6 +2459,8 @@ class DocumentIntelligenceEngine:
     ) -> None:
         if not family_key:
             return
+
+        relation_pairs: list[tuple[int, int, int, int]] = []
         with connect() as conn:
             rows = conn.execute(
                 """SELECT id, version_rank FROM documents
@@ -2468,8 +2471,10 @@ class DocumentIntelligenceEngine:
                    ORDER BY version_rank ASC, id ASC""",
                 (scope, family_key),
             ).fetchall()
+
             previous_id: int | None = None
             previous_rank: int | None = None
+            lineage: list[tuple[int, int | None]] = []
             for row in rows:
                 rank = int(row["version_rank"])
                 expected_previous = (
@@ -2477,16 +2482,118 @@ class DocumentIntelligenceEngine:
                     if previous_rank is not None and rank > previous_rank
                     else None
                 )
+                document_id = int(row["id"])
                 conn.execute(
                     """UPDATE documents SET previous_version_id=?,
                        updated_at=CURRENT_TIMESTAMP
                        WHERE id=? AND scope=?""",
-                    (expected_previous, int(row["id"]), scope),
+                    (expected_previous, document_id, scope),
                 )
+                lineage.append((document_id, expected_previous))
                 if previous_rank is None or rank > previous_rank:
-                    previous_id = int(row["id"])
+                    previous_id = document_id
                     previous_rank = rank
+
+            entity_rows = conn.execute(
+                """SELECT id, data_json FROM entities
+                   WHERE scope=? AND entity_type='document'""",
+                (scope,),
+            ).fetchall()
+            entity_by_document: dict[int, int] = {}
+            family_entity_ids: list[int] = []
+            for entity_row in entity_rows:
+                data = self._json(entity_row["data_json"], {})
+                if str(data.get("family_key") or "") != family_key:
+                    continue
+                document_id = data.get("document_id")
+                if document_id is None:
+                    continue
+                entity_id = int(entity_row["id"])
+                entity_by_document[int(document_id)] = entity_id
+                family_entity_ids.append(entity_id)
+
+            if family_entity_ids:
+                placeholders = ",".join("?" for _ in family_entity_ids)
+                conn.execute(
+                    f"""DELETE FROM relations
+                        WHERE scope=?
+                          AND relation_type='supersedes_document'
+                          AND (
+                            source_entity_id IN ({placeholders})
+                            OR target_entity_id IN ({placeholders})
+                          )""",
+                    (
+                        scope,
+                        *family_entity_ids,
+                        *family_entity_ids,
+                    ),
+                )
+
+            for document_id, previous_document_id in lineage:
+                if previous_document_id is None:
+                    continue
+                source_entity = entity_by_document.get(document_id)
+                target_entity = entity_by_document.get(previous_document_id)
+                if source_entity and target_entity:
+                    relation_pairs.append(
+                        (
+                            source_entity,
+                            target_entity,
+                            document_id,
+                            previous_document_id,
+                        )
+                    )
             conn.commit()
+
+        for (
+            source_entity,
+            target_entity,
+            document_id,
+            previous_document_id,
+        ) in relation_pairs:
+            self.graph.relate(
+                scope=scope,
+                source_id=source_entity,
+                relation_type="supersedes_document",
+                target_id=target_entity,
+                confidence=0.96,
+                evidence=(
+                    f"family_key={family_key}; "
+                    f"document={document_id}; previous={previous_document_id}; "
+                    "rebuilt_lineage=true"
+                ),
+            )
+
+        self._event(
+            scope=scope,
+            event_type="document.lineage.rebuilt",
+            score=1.0,
+            details={
+                "family_key": family_key,
+                "documents": len(relation_pairs) + (1 if rows else 0),
+                "relations": len(relation_pairs),
+            },
+        )
+
+    def _rebuild_all_lineage(self, *, scope: str) -> int:
+        with connect() as conn:
+            rows = conn.execute(
+                """SELECT DISTINCT family_key FROM documents
+                   WHERE scope=? AND family_key<>''
+                     AND version_rank IS NOT NULL""",
+                (scope,),
+            ).fetchall()
+        families = [
+            str(row["family_key"])
+            for row in rows
+            if str(row["family_key"] or "").strip()
+        ]
+        for family_key in families:
+            self._rebuild_family_lineage(
+                scope=scope,
+                family_key=family_key,
+            )
+        return len(families)
 
     def _previous_family_document(
         self,

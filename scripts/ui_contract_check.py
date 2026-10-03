@@ -167,6 +167,9 @@ def main() -> int:
         "stateLabel",
         "Research evidence",
         "Фактически выполнено",
+        "lb-grounding-score",
+        "Grounding ответа",
+        "AISHIN 00.00.13",
     ):
         if marker not in live_js:
             fail(f"Live Brain real-time marker missing: {marker}")
@@ -207,7 +210,7 @@ def main() -> int:
         "UI contract OK: "
         f"{len(parser.ids)} ids, {len(parser.assets)} assets, "
         f"{len(css_files)} responsive stylesheets, "
-        "real-time brain + scoped modules verified"
+        "real-time brain + response grounding + scoped modules verified"
     )
     return 0
 

@@ -5,6 +5,7 @@ import json
 import sys
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 
 from docx import Document as SmokeDocxDocument
 from openpyxl import Workbook as SmokeWorkbook
@@ -106,6 +107,12 @@ def main() -> int:
                 'id="documents-facts"',
                 'id="documents-conflicts"',
                 'id="documents-upload-btn"',
+                'id="scope-select"',
+                'value="project:aishin"',
+                '/static/app.js?v=0.0.12',
+                '/static/live_brain.js?v=0.0.12',
+                'role="dialog"',
+                'aria-modal="true"',
             )
             missing_ui = [
                 marker for marker in required_ui
@@ -153,9 +160,9 @@ def main() -> int:
                     f"/health returned HTTP {health.status_code}: {health.text[:300]}"
                 )
             health_data = health.json()
-            if health_data.get("version") != "0.0.11":
+            if health_data.get("version") != "0.0.12":
                 raise RuntimeError(
-                    "Health должен сообщать Aishin Core 0.0.11"
+                    "Health должен сообщать Aishin Core 0.0.12"
                 )
             with connect() as conn:
                 schema_row = conn.execute(
@@ -1964,6 +1971,42 @@ def main() -> int:
                     "Live Brain knowledge_graph.entities должен быть списком"
                 )
 
+            live_brain_pulse = client.get(
+                "/api/assistant/live-brain/pulse",
+                params={"scope": "personal"},
+            )
+            if live_brain_pulse.status_code != 200:
+                raise RuntimeError(
+                    "Lightweight Live Brain pulse недоступен"
+                )
+            pulse_data = live_brain_pulse.json()
+            topology = pulse_data.get("topology") or {}
+            if len(topology.get("nodes") or []) != 24:
+                raise RuntimeError(
+                    "Real-time topology должна содержать ровно 24 узла"
+                )
+            if not isinstance(topology.get("edges"), list) or not topology.get("edges"):
+                raise RuntimeError(
+                    "Real-time topology должна содержать реальные связи"
+                )
+            topology_pairs = {
+                (item.get("source"), item.get("target"))
+                for item in topology.get("edges") or []
+            }
+            required_pairs = {
+                ("documents", "metacognition"),
+                ("documents", "logic"),
+                ("decision_quality", "action_selection"),
+                ("action_selection", "permission"),
+                ("permission", "execution"),
+                ("provider", "reflection"),
+                ("learning", "evolution"),
+            }
+            if not required_pairs.issubset(topology_pairs):
+                raise RuntimeError(
+                    "Real-time topology потеряла критические связи мозга"
+                )
+
             live_brain_export = client.get(
                 "/api/assistant/live-brain/export",
                 params={"scope": "personal"},
@@ -1976,9 +2019,9 @@ def main() -> int:
             export_data = live_brain_export.json()
             if export_data.get("format") != "AISHIN_LIVE_BRAIN_EXPORT":
                 raise RuntimeError("Live Brain export format несовместим")
-            if int(export_data.get("format_version") or 0) != 9:
+            if int(export_data.get("format_version") or 0) != 10:
                 raise RuntimeError(
-                    "Live Brain export format должен быть version 9"
+                    "Live Brain export format должен быть version 10"
                 )
             if not isinstance(
                 live_brain_data.get("cognitive_intelligence"),

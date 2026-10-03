@@ -744,6 +744,13 @@ class KnowledgeLifecycleEngine:
                 "contradiction" if contradiction else "evidence"
             )
         )
+        if source_type.casefold() in {
+            "planner",
+            "performance",
+            "system",
+            "telemetry",
+        }:
+            return None
         source_ref = str(
             item.get("source_ref") or item.get("id") or item.get("document_id") or index
         )
@@ -755,6 +762,8 @@ class KnowledgeLifecycleEngine:
                 else f"{source_type}:{source_ref}"
             )
         )
+        if source_group == "derived_knowledge":
+            return None
         raw = item.get("severity") if contradiction else (
             item.get("confidence")
             if item.get("confidence") is not None

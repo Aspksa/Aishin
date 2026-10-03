@@ -303,6 +303,98 @@ class KnowledgeLifecycleEngine:
         )
         return self._claim(int(old_claim_id)) or {}
 
+    def update_canonical_status(
+        self,
+        *,
+        scope: str,
+        canonical_key: str,
+        canonical_state: str,
+        confidence: float = 0.0,
+    ) -> dict:
+        """Propagate canonical conflict/absence so stale verified claims cannot survive."""
+        canonical_key = str(canonical_key or "").strip()
+        if not canonical_key:
+            return {"updated": 0, "state": "ignored"}
+        if canonical_state not in {"conflicted", "empty"}:
+            return {"updated": 0, "state": "ignored"}
+
+        origin_request_id = f"canonical:{canonical_key}"[:1000]
+        target_state = (
+            "contradicted" if canonical_state == "conflicted"
+            else "superseded"
+        )
+        with connect() as conn:
+            rows = conn.execute(
+                """SELECT id, state FROM knowledge_claims
+                   WHERE scope=? AND origin_type='canonical_fact'
+                     AND origin_request_id=?
+                     AND state<>'superseded'
+                   ORDER BY id""",
+                (scope, origin_request_id),
+            ).fetchall()
+
+        updated = 0
+        for row in rows:
+            claim_id = int(row["id"])
+            old_state = str(row["state"])
+            if old_state == target_state:
+                continue
+            with connect() as conn:
+                if target_state == "contradicted":
+                    conn.execute(
+                        """UPDATE knowledge_claims
+                           SET state='contradicted',
+                               contradiction_score=?,
+                               contradiction_groups=MAX(contradiction_groups, 1),
+                               contradicted_at=COALESCE(
+                                   contradicted_at,
+                                   CURRENT_TIMESTAMP
+                               ),
+                               updated_at=CURRENT_TIMESTAMP
+                           WHERE id=?""",
+                        (
+                            max(0.0, min(1.0, float(confidence))),
+                            claim_id,
+                        ),
+                    )
+                else:
+                    conn.execute(
+                        """UPDATE knowledge_claims
+                           SET state='superseded',
+                               superseded_by_id=NULL,
+                               superseded_at=COALESCE(
+                                   superseded_at,
+                                   CURRENT_TIMESTAMP
+                               ),
+                               updated_at=CURRENT_TIMESTAMP
+                           WHERE id=?""",
+                        (claim_id,),
+                    )
+                conn.commit()
+            self._transition(
+                scope,
+                claim_id,
+                old_state,
+                target_state,
+                (
+                    "canonical_fact_conflicted"
+                    if target_state == "contradicted"
+                    else "canonical_fact_no_active_evidence"
+                ),
+                {
+                    "canonical_key": canonical_key,
+                    "canonical_state": canonical_state,
+                    "confidence": confidence,
+                },
+            )
+            updated += 1
+
+        return {
+            "updated": updated,
+            "state": target_state,
+            "canonical_key": canonical_key,
+        }
+
     def observe_canonical_fact(
         self,
         *,

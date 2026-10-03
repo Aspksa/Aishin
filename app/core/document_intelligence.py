@@ -1886,6 +1886,9 @@ class DocumentIntelligenceEngine:
             evidence.append(
                 {
                     "source": "document",
+                    "source_type": "document",
+                    "source_group": f"document:{int(item['document_id'])}",
+                    "independence": 1.0,
                     "document_id": int(item["document_id"]),
                     "chunk_id": int(item["chunk_id"]),
                     "filename": item.get("filename"),

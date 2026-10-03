@@ -177,23 +177,32 @@ class BrainFlowRuntime:
             node["detail"] = dict(detail or {})
 
             if previous and previous != phase:
-                key = f"{previous}>{phase}"
+                state["last_transition"] = {
+                    "source": previous,
+                    "target": phase,
+                    "at": self._now_iso(),
+                }
+
+            # Activate architectural dependency edges, not merely call order.
+            # A source is considered available once its observable stage ran
+            # during this request. This makes the graph reflect data flow.
+            for source, target, _label in self.EDGES:
+                if target != phase:
+                    continue
+                if source not in state["nodes"]:
+                    continue
+                key = f"{source}>{target}"
                 edge = state["edges"].setdefault(
                     key,
                     {
-                        "source": previous,
-                        "target": phase,
+                        "source": source,
+                        "target": target,
                         "count": 0,
                         "last_seen": now_mono,
                     },
                 )
                 edge["count"] = int(edge.get("count") or 0) + 1
                 edge["last_seen"] = now_mono
-                state["last_transition"] = {
-                    "source": previous,
-                    "target": phase,
-                    "at": self._now_iso(),
-                }
 
             self._sequence += 1
             state["sequence"] = self._sequence

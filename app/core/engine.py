@@ -21,6 +21,7 @@ from .document_intelligence import DocumentIntelligenceEngine
 from .self_reflection import SelfReflectionMetrics
 from .response_grounding import ResponseGroundingScorer
 from .knowledge_lifecycle import KnowledgeLifecycleEngine
+from .canonical_facts import CanonicalFactsEngine
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
 from .causal import CausalReasoning
@@ -89,6 +90,10 @@ class AishinEngine:
         self.self_reflection = SelfReflectionMetrics()
         self.response_grounding = ResponseGroundingScorer()
         self.knowledge_lifecycle = KnowledgeLifecycleEngine(events=self.events)
+        self.canonical_facts = CanonicalFactsEngine(
+            events=self.events,
+            knowledge_lifecycle=self.knowledge_lifecycle,
+        )
         self.learning_planner = LearningPlanner(self.self_reflection)
         self.experiment_manager = SafeExperimentManager()
         self.graph_builder = GraphBuilder(ai=self.ai, graph=self.graph, events=self.events)
@@ -478,6 +483,10 @@ class AishinEngine:
                 ),
             },
             "knowledge_lifecycle": self.knowledge_lifecycle.dashboard(
+                scope=effective_scope,
+                limit=20,
+            ),
+            "canonical_facts": self.canonical_facts.dashboard(
                 scope=effective_scope,
                 limit=20,
             ),
@@ -1087,6 +1096,13 @@ class AishinEngine:
                     importance=0.22,
                 )
         perf.checkpoint("research")
+        canonical_sync = self.canonical_facts.ensure_fresh(scope=scope)
+        canonical_logic_evidence = self.canonical_facts.reasoning_evidence(
+            cleaned,
+            scope=scope,
+            limit=8,
+        )
+        perf.checkpoint("canonical_facts")
         logic_trace = self.logic.finalize(
             scope=scope,
             query=cleaned,
@@ -1098,7 +1114,9 @@ class AishinEngine:
             graph_stats=self.graph.stats(scope=scope),
             planner_notices=planner_notices,
             additional_evidence=(
-                document_evidence + research_logic_evidence
+                document_evidence
+                + research_logic_evidence
+                + canonical_logic_evidence
             ),
             additional_contradictions=(
                 document_contradictions
@@ -1302,6 +1320,13 @@ class AishinEngine:
             "causal": causal_assessment.to_dict(),
             "hypotheses": hypothesis_run.to_dict(),
             "knowledge_lifecycle": knowledge_lifecycle,
+            "canonical_facts": {
+                "sync": {
+                    "refreshed": bool(canonical_sync.get("refreshed")),
+                    "summary": canonical_sync.get("summary") or {},
+                },
+                "reasoning_evidence_count": len(canonical_logic_evidence),
+            },
             "logic_learning": {
                 "feedback": learning_update.to_dict(),
                 "strategies": learned_strategies,
@@ -1350,6 +1375,7 @@ class AishinEngine:
         )
         context.system_prompt += "\n\n" + self.hypotheses.prompt_block(hypothesis_run)
         context.system_prompt += "\n\n" + self.knowledge_lifecycle.prompt_block(scope=scope)
+        context.system_prompt += "\n\n" + self.canonical_facts.prompt_block(scope=scope)
         context.system_prompt += "\n\n" + self.logic_learning.prompt_block(learned_strategies)
         context.system_prompt += "\n\n" + self.causal.prompt_block(causal_assessment)
         context.system_prompt += (
@@ -1597,6 +1623,8 @@ class AishinEngine:
         request_trace["response_grounding"] = response_grounding.to_dict()
         request_trace["knowledge_lifecycle_grounding"] = lifecycle_grounding
         request_trace["knowledge_lifecycle_summary"] = self.knowledge_lifecycle.summary(scope=scope)
+        request_trace["canonical_facts_summary"] = self.canonical_facts.summary(scope=scope)
+        request_trace["canonical_facts_evidence_count"] = len(canonical_logic_evidence)
         request_trace["learning_planner"] = learning_plans
         request_trace["safe_experiments"] = experiment_updates
         request_trace["long_term_growth"] = long_term_growth
@@ -1685,6 +1713,11 @@ class AishinEngine:
                     "request": knowledge_lifecycle,
                     "grounding_event": lifecycle_grounding,
                     "summary": self.knowledge_lifecycle.summary(scope=scope),
+                },
+                "canonical_facts": {
+                    "summary": self.canonical_facts.summary(scope=scope),
+                    "reasoning_evidence_count": len(canonical_logic_evidence),
+                    "refreshed": bool(canonical_sync.get("refreshed")),
                 },
                 "performance": performance,
                 "context_budget": context_budget_report.to_dict(),
@@ -1802,6 +1835,11 @@ class AishinEngine:
                 "request": knowledge_lifecycle,
                 "grounding_event": lifecycle_grounding,
                 "summary": self.knowledge_lifecycle.summary(scope=scope),
+            },
+            "canonical_facts": {
+                "summary": self.canonical_facts.summary(scope=scope),
+                "reasoning_evidence_count": len(canonical_logic_evidence),
+                "refreshed": bool(canonical_sync.get("refreshed")),
             },
             "performance": performance,
             "context_budget": context_budget_report.to_dict(),

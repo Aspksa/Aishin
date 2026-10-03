@@ -24,9 +24,20 @@ class LiveBrainRuntime:
         "graph": "graph",
         "planner": "planner",
         "context": "context",
-        "logic": "logic",
+        "documents": "context",
+        "metacognition": "metacognition",
         "adaptation": "logic",
-        "decision": "decision",
+        "communication": "context",
+        "verification": "verification",
+        "research": "verification",
+        "logic": "logic",
+        "causal": "causal",
+        "hypotheses": "hypotheses",
+        "counterfactual": "counterfactual",
+        "decision_quality": "quality",
+        "action_selection": "action",
+        "permission": "execution",
+        "execution": "tool",
         "provider": "tool",
         "reflection": "reflection",
         "learning": "continuous-learning",
@@ -372,7 +383,23 @@ class LiveBrainRuntime:
             ),
         )
 
-        phase = self._latest_phase(events)
+        topology = take(
+            "brain_flow",
+            {
+                "version": "unavailable",
+                "status": "idle",
+                "current_phase": "",
+                "nodes": [],
+                "edges": [],
+            },
+            lambda: self.engine.brain_flow.snapshot(scope=scope),
+        )
+        persisted_phase = self._latest_phase(events)
+        phase = (
+            str(topology.get("current_phase") or "")
+            if topology.get("status") == "running"
+            else persisted_phase
+        )
         phase_channel = self.PHASE_TO_CHANNEL.get(phase, "")
         unresolved = self._unresolved_count(trace, verification)
         warning_events = int(event_stats.get("attention_events_1h") or 0)
@@ -458,7 +485,9 @@ class LiveBrainRuntime:
         )
 
         active_channels = sum(
-            1 for item in channels if item["status"] == "active"
+            1
+            for item in channels
+            if item["status"] in {"executing", "attention"}
         )
         attention_channels = sum(
             1 for item in channels if item["status"] == "attention"
@@ -480,6 +509,10 @@ class LiveBrainRuntime:
             "pulse": {
                 "phase": phase or "idle",
                 "phase_channel": phase_channel,
+                "flow_status": topology.get("status") or "idle",
+                "request_id": topology.get("request_id"),
+                "elapsed_ms": topology.get("elapsed_ms"),
+                "sequence": topology.get("sequence"),
                 "events_5m": int(event_stats.get("events_5m") or 0),
                 "events_1h": int(event_stats.get("events_1h") or 0),
                 "events_total": int(event_stats.get("total") or 0),
@@ -542,6 +575,7 @@ class LiveBrainRuntime:
                 "document_attention": document_attention,
             },
             "channels": channels,
+            "topology": topology,
             "safe_trace": self._safe_trace(trace),
             "event_stream": [
                 self._event_view(item)
@@ -630,6 +664,30 @@ class LiveBrainRuntime:
             },
         }
 
+    def pulse(self, *, scope: str = "personal") -> dict:
+        """Lightweight real-time telemetry without rebuilding the full brain."""
+        scope = (scope or "personal").strip() or "personal"
+        topology = self.engine.brain_flow.snapshot(scope=scope)
+        try:
+            event_stats = self.engine.events.stats(scope=scope)
+        except Exception:
+            event_stats = {}
+        return {
+            "runtime_version": self.VERSION,
+            "scope": scope,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "topology": topology,
+            "pulse": {
+                "phase": topology.get("current_phase") or "idle",
+                "flow_status": topology.get("status") or "idle",
+                "request_id": topology.get("request_id"),
+                "elapsed_ms": topology.get("elapsed_ms"),
+                "sequence": topology.get("sequence"),
+                "events_5m": int(event_stats.get("events_5m") or 0),
+                "events_1h": int(event_stats.get("events_1h") or 0),
+            },
+        }
+
     def export(self, *, scope: str = "personal") -> dict:
         snapshot = self.snapshot(
             scope=scope,
@@ -638,7 +696,7 @@ class LiveBrainRuntime:
         )
         return {
             "format": "AISHIN_LIVE_BRAIN_EXPORT",
-            "format_version": 9,
+            "format_version": 10,
             "scope": snapshot["scope"],
             "generated_at": snapshot["generated_at"],
             "policy": snapshot["trace_policy"],
@@ -752,8 +810,8 @@ class LiveBrainRuntime:
             self.CHANNEL_LABELS,
             start=1,
         ):
-            status = "active" if channel_id == phase_channel else (
-                "active" if counts[channel_id] else "idle"
+            status = "executing" if channel_id == phase_channel else (
+                "recent" if counts[channel_id] else "idle"
             )
             if (
                 channel_id == "verification"

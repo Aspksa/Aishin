@@ -187,7 +187,7 @@ def main() -> int:
         "Фактически выполнено",
         "lb-grounding-score",
         "Grounding ответа",
-        "AISHIN 00.00.14",
+        "AISHIN 00.00.15",
     ):
         if marker not in live_js:
             fail(f"Live Brain real-time marker missing: {marker}")

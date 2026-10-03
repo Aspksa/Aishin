@@ -2,6 +2,10 @@
 "use strict";
 let payload=null,loading=false;
 
+function scopeValue(){return window.AISHIN_SCOPE?.get?.()||"personal";}
+function scopeUrl(url){return window.AISHIN_SCOPE?.url?.(url)||url;}
+function fetchScope(url,options){return window.fetch(scopeUrl(url),options);}
+
 const q=(s)=>document.querySelector(s);
 const n=(v)=>Number.isFinite(Number(v))?Number(v):0;
 const esc=(v)=>String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
@@ -108,7 +112,7 @@ function render(data){
 function load(){
   if(loading)return Promise.resolve(payload);
   loading=true;
-  return fetch("/api/assistant/communication?scope=personal&turn_limit=80&event_limit=100",{cache:"no-store"})
+  return fetchScope("/api/assistant/communication?scope=personal&turn_limit=80&event_limit=100",{cache:"no-store"})
     .then(r=>{if(!r.ok)throw new Error("Communication HTTP "+r.status);return r.json();})
     .then(render)
     .catch(err=>{const h=q("#communication-turns");if(h&&!payload)h.innerHTML='<div class="communication-empty">'+esc(err.message||err)+'</div>';})
@@ -116,9 +120,9 @@ function load(){
 }
 
 function sendFeedback(turnId,feedback){
-  return fetch("/api/assistant/communication/turns/"+encodeURIComponent(turnId)+"/feedback",{
+  return fetchScope("/api/assistant/communication/turns/"+encodeURIComponent(turnId)+"/feedback",{
     method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({scope:"personal",feedback:feedback,reason:"UI feedback"})
+    body:JSON.stringify({scope:scopeValue(),feedback:feedback,reason:"UI feedback"})
   }).then(r=>{if(!r.ok)throw new Error("Feedback HTTP "+r.status);return r.json();})
     .then(()=>load()).catch(err=>window.alert("Feedback не сохранён: "+(err.message||err)));
 }

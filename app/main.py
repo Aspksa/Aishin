@@ -149,6 +149,12 @@ class RollbackAction(BaseModel):
     approved: bool = False
 
 
+class KnowledgeSupersedeRequest(BaseModel):
+    scope: str = 'personal'
+    new_claim_id: int
+    reason: str = ''
+
+
 class ProactiveFeedback(BaseModel):
     scope: str = 'personal'
     feedback: str
@@ -1621,6 +1627,24 @@ def assistant_knowledge_lifecycle_claims(
         state=state,
         limit=max(1, min(limit, 500)),
     )
+
+
+@app.post('/api/assistant/knowledge-lifecycle/claims/{claim_id}/supersede')
+def assistant_knowledge_lifecycle_supersede(
+    claim_id: int,
+    payload: KnowledgeSupersedeRequest,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    try:
+        return engine.knowledge_lifecycle.supersede_claim(
+            scope=payload.scope.strip() or 'personal',
+            old_claim_id=claim_id,
+            new_claim_id=payload.new_claim_id,
+            reason=payload.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get('/api/assistant/knowledge-lifecycle/hypotheses')

@@ -8,6 +8,7 @@
   var reconnectTimer = null;
   var lastPulseSequence = -1;
   var lastFinishedSequence = -1;
+  var selectedFlowNodeId = "";
 
   function scopeValue() {
     return window.AISHIN_SCOPE?.get?.() || "personal";
@@ -113,6 +114,7 @@
             '</div>',
           '</div>',
           '<svg id="live-brain-topology" class="live-brain-topology" viewBox="0 0 1080 620" role="img" aria-label="Настоящая карта переходов между модулями Айшин"></svg>',
+          '<div id="lb-node-inspector" class="brain-flow-inspector" aria-live="polite"><span>Выберите узел карты, чтобы увидеть его техническое состояние.</span></div>',
         '</article>',
         '<article class="live-brain-panel">',
           '<div class="live-brain-panel-head"><strong>Поток событий</strong><span id="lb-event-total">0 всего</span></div>',
@@ -280,7 +282,9 @@
       var label = String(node.label || node.id);
       var short = label.length > 16 ? label.slice(0, 15) + "…" : label;
       var age = node.age_ms == null ? "" : " · " + Math.round(n(node.age_ms)) + " ms";
-      return '<g class="brain-flow-node ' + esc(status) + '" transform="translate(' +
+      return '<g class="brain-flow-node ' + esc(status) + '" data-flow-node-id="' +
+        esc(node.id) + '" tabindex="0" role="button" aria-label="' +
+        esc(label + " · " + stateLabel(status)) + '" transform="translate(' +
         (p.x - w / 2).toFixed(1) + ',' + (p.y - h / 2).toFixed(1) + ')">' +
         '<rect width="' + w + '" height="' + h + '" rx="12"></rect>' +
         '<circle cx="11" cy="11" r="4"></circle>' +
@@ -291,6 +295,47 @@
     }).join("");
 
     svg.innerHTML = defs + edgeSvg + nodeSvg;
+
+    var byId = {};
+    nodes.forEach(function (node) { byId[String(node.id)] = node; });
+    function inspectNode(node) {
+      if (!node) return;
+      selectedFlowNodeId = String(node.id || "");
+      var inspector = el("#lb-node-inspector");
+      if (!inspector) return;
+      var detail = node.detail && typeof node.detail === "object"
+        ? Object.keys(node.detail).slice(0, 6).map(function (key) {
+            return '<span><b>' + esc(key) + '</b> ' + esc(String(node.detail[key])) + '</span>';
+          }).join("")
+        : "";
+      var age = node.age_ms == null ? "нет сигнала" : (Math.round(n(node.age_ms)) + " мс назад");
+      inspector.innerHTML =
+        '<strong>' + esc(node.label || node.id) + '</strong>' +
+        '<span class="brain-flow-inspector-status ' + esc(node.status || "idle") + '">' +
+        esc(stateLabel(node.status || "idle")) + '</span>' +
+        '<span>проходов: ' + n(node.visits) + '</span>' +
+        '<span>' + esc(age) + '</span>' +
+        detail;
+    }
+
+    svg.querySelectorAll("[data-flow-node-id]").forEach(function (element) {
+      function activate() {
+        inspectNode(byId[String(element.dataset.flowNodeId || "")]);
+      }
+      element.addEventListener("click", activate);
+      element.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          activate();
+        }
+      });
+    });
+
+    var selected = byId[selectedFlowNodeId];
+    var executingNode = nodes.find(function (node) {
+      return node.status === "executing";
+    });
+    inspectNode(selected || executingNode || nodes[0]);
   }
 
   function renderLegacyChannels(data) {

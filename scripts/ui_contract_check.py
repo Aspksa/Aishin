@@ -163,6 +163,7 @@ def main() -> int:
         "recent",
         "brain-flow-legend",
         "lb-flow-request",
+        "lb-flow-concurrency",
         "stateLabel",
         "Research evidence",
         "Фактически выполнено",

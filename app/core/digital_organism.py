@@ -34,6 +34,8 @@ class DigitalOrganismFoundation:
             "name": "Genesis",
             "next": "D1",
             "min_age_days_for_exit": 30.0,
+            "min_experience_score": 4.0,
+            "min_competence_score": 20.0,
             "exit_criteria": (
                 "identity_persistence_verified",
                 "memory_recovery_verified",
@@ -45,6 +47,8 @@ class DigitalOrganismFoundation:
             "name": "Adaptation",
             "next": "D2",
             "min_age_days_for_exit": 90.0,
+            "min_experience_score": 15.0,
+            "min_competence_score": 35.0,
             "exit_criteria": (
                 "stable_context_tracking",
                 "measurable_error_reduction",
@@ -55,6 +59,8 @@ class DigitalOrganismFoundation:
             "name": "Formation",
             "next": "D3",
             "min_age_days_for_exit": 180.0,
+            "min_experience_score": 35.0,
+            "min_competence_score": 50.0,
             "exit_criteria": (
                 "specialized_skills_have_benchmarks",
                 "cross_modal_context_linking_verified",
@@ -65,6 +71,8 @@ class DigitalOrganismFoundation:
             "name": "Expansion",
             "next": "D4",
             "min_age_days_for_exit": 365.0,
+            "min_experience_score": 70.0,
+            "min_competence_score": 60.0,
             "exit_criteria": (
                 "at_least_one_generated_module_survived_full_validation",
                 "automatic_rollback_verified",
@@ -75,6 +83,8 @@ class DigitalOrganismFoundation:
             "name": "Maturity",
             "next": "D5",
             "min_age_days_for_exit": 730.0,
+            "min_experience_score": 120.0,
+            "min_competence_score": 70.0,
             "exit_criteria": (
                 "long_term_benchmark_stability",
                 "low_regression_rate",
@@ -86,6 +96,8 @@ class DigitalOrganismFoundation:
             "name": "Deep Maturity",
             "next": "D6",
             "min_age_days_for_exit": 1825.0,
+            "min_experience_score": 200.0,
+            "min_competence_score": 80.0,
             "exit_criteria": (
                 "multi_year_memory_integrity",
                 "cross_domain_skill_transfer_verified",
@@ -96,6 +108,8 @@ class DigitalOrganismFoundation:
             "name": "Long Horizon",
             "next": None,
             "min_age_days_for_exit": None,
+            "min_experience_score": None,
+            "min_competence_score": None,
             "exit_criteria": ("open_ended_stage",),
         },
     }
@@ -710,6 +724,8 @@ class DigitalOrganismFoundation:
         eligibility = self._stage_eligibility(
             stage=current_stage,
             age_days=age_days,
+            experience_score=experience_score,
+            competence_score=competence_score,
         )
 
         if allow_transition and eligibility.get("eligible"):
@@ -725,6 +741,8 @@ class DigitalOrganismFoundation:
                 eligibility = self._stage_eligibility(
                     stage=current_stage,
                     age_days=age_days,
+                    experience_score=experience_score,
+                    competence_score=competence_score,
                 )
 
         maturity_profile = {
@@ -1368,6 +1386,8 @@ class DigitalOrganismFoundation:
         *,
         stage: str,
         age_days: float,
+        experience_score: float,
+        competence_score: float,
     ) -> dict:
         definition = self.STAGES.get(stage, self.STAGES["D0"])
         criteria = list(definition["exit_criteria"])
@@ -1408,22 +1428,82 @@ class DigitalOrganismFoundation:
             )
 
         min_age = definition.get("min_age_days_for_exit")
+        min_experience = definition.get("min_experience_score")
+        min_competence = definition.get("min_competence_score")
         time_met = True if min_age is None else age_days >= float(min_age)
+        experience_met = (
+            True
+            if min_experience is None
+            else experience_score >= float(min_experience)
+        )
+        competence_met = (
+            True
+            if min_competence is None
+            else competence_score >= float(min_competence)
+        )
+
+        regression_evidence = evidence_rows.get(
+            "critical_regressions_absent"
+        )
+        regression_expiry = (
+            self._parse_time(regression_evidence.get("expires_at"))
+            if regression_evidence else None
+        )
+        regression_expired = bool(
+            regression_expiry and regression_expiry <= now
+        )
+        regression_gate = bool(
+            regression_evidence
+            and regression_evidence.get("status") == "passed"
+            and not regression_expired
+        )
+
         next_stage = definition.get("next")
-        eligible = bool(next_stage and time_met and all_passed)
+        eligible = bool(
+            next_stage
+            and time_met
+            and experience_met
+            and competence_met
+            and all_passed
+            and regression_gate
+        )
         return {
             "current_stage": stage,
             "current_stage_name": definition["name"],
             "next_stage": next_stage,
             "minimum_age_days": min_age,
+            "minimum_experience_score": min_experience,
+            "minimum_competence_score": min_competence,
             "age_days": round(age_days, 6),
+            "experience_score": round(experience_score, 4),
+            "competence_score": round(competence_score, 4),
             "time_requirement_met": time_met,
+            "experience_requirement_met": experience_met,
+            "competence_requirement_met": competence_met,
+            "critical_regression_gate": {
+                "criterion": "critical_regressions_absent",
+                "passed": regression_gate,
+                "status": (
+                    regression_evidence.get("status")
+                    if regression_evidence else "unknown"
+                ),
+                "expired": regression_expired,
+                "source_type": (
+                    regression_evidence.get("source_type")
+                    if regression_evidence else ""
+                ),
+                "source_ref": (
+                    regression_evidence.get("source_ref")
+                    if regression_evidence else ""
+                ),
+            },
             "criteria": criteria_state,
             "all_exit_criteria_passed": all_passed,
             "eligible": eligible,
             "rule": (
-                "time AND explicit exit-criteria evidence; "
-                "calendar time alone is insufficient"
+                "minimum time AND evidence-based experience AND measured "
+                "competence AND explicit exit criteria AND explicit absence "
+                "of critical regressions; calendar time alone is insufficient"
             ),
         }
 

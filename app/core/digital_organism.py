@@ -102,6 +102,7 @@ class DigitalOrganismFoundation:
 
     MANIFEST_TABLES = (
         "runtime_state",
+        "organism_now",
         "messages",
         "memories",
         "master_profile",
@@ -1220,7 +1221,8 @@ class DigitalOrganismFoundation:
         with connect() as conn:
             episodes = int(
                 conn.execute(
-                    "SELECT COUNT(*) FROM organism_autobiography"
+                    """SELECT COUNT(*) FROM organism_autobiography
+                       WHERE importance>=0.5"""
                 ).fetchone()[0]
             )
             completed_tasks = int(

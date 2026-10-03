@@ -14,6 +14,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import TimeoutException
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,21 +84,51 @@ def create_driver() -> webdriver.Chrome:
 
 def wait_for_observatory(driver: webdriver.Chrome) -> None:
     wait = WebDriverWait(driver, 25)
-    wait.until(
-        lambda d: d.find_element(
-            By.ID, "live-brain-observatory"
-        ).is_displayed()
-    )
-    wait.until(
-        lambda d: len(
-            d.find_elements(By.CSS_SELECTOR, "[data-flow-node-id]")
-        ) >= 20
-    )
-    wait.until(
-        lambda d: d.find_element(
-            By.ID, "lb-node-inspector"
-        ).is_displayed()
-    )
+    try:
+        wait.until(
+            lambda d: d.find_element(
+                By.ID, "live-brain-observatory"
+            ).is_displayed()
+        )
+        wait.until(
+            lambda d: len(
+                d.find_elements(
+                    By.CSS_SELECTOR,
+                    "[data-flow-node-id]",
+                )
+            ) >= 20
+        )
+        wait.until(
+            lambda d: d.find_element(
+                By.ID, "lb-node-inspector"
+            ).is_displayed()
+        )
+    except TimeoutException as exc:
+        diagnostics = driver.execute_script(
+            """
+            return {
+              scope: window.AISHIN_SCOPE?.get?.() || null,
+              observatory: !!document.getElementById(
+                'live-brain-observatory'
+              ),
+              nodes: document.querySelectorAll(
+                '[data-flow-node-id]'
+              ).length,
+              status: document.getElementById(
+                'live-brain-status'
+              )?.textContent || null,
+              stream: document.getElementById(
+                'lb-stream-state'
+              )?.textContent || null,
+              topologyText: document.getElementById(
+                'live-brain-topology'
+              )?.textContent?.slice(0, 300) || null
+            };
+            """
+        )
+        raise RuntimeError(
+            f"Live Brain browser wait timed out: {diagnostics}"
+        ) from exc
 
 
 def assert_desktop(driver: webdriver.Chrome) -> None:

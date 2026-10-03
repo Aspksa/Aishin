@@ -789,6 +789,8 @@ class ContinuousLearningEngine:
                 "error_detected",
                 "hypothesis_rejected",
             }
+            if event_type not in positive | negative:
+                return False
             self._observe_pattern(
                 scope=scope,
                 category="knowledge_lifecycle",

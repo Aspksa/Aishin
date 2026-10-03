@@ -1,4 +1,15 @@
 (function () {
+  function scopeValue() {
+    return window.AISHIN_SCOPE?.get?.() || "personal";
+  }
+  function scopeUrl(url) {
+    return window.AISHIN_SCOPE?.url?.(url) || url;
+  }
+  const nativeFetch = window.fetch.bind(window);
+  function fetchScope(url, options) {
+    return nativeFetch(scopeUrl(url), options);
+  }
+
   "use strict";
 
   var payload = null;
@@ -367,7 +378,7 @@
   function load() {
     if (loading) return Promise.resolve(payload);
     loading = true;
-    return fetch(
+    return fetchScope(
       "/api/assistant/proactive-intelligence?scope=personal&incident_limit=100&signal_limit=100&run_limit=60",
       { cache: "no-store" }
     )
@@ -397,7 +408,7 @@
       button.disabled = true;
       button.textContent = "Проверяю…";
     }
-    return fetch(
+    return fetchScope(
       "/api/assistant/proactive-intelligence/scan?scope=personal",
       { method: "POST" }
     )
@@ -420,13 +431,13 @@
   }
 
   function sendFeedback(incidentId, feedback) {
-    return fetch(
+    return fetchScope(
       "/api/assistant/proactive-intelligence/incidents/" + encodeURIComponent(incidentId) + "/feedback",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          scope: "personal",
+          scope: scopeValue(),
           feedback: feedback,
           reason: ""
         })

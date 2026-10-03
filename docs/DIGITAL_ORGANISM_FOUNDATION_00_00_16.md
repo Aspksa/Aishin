@@ -73,7 +73,24 @@ window as minimum exit time:
 - D6: open-ended
 
 Time is necessary but never sufficient. Every exit criterion must have explicit,
-non-expired passed evidence.
+non-expired passed evidence. The versioned engineering gate also requires a
+minimum evidence-based experience score, a minimum measured competence score,
+and a separate non-expired `critical_regressions_absent=passed` record.
+
+Current `aishin-developmental-state-v1` thresholds:
+
+| Exit from | Min age days | Min experience | Min competence |
+| --- | ---: | ---: | ---: |
+| D0 | 30 | 4 | 20 |
+| D1 | 90 | 15 | 35 |
+| D2 | 180 | 35 | 50 |
+| D3 | 365 | 70 | 60 |
+| D4 | 730 | 120 | 70 |
+| D5 | 1825 | 200 | 80 |
+
+These thresholds are an implementation choice for the specification's
+"sufficient experience / quality / no critical regressions" rule. They are
+versioned and are not part of the protected personality identity.
 
 ## Experience-age formula
 
@@ -260,7 +277,7 @@ Release validation must prove:
 - stable first_boot_timestamp across reads;
 - nonnegative chronological age;
 - valid D0-D6 stage value;
-- stage eligibility contains time and evidence criteria;
+- stage eligibility contains time, experience, competence, exit-criteria and critical-regression gates;
 - all AISHIN_INNER_TIME fields exist;
 - autobiography is operational;
 - read-only organism APIs do not create snapshots;

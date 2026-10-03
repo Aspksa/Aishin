@@ -79,7 +79,7 @@ def run_browser(
     ]
     if dump_dom:
         args.append("--dump-dom")
-    args.append(f"{BASE_URL}/")
+    args.append(f"{BASE_URL}/#technical-brain")
 
     result = subprocess.run(
         args,

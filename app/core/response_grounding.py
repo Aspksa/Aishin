@@ -234,7 +234,7 @@ class ResponseGroundingScorer:
         all_groups = {item["group"] for item in sources if item["group"]}
         source_diversity = min(
             1.0,
-            len(supporting_groups) / max(1, min(3, len(all_groups))),
+            len(supporting_groups) / 3.0,
         )
 
         contradictions = contradictions or []
@@ -523,7 +523,15 @@ class ResponseGroundingScorer:
             if confidence is None:
                 confidence = item.get("retrieval_score")
             try:
-                quality = max(0.35, min(1.0, float(confidence or 0.65)))
+                quality = max(
+                    0.35,
+                    min(
+                        1.0,
+                        float(
+                            0.65 if confidence is None else confidence
+                        ),
+                    ),
+                )
             except (TypeError, ValueError):
                 quality = 0.65
 

@@ -38,6 +38,8 @@ class Metacognition:
         graph_stats: dict,
         verification_conflicts: int = 0,
         verification_missing: int = 0,
+        external_evidence: list[dict] | None = None,
+        external_contradictions: int = 0,
     ) -> MetacognitiveAssessment:
         reasons: list[str] = []
         missing: list[str] = []
@@ -92,6 +94,36 @@ class Metacognition:
                     "само по себе не считается ошибкой данных."
                 )
 
+        external_evidence = external_evidence or []
+        if external_evidence:
+            external_scores = []
+            for item in external_evidence[:16]:
+                score = item.get("confidence")
+                if score is None:
+                    score = item.get("retrieval_score")
+                try:
+                    external_scores.append(
+                        max(0.0, min(1.0, float(score or 0.0)))
+                    )
+                except (TypeError, ValueError):
+                    continue
+            evidence_score += min(0.22, 0.04 * len(external_evidence))
+            if external_scores:
+                evidence_score += 0.18 * (
+                    sum(external_scores) / len(external_scores)
+                )
+            reasons.append(
+                "Внешних grounded evidence в контексте: "
+                f"{len(external_evidence)}."
+            )
+
+        if external_contradictions:
+            contradiction_count += int(external_contradictions)
+            reasons.append(
+                "Внешних открытых противоречий: "
+                f"{int(external_contradictions)}."
+            )
+
         entities = int(graph_stats.get("entities", 0) or 0)
         relations = int(graph_stats.get("relations", 0) or 0)
         if entities > 0:
@@ -137,9 +169,13 @@ class Metacognition:
             )
             evidence_score -= min(0.35, 0.15 * contradiction_count)
 
-        if intent in self.HIGH_STAKES_INTENTS and memory_count < 2:
+        if (
+            intent in self.HIGH_STAKES_INTENTS
+            and memory_count + len(external_evidence) < 2
+        ):
             missing.append(
-                "Для проверки или действия недостаточно независимых опор в памяти."
+                "Для проверки или действия недостаточно независимых "
+                "доказательных опор."
             )
             evidence_score -= 0.10
 

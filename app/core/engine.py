@@ -849,6 +849,8 @@ class AishinEngine:
             request_id=request_id,
         )
         research_run = None
+        research_logic_evidence: list[dict] = []
+        research_logic_contradictions: list[dict] = []
         if research_gap is not None:
             unresolved_for_research = len(
                 verification_data.get("unresolved") or []
@@ -879,6 +881,114 @@ class AishinEngine:
                     synthesize=True,
                 )
                 research_run = research_run_obj.to_dict()
+                research_rows = self.research.evidence(
+                    scope=scope,
+                    session_id=research_run_obj.session_id,
+                    limit=16,
+                )
+                document_refs = {
+                    (
+                        int(item.get("document_id") or -1),
+                        int(item.get("chunk_id") or -1),
+                    )
+                    for item in document_evidence
+                }
+                for item in research_rows:
+                    metadata = item.get("metadata") or {}
+                    source_type = str(item.get("source_type") or "research")
+                    duplicate_document = False
+                    if source_type == "document":
+                        provenance = metadata.get("provenance") or {}
+                        pair = (
+                            int(metadata.get("document_id") or -1),
+                            int(
+                                metadata.get("chunk_id")
+                                or provenance.get("chunk_id")
+                                or -1
+                            ),
+                        )
+                        duplicate_document = pair in document_refs
+                    if duplicate_document:
+                        continue
+                    research_logic_evidence.append(
+                        {
+                            "source": "research",
+                            "source_type": source_type,
+                            "source_ref": item.get("source_ref"),
+                            "source_group": item.get("source_group"),
+                            "confidence": float(
+                                item.get("evidence_score") or 0.0
+                            ),
+                            "retrieval_score": float(
+                                item.get("evidence_score") or 0.0
+                            ),
+                            "content": str(item.get("content") or "")[:1200],
+                            "provenance": (
+                                metadata.get("provenance")
+                                or metadata
+                            ),
+                        }
+                    )
+                research_conflicts = self.research.contradictions(
+                    scope=scope,
+                    session_id=research_run_obj.session_id,
+                    status="open",
+                    limit=20,
+                )
+                research_logic_contradictions = [
+                    {
+                        **item,
+                        "source": "research",
+                        "summary": (
+                            "Research Intelligence: открытое противоречие "
+                            f"#{item.get('id')} "
+                            f"(severity={float(item.get('severity') or 0.0):.2f})."
+                        ),
+                    }
+                    for item in research_conflicts
+                ]
+
+                if research_logic_evidence or research_logic_contradictions:
+                    meta = self.metacognition.assess(
+                        scope=scope,
+                        intent=intent,
+                        recalled_memories=final_memories,
+                        semantic_used=context.semantic_used,
+                        planner_notices=planner_notices,
+                        sensor_readings=sensor_readings,
+                        graph_stats=self.graph.stats(scope=scope),
+                        verification_conflicts=(
+                            len(
+                                (
+                                    verification_data.get("consistency")
+                                    or {}
+                                ).get("conflicts", [])
+                            )
+                        ),
+                        verification_missing=len(
+                            verification_data.get("unresolved") or []
+                        ),
+                        external_evidence=(
+                            document_evidence
+                            + research_logic_evidence
+                        ),
+                        external_contradictions=(
+                            len(document_contradictions)
+                            + len(research_logic_contradictions)
+                        ),
+                    )
+                    self.brain_flow.phase(
+                        request_id=request_id,
+                        scope=scope,
+                        phase="research",
+                        detail={
+                            "evidence": len(research_logic_evidence),
+                            "contradictions": len(
+                                research_logic_contradictions
+                            ),
+                            "metacognition": meta.status,
+                        },
+                    )
                 context.system_prompt += (
                     "\n\n"
                     + self.research.prompt_block(
@@ -912,8 +1022,13 @@ class AishinEngine:
             verification=verification_data if verification_report is not None else None,
             graph_stats=self.graph.stats(scope=scope),
             planner_notices=planner_notices,
-            additional_evidence=document_evidence,
-            additional_contradictions=document_contradictions,
+            additional_evidence=(
+                document_evidence + research_logic_evidence
+            ),
+            additional_contradictions=(
+                document_contradictions
+                + research_logic_contradictions
+            ),
         )
 
         self.brain_flow.phase(
@@ -1109,7 +1224,13 @@ class AishinEngine:
             "action_selection": action_selection.to_dict(),
             "execution_bridge": execution_bridge.to_dict(),
             "cognitive_intelligence_route": cognitive_route.to_dict(),
-            "research": research_run or {"status": "not_triggered"},
+            "research": {
+                **(research_run or {"status": "not_triggered"}),
+                "logic_evidence_count": len(research_logic_evidence),
+                "logic_contradiction_count": len(
+                    research_logic_contradictions
+                ),
+            },
             "communication": communication_plan.to_dict(),
             "document_context": document_context,
         }

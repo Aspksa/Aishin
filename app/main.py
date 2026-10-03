@@ -68,7 +68,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.14', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.15', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -225,7 +225,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.14',
+        'version': '0.0.15',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -1603,6 +1603,79 @@ def assistant_response_grounding(
             limit=bounded,
         ),
     }
+
+
+@app.get('/api/assistant/canonical-facts')
+def assistant_canonical_facts(
+    scope: str = 'personal',
+    limit: int = 40,
+) -> dict:
+    return engine.canonical_facts.dashboard(
+        scope=scope.strip() or 'personal',
+        limit=max(1, min(limit, 200)),
+    )
+
+
+@app.get('/api/assistant/canonical-facts/facts')
+def assistant_canonical_facts_list(
+    scope: str = 'personal',
+    state: str | None = None,
+    namespace: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    engine.canonical_facts.ensure_fresh(
+        scope=scope.strip() or 'personal'
+    )
+    return engine.canonical_facts.facts(
+        scope=scope.strip() or 'personal',
+        state=state,
+        namespace=namespace,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/canonical-facts/facts/{fact_id}')
+def assistant_canonical_fact_detail(
+    fact_id: int,
+    scope: str = 'personal',
+) -> dict:
+    effective_scope = scope.strip() or 'personal'
+    engine.canonical_facts.ensure_fresh(scope=effective_scope)
+    result = engine.canonical_facts.fact(
+        fact_id,
+        scope=effective_scope,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail='Canonical fact not found')
+    return result
+
+
+@app.get('/api/assistant/canonical-facts/history')
+def assistant_canonical_fact_history(
+    scope: str = 'personal',
+    canonical_key: str | None = None,
+    fact_id: int | None = None,
+    limit: int = 200,
+) -> dict:
+    effective_scope = scope.strip() or 'personal'
+    engine.canonical_facts.ensure_fresh(scope=effective_scope)
+    return engine.canonical_facts.history(
+        scope=effective_scope,
+        canonical_key=canonical_key,
+        fact_id=fact_id,
+        limit=max(1, min(limit, 1000)),
+    )
+
+
+@app.post('/api/assistant/canonical-facts/sync')
+def assistant_canonical_facts_sync(
+    request: Request,
+    scope: str = 'personal',
+) -> dict:
+    _local_only(request)
+    return engine.canonical_facts.sync_scope(
+        scope=scope.strip() or 'personal',
+    )
 
 
 @app.get('/api/assistant/knowledge-lifecycle')

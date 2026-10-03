@@ -152,25 +152,50 @@ def assert_desktop(driver: webdriver.Chrome) -> None:
 
 
 def assert_mobile(driver: webdriver.Chrome) -> None:
-    driver.set_window_size(390, 844)
-    time.sleep(0.6)
+    # Use Chrome's real mobile viewport emulation instead of merely narrowing
+    # a desktop window. A desktop vertical scrollbar consumes ~15 CSS px and
+    # can create a false horizontal-overflow signal at narrow widths.
+    driver.execute_cdp_cmd(
+        "Emulation.setDeviceMetricsOverride",
+        {
+            "width": 390,
+            "height": 844,
+            "deviceScaleFactor": 1,
+            "mobile": True,
+        },
+    )
+    driver.get(f"{BASE_URL}/#technical-brain")
+    wait_for_observatory(driver)
+    time.sleep(0.5)
+
     metrics = driver.execute_script(
         """
+        const topology = document.querySelector('.live-brain-topology');
+        const panel = topology?.closest('.live-brain-panel');
         return {
+          inner: window.innerWidth,
           client: document.documentElement.clientWidth,
           scroll: document.documentElement.scrollWidth,
-          panelScroll: document.querySelector(
-            '.live-brain-panel:has(.live-brain-topology)'
-          )?.scrollWidth || 0,
-          panelClient: document.querySelector(
-            '.live-brain-panel:has(.live-brain-topology)'
-          )?.clientWidth || 0
+          bodyScroll: document.body.scrollWidth,
+          panelScroll: panel?.scrollWidth || 0,
+          panelClient: panel?.clientWidth || 0,
+          topologyWidth: topology?.getBoundingClientRect().width || 0
         };
         """
     )
-    if int(metrics["scroll"]) > int(metrics["client"]) + 4:
+    if int(metrics["client"]) != 390:
+        raise RuntimeError(
+            "Chrome mobile emulation did not produce the requested "
+            f"390px CSS viewport: {metrics}"
+        )
+    if int(metrics["scroll"]) > int(metrics["client"]) + 2:
         raise RuntimeError(
             "Mobile page has document-level horizontal overflow: "
+            f"{metrics}"
+        )
+    if int(metrics["bodyScroll"]) > int(metrics["client"]) + 2:
+        raise RuntimeError(
+            "Mobile body has horizontal overflow: "
             f"{metrics}"
         )
     if (
@@ -181,6 +206,26 @@ def assert_mobile(driver: webdriver.Chrome) -> None:
         raise RuntimeError(
             "Mobile topology should preserve readable width inside "
             "its own scroll container."
+        )
+
+    # The inspector must remain available and usable in mobile mode too.
+    nodes = driver.find_elements(
+        By.CSS_SELECTOR, "[data-flow-node-id]"
+    )
+    if not nodes:
+        raise RuntimeError("Mobile topology rendered no interactive nodes.")
+    driver.execute_script(
+        """
+        arguments[0].dispatchEvent(
+          new MouseEvent('click', {bubbles: true, cancelable: true})
+        );
+        """,
+        nodes[-1],
+    )
+    inspector = driver.find_element(By.ID, "lb-node-inspector")
+    if not inspector.is_displayed() or not inspector.text.strip():
+        raise RuntimeError(
+            "Mobile brain node inspector is not visible after interaction."
         )
 
 

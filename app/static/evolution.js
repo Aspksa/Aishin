@@ -283,8 +283,10 @@
     ensureHomeCard();
     q("#evolution-cycle-btn")?.addEventListener("click",runCycle);
     var form=q("#chat-form");
-    if(form)form.addEventListener("submit",function(){setTimeout(load,3200);});
-    load();
+    if(form)form.addEventListener("submit",function(){
+      if(q("#evolution-module")?.classList.contains("active"))setTimeout(load,3200);
+    });
+    if(q("#evolution-module")?.classList.contains("active"))load();
   }
 
   window.AISHIN_EVOLUTION_REFRESH=load;

@@ -55,6 +55,8 @@ from .state import StateManager
 class AishinEngine:
     """Persistent identity + personal continuity + memory + replaceable AI brain."""
 
+    RUNTIME_SCOPES = ("personal", "project:aishin")
+
     def __init__(self) -> None:
         self.memory = MemorySystem()
         self.events = EventBus()
@@ -147,6 +149,7 @@ class AishinEngine:
         self.continuous_learning = ContinuousLearningEngine(
             state=self.state,
             events=self.events,
+            scopes=self.RUNTIME_SCOPES,
         )
         self.development = DevelopmentMetricsEngine()
         self.long_term_growth = LongTermGrowthEngine(events=self.events)
@@ -205,74 +208,85 @@ class AishinEngine:
         state.activity = "startup"
         state.focus = "system"
         self.state.save(state)
-        growth = self.long_term_growth.refresh(
-            scope=state.current_scope,
-            persist_snapshot=True,
-        )
-        intelligence = self.cognitive_intelligence.current(
-            scope=state.current_scope,
-            persist=True,
-        )
-        proactive_intelligence = self.proactive_intelligence.evaluate(
-            scope=state.current_scope,
-            trigger="startup",
-        )
-        evolution = self.evolution.run_cycle(
-            scope=state.current_scope,
-            trigger="startup",
-        )
-        research = self.research.bootstrap(
-            scope=state.current_scope,
-        )
-        communication = self.communication.bootstrap(
-            scope=state.current_scope,
-        )
-        documents = self.documents.bootstrap(
-            scope=state.current_scope,
-        )
-        self.events.emit(
-            "aishin.started",
-            scope=state.current_scope,
-            payload={
-                "status": state.status,
-                "ai": self.ai.health(),
-                "long_term_growth": {
-                    "overall_score": growth.get("overall_score"),
-                    "durable_skills": growth.get("skills", {}).get("durable"),
-                    "mastered_skills": growth.get("skills", {}).get("mastered"),
-                },
-                "cognitive_intelligence": {
-                    "overall_score": intelligence.get("overall_score"),
-                    "formula_version": intelligence.get("formula_version"),
-                },
-                "proactive_intelligence": proactive_intelligence.to_dict(),
-                "evolution": evolution.to_dict(),
-                "research": {
-                    "gaps_discovered": research.get("gaps_discovered"),
-                    "research_score": (
-                        research.get("state") or {}
-                    ).get("research_score"),
-                },
-                "communication": {
-                    "communication_score": communication.get(
-                        "communication_score"
+
+        ai_health = self.ai.health()
+        for scope in self.RUNTIME_SCOPES:
+            growth = self.long_term_growth.refresh(
+                scope=scope,
+                persist_snapshot=True,
+            )
+            intelligence = self.cognitive_intelligence.current(
+                scope=scope,
+                persist=True,
+            )
+            proactive_intelligence = self.proactive_intelligence.evaluate(
+                scope=scope,
+                trigger="startup",
+            )
+            evolution = self.evolution.run_cycle(
+                scope=scope,
+                trigger="startup",
+            )
+            research = self.research.bootstrap(scope=scope)
+            communication = self.communication.bootstrap(scope=scope)
+            documents = self.documents.bootstrap(scope=scope)
+
+            self.events.emit(
+                "aishin.started",
+                scope=scope,
+                payload={
+                    "status": state.status,
+                    "ai": ai_health,
+                    "runtime_scope": scope,
+                    "long_term_growth": {
+                        "overall_score": growth.get("overall_score"),
+                        "durable_skills": growth.get(
+                            "skills", {}
+                        ).get("durable"),
+                        "mastered_skills": growth.get(
+                            "skills", {}
+                        ).get("mastered"),
+                    },
+                    "cognitive_intelligence": {
+                        "overall_score": intelligence.get("overall_score"),
+                        "formula_version": intelligence.get(
+                            "formula_version"
+                        ),
+                    },
+                    "proactive_intelligence": (
+                        proactive_intelligence.to_dict()
                     ),
-                    "persona_stability": communication.get(
-                        "persona_stability"
-                    ),
+                    "evolution": evolution.to_dict(),
+                    "research": {
+                        "gaps_discovered": research.get(
+                            "gaps_discovered"
+                        ),
+                        "research_score": (
+                            research.get("state") or {}
+                        ).get("research_score"),
+                    },
+                    "communication": {
+                        "communication_score": communication.get(
+                            "communication_score"
+                        ),
+                        "persona_stability": communication.get(
+                            "persona_stability"
+                        ),
+                    },
+                    "documents": {
+                        "ingestion_score": documents.get(
+                            "ingestion_score"
+                        ),
+                        "studied_documents": documents.get(
+                            "studied_documents"
+                        ),
+                        "ocr_required_documents": documents.get(
+                            "ocr_required_documents"
+                        ),
+                    },
                 },
-                "documents": {
-                    "ingestion_score": documents.get("ingestion_score"),
-                    "studied_documents": documents.get(
-                        "studied_documents"
-                    ),
-                    "ocr_required_documents": documents.get(
-                        "ocr_required_documents"
-                    ),
-                },
-            },
-            importance=0.6,
-        )
+                importance=0.6,
+            )
 
     def snapshot(self, *, scope: str | None = None) -> dict:
         state = self.state.load()
@@ -410,7 +424,7 @@ class AishinEngine:
                 ),
             },
             "observations": [o.__dict__ for o in self.observer.inspect()],
-            "recent_events": self.events.recent(limit=10),
+            "recent_events": self.events.recent(limit=10, scope=effective_scope),
             "recent_memories": self.memory.recent(
                 scope=effective_scope,
                 limit=8,
@@ -509,7 +523,7 @@ class AishinEngine:
                 contradiction_limit=40,
                 run_limit=30,
             ),
-            "memory_changes": self.memory.recent_changes(limit=12),
+            "memory_changes": self.memory.recent_changes(\n                limit=12,\n                scope=effective_scope,\n            ),
             "recent_messages": recent_messages(
                 limit=10,
                 scope=effective_scope,

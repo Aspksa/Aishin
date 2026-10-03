@@ -1,4 +1,15 @@
 (function () {
+  function scopeValue() {
+    return window.AISHIN_SCOPE?.get?.() || "personal";
+  }
+  function scopeUrl(url) {
+    return window.AISHIN_SCOPE?.url?.(url) || url;
+  }
+  const nativeFetch = window.fetch.bind(window);
+  function fetchScope(url, options) {
+    return nativeFetch(scopeUrl(url), options);
+  }
+
   "use strict";
 
   var latestPayload = null;
@@ -355,7 +366,7 @@
   function load() {
     if (loading) return Promise.resolve(latestPayload);
     loading = true;
-    return fetch("/api/assistant/intelligence?scope=personal&history_limit=90&route_limit=30", {
+    return fetchScope("/api/assistant/intelligence?scope=personal&history_limit=90&route_limit=30", {
       cache: "no-store"
     })
       .then(function (response) {
@@ -402,4 +413,5 @@
   } else {
     boot();
   }
+  window.AISHIN_INTELLIGENCE_REFRESH = load;
 })();

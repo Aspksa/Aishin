@@ -127,10 +127,15 @@ function sendFeedback(turnId,feedback){
     .then(()=>load()).catch(err=>window.alert("Feedback не сохранён: "+(err.message||err)));
 }
 
+function moduleActive(){
+  return q("#communication-module")?.classList.contains("active")===true;
+}
 function boot(){
   const form=q("#chat-form");
-  if(form)form.addEventListener("submit",()=>setTimeout(load,2800));
-  load();
+  if(form)form.addEventListener("submit",()=>{
+    if(moduleActive())setTimeout(load,2800);
+  });
+  if(moduleActive())load();
 }
 window.AISHIN_COMMUNICATION_REFRESH=load;
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();

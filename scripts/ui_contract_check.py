@@ -65,6 +65,7 @@ def main() -> int:
     required_ids = {
         "scope-select",
         "scope-context-label",
+        "technical-brain",
         "chat-form",
         "development-module",
         "attention-module",

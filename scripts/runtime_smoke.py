@@ -111,8 +111,8 @@ def main() -> int:
                 'id="documents-upload-btn"',
                 'id="scope-select"',
                 'value="project:aishin"',
-                '/static/app.js?v=0.0.14',
-                '/static/live_brain.js?v=0.0.14',
+                '/static/app.js?v=0.0.15',
+                '/static/live_brain.js?v=0.0.15',
                 'role="dialog"',
                 'aria-modal="true"',
             )
@@ -162,18 +162,18 @@ def main() -> int:
                     f"/health returned HTTP {health.status_code}: {health.text[:300]}"
                 )
             health_data = health.json()
-            if health_data.get("version") != "0.0.14":
+            if health_data.get("version") != "0.0.15":
                 raise RuntimeError(
-                    "Health должен сообщать Aishin Core 0.0.14"
+                    "Health должен сообщать Aishin Core 0.0.15"
                 )
             with connect() as conn:
                 schema_row = conn.execute(
                     "SELECT MAX(version) AS version FROM schema_migrations"
                 ).fetchone()
             schema_version = int(schema_row["version"] or 0)
-            if schema_version != 25:
+            if schema_version != 26:
                 raise RuntimeError(
-                    f"Ожидалась database schema 25, получено {schema_version}"
+                    f"Ожидалась database schema 26, получено {schema_version}"
                 )
             checks["health"] = {
                 **health_data,
@@ -1162,6 +1162,1105 @@ def main() -> int:
                 raise RuntimeError(
                     "Knowledge Lifecycle должен соблюдать scope isolation"
                 )
+
+            canonical_scope = "smoke:canonical-facts"
+            with connect() as conn:
+                conn.execute(
+                    "DELETE FROM canonical_fact_events WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM canonical_fact_links WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM canonical_fact_evidence WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM canonical_fact_values WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM canonical_facts WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM knowledge_learning_events WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM knowledge_transitions WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM knowledge_evidence WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    """UPDATE knowledge_claims
+                       SET superseded_by_id=NULL
+                       WHERE scope=?""",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM knowledge_claims WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM relations WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM graph_changes WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM entities WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM memories WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_contradictions WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_claims WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_evidence WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_sessions WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_gaps WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_cycles WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_events WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_sources WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM research_state WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_contradictions WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_facts WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_ingestion_runs WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_events WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_chunk_vectors WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_chunks WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_sections WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM document_pages WHERE scope=?",
+                    (canonical_scope,),
+                )
+                conn.execute(
+                    "DELETE FROM documents WHERE scope=?",
+                    (canonical_scope,),
+                )
+
+                def insert_document(
+                    *,
+                    sha: str,
+                    filename: str,
+                    family: str,
+                    rank: int,
+                    previous: int | None = None,
+                ) -> int:
+                    cur = conn.execute(
+                        """INSERT INTO documents(
+                               scope, sha256, filename, media_type, extension,
+                               size_bytes, storage_path, status, parser,
+                               parser_version, document_type, family_key,
+                               version_label, version_rank, previous_version_id,
+                               quality_score, extraction_coverage, studied_at
+                           ) VALUES (
+                               ?, ?, ?, 'text/plain', '.txt', 100, ?,
+                               'studied', 'runtime_smoke', '1',
+                               'regulation', ?, ?, ?, ?, 0.96, 1.0,
+                               CURRENT_TIMESTAMP
+                           )""",
+                        (
+                            canonical_scope,
+                            sha,
+                            filename,
+                            f"smoke/{filename}",
+                            family,
+                            f"v{rank}",
+                            rank,
+                            previous,
+                        ),
+                    )
+                    return int(cur.lastrowid)
+
+                def insert_fact(
+                    *,
+                    document_id: int,
+                    fact_key: str,
+                    subject: str,
+                    value: str,
+                    normalized: str,
+                    fact_type: str = "key_value",
+                    confidence: float = 0.95,
+                ) -> int:
+                    cur = conn.execute(
+                        """INSERT INTO document_facts(
+                               scope, document_id, fact_key, subject,
+                               predicate, value, normalized_value, fact_type,
+                               confidence, status, provenance_json
+                           ) VALUES (
+                               ?, ?, ?, ?, 'has_value', ?, ?, ?, ?,
+                               'grounded', ?
+                           )""",
+                        (
+                            canonical_scope,
+                            document_id,
+                            fact_key,
+                            subject,
+                            value,
+                            normalized,
+                            fact_type,
+                            confidence,
+                            json.dumps(
+                                {
+                                    "runtime_smoke": True,
+                                    "document_id": document_id,
+                                },
+                                ensure_ascii=False,
+                            ),
+                        ),
+                    )
+                    return int(cur.lastrowid)
+
+                power_a = insert_document(
+                    sha="a" * 64,
+                    filename="power-a.txt",
+                    family="power-source-a",
+                    rank=1,
+                )
+                power_b = insert_document(
+                    sha="b" * 64,
+                    filename="power-b.txt",
+                    family="power-source-b",
+                    rank=1,
+                )
+                insert_fact(
+                    document_id=power_a,
+                    fact_key="engine_power:has_value",
+                    subject="Engine power",
+                    value="100 kW",
+                    normalized="100 kw",
+                    confidence=0.94,
+                )
+                insert_fact(
+                    document_id=power_b,
+                    fact_key="engine_power:has_value",
+                    subject="Engine power",
+                    value="100 kW",
+                    normalized="100 kw",
+                    confidence=0.92,
+                )
+
+                limit_old = insert_document(
+                    sha="c" * 64,
+                    filename="fuel-limit-v1.txt",
+                    family="fuel-regulation",
+                    rank=1,
+                )
+                limit_new = insert_document(
+                    sha="d" * 64,
+                    filename="fuel-limit-v2.txt",
+                    family="fuel-regulation",
+                    rank=2,
+                    previous=limit_old,
+                )
+                insert_fact(
+                    document_id=limit_old,
+                    fact_key="fuel_limit:has_value",
+                    subject="Fuel limit",
+                    value="120 liters",
+                    normalized="120 liters",
+                    confidence=0.95,
+                )
+                insert_fact(
+                    document_id=limit_new,
+                    fact_key="fuel_limit:has_value",
+                    subject="Fuel limit",
+                    value="130 liters",
+                    normalized="130 liters",
+                    confidence=0.95,
+                )
+
+                interval_a = insert_document(
+                    sha="e" * 64,
+                    filename="interval-a.txt",
+                    family="interval-source-a",
+                    rank=1,
+                )
+                interval_b = insert_document(
+                    sha="f" * 64,
+                    filename="interval-b.txt",
+                    family="interval-source-b",
+                    rank=1,
+                )
+                insert_fact(
+                    document_id=interval_a,
+                    fact_key="service_interval:has_value",
+                    subject="Service interval",
+                    value="10000 km",
+                    normalized="10000 km",
+                    confidence=0.96,
+                )
+                insert_fact(
+                    document_id=interval_b,
+                    fact_key="service_interval:has_value",
+                    subject="Service interval",
+                    value="15000 km",
+                    normalized="15000 km",
+                    confidence=0.96,
+                )
+
+                mixed_a_v1 = insert_document(
+                    sha="3" * 64,
+                    filename="mixed-a-v1.txt",
+                    family="mixed-family-a",
+                    rank=1,
+                )
+                mixed_a_v2 = insert_document(
+                    sha="4" * 64,
+                    filename="mixed-a-v2.txt",
+                    family="mixed-family-a",
+                    rank=2,
+                    previous=mixed_a_v1,
+                )
+                mixed_b = insert_document(
+                    sha="5" * 64,
+                    filename="mixed-b.txt",
+                    family="mixed-family-b",
+                    rank=1,
+                )
+                insert_fact(
+                    document_id=mixed_a_v1,
+                    fact_key="mixed_limit:has_value",
+                    subject="Mixed limit",
+                    value="20 units",
+                    normalized="20 units",
+                    confidence=0.95,
+                )
+                insert_fact(
+                    document_id=mixed_a_v2,
+                    fact_key="mixed_limit:has_value",
+                    subject="Mixed limit",
+                    value="30 units",
+                    normalized="30 units",
+                    confidence=0.95,
+                )
+                insert_fact(
+                    document_id=mixed_b,
+                    fact_key="mixed_limit:has_value",
+                    subject="Mixed limit",
+                    value="30 units",
+                    normalized="30 units",
+                    confidence=0.95,
+                )
+
+                meta_a = insert_document(
+                    sha="1" * 64,
+                    filename="meta-a.txt",
+                    family="meta-a",
+                    rank=1,
+                )
+                meta_b = insert_document(
+                    sha="2" * 64,
+                    filename="meta-b.txt",
+                    family="meta-b",
+                    rank=1,
+                )
+                insert_fact(
+                    document_id=meta_a,
+                    fact_key="document:mentions_date",
+                    subject="document",
+                    value="2026-01-01",
+                    normalized="2026-01-01",
+                    fact_type="date",
+                    confidence=0.94,
+                )
+                insert_fact(
+                    document_id=meta_b,
+                    fact_key="document:mentions_date",
+                    subject="document",
+                    value="2026-02-01",
+                    normalized="2026-02-01",
+                    fact_type="date",
+                    confidence=0.94,
+                )
+
+                research_session = int(
+                    conn.execute(
+                        """INSERT INTO research_sessions(
+                               scope, question, trigger, status,
+                               evidence_count, independent_groups,
+                               claim_count, completed_at
+                           ) VALUES (
+                               ?, 'Oil specification', 'runtime_smoke',
+                               'completed', 2, 2, 1, CURRENT_TIMESTAMP
+                           )""",
+                        (canonical_scope,),
+                    ).lastrowid
+                )
+                research_evidence_ids = []
+                for idx, group in enumerate(("manual:a", "manual:b"), 1):
+                    evidence_id = int(
+                        conn.execute(
+                            """INSERT INTO research_evidence(
+                                   scope, session_id, evidence_key,
+                                   source_type, source_ref, source_group,
+                                   title, content, stance, reliability,
+                                   relevance, freshness, independence,
+                                   evidence_score, content_hash, metadata_json
+                               ) VALUES (
+                                   ?, ?, ?, 'manual', ?, ?,
+                                   'Oil manual', 'Oil specification is 5W-30',
+                                   'support', 0.95, 0.95, 1.0, 1.0,
+                                   0.93, ?, '{}'
+                               )""",
+                            (
+                                canonical_scope,
+                                research_session,
+                                f"runtime-evidence-{idx}",
+                                f"manual-{idx}",
+                                group,
+                                f"hash-{idx}",
+                            ),
+                        ).lastrowid
+                    )
+                    research_evidence_ids.append(evidence_id)
+
+                research_claim_id = int(
+                    conn.execute(
+                        """INSERT INTO research_claims(
+                               scope, claim_key, session_id, statement,
+                               status, confidence, weighted_support,
+                               support_count, independent_groups,
+                               source_diversity, support_evidence_json
+                           ) VALUES (
+                               ?, 'oil_spec_claim', ?,
+                               'Oil specification is 5W-30',
+                               'trusted', 0.93, 0.93, 2, 2, 1, ?
+                           )""",
+                        (
+                            canonical_scope,
+                            research_session,
+                            json.dumps(research_evidence_ids),
+                        ),
+                    ).lastrowid
+                )
+                promoted_memory_id = int(
+                    conn.execute(
+                        """INSERT INTO memories(
+                               scope, kind, content, confidence, importance,
+                               tags_json, source, fingerprint, memory_key,
+                               status
+                           ) VALUES (
+                               ?, 'researched_knowledge',
+                               'Oil specification is 5W-30',
+                               0.93, 0.8, '["research"]', ?, ?,
+                               'research_claim:oil_spec_claim', 'active'
+                           )""",
+                        (
+                            canonical_scope,
+                            f"autonomous_research:claim:{research_claim_id}",
+                            f"runtime-memory-{research_claim_id}",
+                        ),
+                    ).lastrowid
+                )
+                promoted_entity_id = int(
+                    conn.execute(
+                        """INSERT INTO entities(
+                               scope, entity_type, canonical_name, data_json
+                           ) VALUES (?, 'research_claim', ?, ?)""",
+                        (
+                            canonical_scope,
+                            f"Claim {research_claim_id}",
+                            json.dumps(
+                                {
+                                    "statement": "Oil specification is 5W-30",
+                                    "provenance": {
+                                        "research_claim_id": research_claim_id
+                                    },
+                                },
+                                ensure_ascii=False,
+                            ),
+                        ),
+                    ).lastrowid
+                )
+                conn.execute(
+                    """UPDATE research_claims
+                       SET promoted_memory_id=?, promoted_entity_id=?,
+                           promoted_at=CURRENT_TIMESTAMP
+                       WHERE id=?""",
+                    (
+                        promoted_memory_id,
+                        promoted_entity_id,
+                        research_claim_id,
+                    ),
+                )
+
+                graph_source = int(
+                    conn.execute(
+                        """INSERT INTO entities(
+                               scope, entity_type, canonical_name, data_json
+                           ) VALUES (?, 'vehicle', 'Runtime Car', '{}')""",
+                        (canonical_scope,),
+                    ).lastrowid
+                )
+                graph_target = int(
+                    conn.execute(
+                        """INSERT INTO entities(
+                               scope, entity_type, canonical_name, data_json
+                           ) VALUES (?, 'part', 'Runtime Filter', '{}')""",
+                        (canonical_scope,),
+                    ).lastrowid
+                )
+                conn.execute(
+                    """INSERT INTO relations(
+                           scope, source_entity_id, relation_type,
+                           target_entity_id, confidence, evidence
+                       ) VALUES (?, ?, 'uses', ?, 0.91, 'runtime graph')""",
+                    (canonical_scope, graph_source, graph_target),
+                )
+                conn.commit()
+
+            canonical_sync = engine.canonical_facts.sync_scope(
+                scope=canonical_scope,
+            )
+            canonical_summary = canonical_sync.get("summary") or {}
+            if canonical_summary.get("version") != "aishin-canonical-facts-v1":
+                raise RuntimeError("Canonical Facts version mismatch")
+
+            canonical_facts = engine.canonical_facts.facts(
+                scope=canonical_scope,
+                limit=100,
+            )
+            power_fact = next(
+                (
+                    item
+                    for item in canonical_facts
+                    if "engine_power:has_value" in item.get("canonical_key", "")
+                ),
+                None,
+            )
+            if (
+                not power_fact
+                or power_fact.get("state") != "verified"
+                or power_fact.get("current_value") != "100 kW"
+                or int(power_fact.get("independent_groups") or 0) != 2
+            ):
+                raise RuntimeError(
+                    "Two independent document families must verify one "
+                    "structured canonical fact"
+                )
+
+            power_groups = {
+                str(evidence.get("independence_group"))
+                for value in power_fact.get("values") or []
+                for evidence in value.get("evidence") or []
+                if evidence.get("active") and evidence.get("is_independent")
+            }
+            if power_groups != {
+                "document_family:power-source-a",
+                "document_family:power-source-b",
+            }:
+                raise RuntimeError(
+                    "Canonical document independence groups are incorrect"
+                )
+
+            fuel_fact = next(
+                (
+                    item
+                    for item in canonical_facts
+                    if "fuel_limit:has_value" in item.get("canonical_key", "")
+                ),
+                None,
+            )
+            if (
+                not fuel_fact
+                or fuel_fact.get("current_value") != "130 liters"
+                or int(fuel_fact.get("active_values") or 0) != 1
+            ):
+                raise RuntimeError(
+                    "Latest document version must become current canonical value"
+                )
+            fuel_values = fuel_fact.get("values") or []
+            old_fuel = next(
+                (
+                    item
+                    for item in fuel_values
+                    if item.get("display_value") == "120 liters"
+                ),
+                None,
+            )
+            new_fuel = next(
+                (
+                    item
+                    for item in fuel_values
+                    if item.get("display_value") == "130 liters"
+                ),
+                None,
+            )
+            if (
+                not old_fuel
+                or not new_fuel
+                or old_fuel.get("state") != "superseded"
+                or int(old_fuel.get("superseded_by_value_id") or 0)
+                != int(new_fuel["id"])
+            ):
+                raise RuntimeError(
+                    "Document version history must preserve 120 -> 130 supersession"
+                )
+
+            fuel_history = engine.canonical_facts.history(
+                scope=canonical_scope,
+                fact_id=int(fuel_fact["id"]),
+            )
+            if not any(
+                item.get("event_type")
+                == "value_superseded_by_document_version"
+                for item in fuel_history.get("events") or []
+            ):
+                raise RuntimeError(
+                    "Canonical history must audit document-version supersession"
+                )
+
+            with connect() as conn:
+                conn.execute(
+                    """UPDATE documents
+                       SET status='failed', updated_at=CURRENT_TIMESTAMP
+                       WHERE id=? AND scope=?""",
+                    (limit_new, canonical_scope),
+                )
+                conn.commit()
+            engine.canonical_facts.sync_scope(scope=canonical_scope)
+            rolled_back_fuel = engine.canonical_facts.fact(
+                int(fuel_fact["id"]),
+                scope=canonical_scope,
+            )
+            if (
+                not rolled_back_fuel
+                or rolled_back_fuel.get("current_value") != "120 liters"
+                or rolled_back_fuel.get("state") == "empty"
+            ):
+                raise RuntimeError(
+                    "Removing latest document version must reactivate previous "
+                    "canonical value with its intrinsic evidence state"
+                )
+
+            with connect() as conn:
+                conn.execute(
+                    """UPDATE documents
+                       SET status='studied', updated_at=CURRENT_TIMESTAMP
+                       WHERE id=? AND scope=?""",
+                    (limit_new, canonical_scope),
+                )
+                conn.commit()
+            engine.canonical_facts.sync_scope(scope=canonical_scope)
+            restored_fuel = engine.canonical_facts.fact(
+                int(fuel_fact["id"]),
+                scope=canonical_scope,
+            )
+            if (
+                not restored_fuel
+                or restored_fuel.get("current_value") != "130 liters"
+            ):
+                raise RuntimeError(
+                    "Restoring latest document version must restore canonical "
+                    "current value 130 liters"
+                )
+            restored_history = engine.canonical_facts.history(
+                scope=canonical_scope,
+                fact_id=int(fuel_fact["id"]),
+            )
+            if not any(
+                item.get("event_type")
+                == "value_reactivated_by_document_lineage"
+                for item in restored_history.get("events") or []
+            ):
+                raise RuntimeError(
+                    "Canonical history must audit value reactivation"
+                )
+
+            interval_fact = next(
+                (
+                    item
+                    for item in canonical_facts
+                    if "service_interval:has_value"
+                    in item.get("canonical_key", "")
+                ),
+                None,
+            )
+            if (
+                not interval_fact
+                or interval_fact.get("state") != "conflicted"
+                or int(interval_fact.get("active_values") or 0) != 2
+            ):
+                raise RuntimeError(
+                    "Independent conflicting structured values must remain conflicted"
+                )
+
+            mixed_fact = next(
+                (
+                    item
+                    for item in canonical_facts
+                    if "mixed_limit:has_value"
+                    in item.get("canonical_key", "")
+                ),
+                None,
+            )
+            if (
+                not mixed_fact
+                or mixed_fact.get("state") != "verified"
+                or mixed_fact.get("current_value") != "30 units"
+                or int(mixed_fact.get("independent_groups") or 0) != 2
+                or int(mixed_fact.get("active_values") or 0) != 1
+            ):
+                raise RuntimeError(
+                    "Historical evidence in one family must not create a "
+                    "false cross-family conflict"
+                )
+            mixed_old = next(
+                (
+                    item
+                    for item in mixed_fact.get("values") or []
+                    if item.get("display_value") == "20 units"
+                ),
+                None,
+            )
+            if not mixed_old or mixed_old.get("state") != "superseded":
+                raise RuntimeError(
+                    "Old mixed-family value must remain audited as superseded"
+                )
+            mixed_current_groups = {
+                str(evidence.get("independence_group"))
+                for value in mixed_fact.get("values") or []
+                if value.get("display_value") == "30 units"
+                for evidence in value.get("evidence") or []
+                if evidence.get("active") and evidence.get("is_independent")
+            }
+            if mixed_current_groups != {
+                "document_family:mixed-family-a",
+                "document_family:mixed-family-b",
+            }:
+                raise RuntimeError(
+                    "Current mixed value must retain exactly two current "
+                    "independent document families"
+                )
+
+            generic_dates = [
+                item
+                for item in canonical_facts
+                if item.get("predicate") == "has_value"
+                and item.get("fact_type") == "date"
+            ]
+            if len(generic_dates) != 2:
+                raise RuntimeError(
+                    "Generic document metadata must stay family-scoped"
+                )
+
+            research_fact = next(
+                (
+                    item
+                    for item in canonical_facts
+                    if item.get("canonical_key")
+                    == "research:oil_spec_claim"
+                ),
+                None,
+            )
+            if (
+                not research_fact
+                or research_fact.get("state") != "verified"
+                or int(research_fact.get("independent_groups") or 0) != 2
+            ):
+                raise RuntimeError(
+                    "Trusted Research evidence must project as canonical verified"
+                )
+            research_links = {
+                (item.get("linked_type"), item.get("relation"))
+                for item in research_fact.get("links") or []
+            }
+            if not {
+                ("research_claim", "canonical_source"),
+                ("memory", "derived_promotion"),
+                ("graph_entity", "derived_promotion"),
+            }.issubset(research_links):
+                raise RuntimeError(
+                    "Research -> Memory -> Graph lineage links are incomplete"
+                )
+            research_primary_groups = {
+                str(evidence.get("independence_group"))
+                for value in research_fact.get("values") or []
+                for evidence in value.get("evidence") or []
+                if evidence.get("active") and evidence.get("is_independent")
+            }
+            if research_primary_groups != {"manual:a", "manual:b"}:
+                raise RuntimeError(
+                    "Derived Memory/Graph promotions must not add independent votes"
+                )
+
+            graph_fact = next(
+                (
+                    item
+                    for item in canonical_facts
+                    if item.get("namespace") == "graph"
+                    and item.get("predicate") == "uses"
+                ),
+                None,
+            )
+            if (
+                not graph_fact
+                or graph_fact.get("state") != "observed"
+                or int(graph_fact.get("independent_groups") or 0) != 0
+            ):
+                raise RuntimeError(
+                    "Knowledge Graph projection must not self-confirm as primary evidence"
+                )
+
+            canonical_claims = [
+                item
+                for item in engine.knowledge_lifecycle.claims(
+                    scope=canonical_scope,
+                    limit=100,
+                )
+                if item.get("origin_type") == "canonical_fact"
+            ]
+            if not any(
+                item.get("state") == "verified"
+                and "100 kW" in str(item.get("statement") or "")
+                for item in canonical_claims
+            ):
+                raise RuntimeError(
+                    "Verified canonical fact did not project into Knowledge Lifecycle"
+                )
+
+            canonical_reasoning = engine.canonical_facts.reasoning_evidence(
+                "engine power 100 kW",
+                scope=canonical_scope,
+                limit=4,
+            )
+            canonical_reasoning_groups = {
+                str(item.get("source_group"))
+                for item in canonical_reasoning
+            }
+            if not {
+                "document_family:power-source-a",
+                "document_family:power-source-b",
+            }.issubset(canonical_reasoning_groups):
+                raise RuntimeError(
+                    "Canonical reasoning evidence lost primary source groups"
+                )
+            if not all(
+                item.get("trust_boundary")
+                == "derived_canonical_projection"
+                for item in canonical_reasoning
+            ):
+                raise RuntimeError(
+                    "Canonical reasoning evidence must keep derived trust boundary"
+                )
+
+            with connect() as conn:
+                power_c = int(
+                    conn.execute(
+                        """INSERT INTO documents(
+                               scope, sha256, filename, media_type, extension,
+                               size_bytes, storage_path, status, parser,
+                               parser_version, document_type, family_key,
+                               version_label, version_rank, quality_score,
+                               extraction_coverage, studied_at
+                           ) VALUES (
+                               ?, ?, 'power-c.txt', 'text/plain', '.txt',
+                               100, 'smoke/power-c.txt', 'studied',
+                               'runtime_smoke', '1', 'regulation',
+                               'power-source-c', 'v1', 1, 0.96, 1.0,
+                               CURRENT_TIMESTAMP
+                           )""",
+                        (canonical_scope, "6" * 64),
+                    ).lastrowid
+                )
+                conn.execute(
+                    """INSERT INTO document_facts(
+                           scope, document_id, fact_key, subject, predicate,
+                           value, normalized_value, fact_type, confidence,
+                           status, provenance_json
+                       ) VALUES (
+                           ?, ?, 'engine_power:has_value', 'Engine power',
+                           'has_value', '110 kW', '110 kw', 'key_value',
+                           0.96, 'grounded', ?
+                       )""",
+                    (
+                        canonical_scope,
+                        power_c,
+                        json.dumps(
+                            {
+                                "runtime_smoke": True,
+                                "document_id": power_c,
+                            },
+                            ensure_ascii=False,
+                        ),
+                    ),
+                )
+                conn.commit()
+            engine.canonical_facts.sync_scope(scope=canonical_scope)
+            conflicted_power = engine.canonical_facts.fact(
+                int(power_fact["id"]),
+                scope=canonical_scope,
+            )
+            if not conflicted_power or conflicted_power.get("state") != "conflicted":
+                raise RuntimeError(
+                    "New independent conflicting value must invalidate "
+                    "previous canonical verification"
+                )
+            projected_after_conflict = [
+                item
+                for item in engine.knowledge_lifecycle.claims(
+                    scope=canonical_scope,
+                    limit=100,
+                )
+                if item.get("origin_request_id")
+                == f"canonical:{power_fact['canonical_key']}"
+            ]
+            if (
+                not projected_after_conflict
+                or any(
+                    item.get("state") == "verified"
+                    for item in projected_after_conflict
+                )
+                or not any(
+                    item.get("state") == "contradicted"
+                    for item in projected_after_conflict
+                )
+            ):
+                raise RuntimeError(
+                    "Canonical conflict must remove stale verified status "
+                    "from Knowledge Lifecycle"
+                )
+
+            with connect() as conn:
+                conn.execute(
+                    """UPDATE documents SET status='failed',
+                       updated_at=CURRENT_TIMESTAMP
+                       WHERE scope=? AND id IN (?, ?, ?)""",
+                    (
+                        canonical_scope,
+                        power_a,
+                        power_b,
+                        power_c,
+                    ),
+                )
+                conn.commit()
+            engine.canonical_facts.sync_scope(scope=canonical_scope)
+            empty_power = engine.canonical_facts.fact(
+                int(power_fact["id"]),
+                scope=canonical_scope,
+            )
+            if not empty_power or empty_power.get("state") != "empty":
+                raise RuntimeError(
+                    "Canonical fact with no active persisted source must become empty"
+                )
+            projected_after_loss = [
+                item
+                for item in engine.knowledge_lifecycle.claims(
+                    scope=canonical_scope,
+                    limit=100,
+                )
+                if item.get("origin_request_id")
+                == f"canonical:{power_fact['canonical_key']}"
+            ]
+            if (
+                not projected_after_loss
+                or any(
+                    item.get("state") == "verified"
+                    for item in projected_after_loss
+                )
+                or not all(
+                    item.get("state") == "superseded"
+                    for item in projected_after_loss
+                )
+            ):
+                raise RuntimeError(
+                    "Loss of all canonical evidence must supersede stale "
+                    "Knowledge Lifecycle projections"
+                )
+
+            with connect() as conn:
+                conn.execute(
+                    """UPDATE documents SET status='studied',
+                       updated_at=CURRENT_TIMESTAMP
+                       WHERE scope=? AND id IN (?, ?)""",
+                    (canonical_scope, power_a, power_b),
+                )
+                conn.commit()
+            engine.canonical_facts.sync_scope(scope=canonical_scope)
+            restored_power = engine.canonical_facts.fact(
+                int(power_fact["id"]),
+                scope=canonical_scope,
+            )
+            if (
+                not restored_power
+                or restored_power.get("state") != "verified"
+                or restored_power.get("current_value") != "100 kW"
+            ):
+                raise RuntimeError(
+                    "Restored primary sources must restore canonical verification"
+                )
+            projected_after_restore = [
+                item
+                for item in engine.knowledge_lifecycle.claims(
+                    scope=canonical_scope,
+                    limit=100,
+                )
+                if item.get("origin_request_id")
+                == f"canonical:{power_fact['canonical_key']}"
+            ]
+            if not any(
+                item.get("state") == "verified"
+                for item in projected_after_restore
+            ):
+                raise RuntimeError(
+                    "Knowledge Lifecycle must restore verification when "
+                    "canonical primary evidence returns"
+                )
+
+            canonical_api = client.get(
+                "/api/assistant/canonical-facts",
+                params={"scope": canonical_scope, "limit": 100},
+            )
+            if canonical_api.status_code != 200:
+                raise RuntimeError("Canonical Facts API недоступен")
+            canonical_api_data = canonical_api.json()
+            if (
+                canonical_api_data.get("summary", {}).get("version")
+                != "aishin-canonical-facts-v1"
+            ):
+                raise RuntimeError("Canonical Facts API version mismatch")
+
+            fuel_api = client.get(
+                "/api/assistant/canonical-facts/history",
+                params={
+                    "scope": canonical_scope,
+                    "fact_id": int(fuel_fact["id"]),
+                },
+            )
+            if (
+                fuel_api.status_code != 200
+                or len(fuel_api.json().get("values") or []) != 2
+            ):
+                raise RuntimeError(
+                    "Canonical fact history API did not return value lineage"
+                )
+
+            guarded_sync = client.post(
+                "/api/assistant/canonical-facts/sync",
+                params={"scope": canonical_scope},
+            )
+            if guarded_sync.status_code != 403:
+                raise RuntimeError(
+                    "Canonical Facts sync API must preserve local-only guard"
+                )
+
+            first_summary = engine.canonical_facts.summary(
+                scope=canonical_scope,
+            )
+            second_sync = engine.canonical_facts.sync_scope(
+                scope=canonical_scope,
+            )
+            second_summary = second_sync.get("summary") or {}
+            for key in (
+                "facts",
+                "values",
+                "active_evidence",
+                "independent_groups",
+                "superseded_values",
+            ):
+                if first_summary.get(key) != second_summary.get(key):
+                    raise RuntimeError(
+                        f"Canonical Facts sync is not idempotent for {key}"
+                    )
+
+            empty_scope = "smoke:canonical-empty"
+            empty_api = client.get(
+                "/api/assistant/canonical-facts",
+                params={"scope": empty_scope, "limit": 20},
+            )
+            if (
+                empty_api.status_code != 200
+                or empty_api.json().get("summary", {}).get("scope")
+                != empty_scope
+                or int(
+                    empty_api.json().get("summary", {}).get("facts") or 0
+                ) != 0
+            ):
+                raise RuntimeError(
+                    "Canonical Facts must preserve strict scope isolation"
+                )
+
+            checks["canonical_facts"] = {
+                "status": "ok",
+                "version": canonical_summary.get("version"),
+                "verified": (
+                    canonical_summary.get("states") or {}
+                ).get("verified"),
+                "conflicted": (
+                    canonical_summary.get("states") or {}
+                ).get("conflicted"),
+                "superseded_values": canonical_summary.get(
+                    "superseded_values"
+                ),
+                "cross_document_fusion": True,
+                "generic_metadata_isolated": True,
+                "research_memory_graph_lineage": True,
+                "derived_sources_do_not_self_confirm": True,
+                "lifecycle_conflict_invalidation": True,
+                "lifecycle_source_loss_invalidation": True,
+                "history_audited": True,
+                "evidence_level_version_pruning": True,
+                "idempotent_sync": True,
+            }
 
             checks["response_grounding"] = {
                 "status": "ok",
@@ -3463,6 +4562,22 @@ def main() -> int:
                     "Live Brain должен включать Knowledge Lifecycle"
                 )
 
+            if not isinstance(
+                live_brain_data.get("canonical_facts"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Live Brain должен включать Canonical Facts"
+                )
+            canonical_live_summary = (
+                live_brain_data.get("canonical_facts", {}).get("summary")
+                or {}
+            )
+            if canonical_live_summary.get("version") != "aishin-canonical-facts-v1":
+                raise RuntimeError(
+                    "Live Brain Canonical Facts version mismatch"
+                )
+
             checks["live_brain_runtime"] = {
                 "status": "ok",
                 "runtime_version": live_brain_data.get("runtime_version"),
@@ -3474,6 +4589,7 @@ def main() -> int:
                 "export_version": export_data.get("format_version"),
                 "brain_flow_version": topology.get("version"),
                 "concurrency_safe": True,
+                "canonical_facts": True,
             }
 
             performance = client.get(

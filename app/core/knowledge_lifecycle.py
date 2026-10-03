@@ -303,6 +303,300 @@ class KnowledgeLifecycleEngine:
         )
         return self._claim(int(old_claim_id)) or {}
 
+    def update_canonical_status(
+        self,
+        *,
+        scope: str,
+        canonical_key: str,
+        canonical_state: str,
+        confidence: float = 0.0,
+    ) -> dict:
+        """Propagate canonical conflict/absence so stale verified claims cannot survive."""
+        canonical_key = str(canonical_key or "").strip()
+        if not canonical_key:
+            return {"updated": 0, "state": "ignored"}
+        if canonical_state not in {"conflicted", "empty"}:
+            return {"updated": 0, "state": "ignored"}
+
+        origin_request_id = f"canonical:{canonical_key}"[:1000]
+        target_state = (
+            "contradicted" if canonical_state == "conflicted"
+            else "superseded"
+        )
+        with connect() as conn:
+            rows = conn.execute(
+                """SELECT id, state FROM knowledge_claims
+                   WHERE scope=? AND origin_type='canonical_fact'
+                     AND origin_request_id=?
+                     AND state<>'superseded'
+                   ORDER BY id""",
+                (scope, origin_request_id),
+            ).fetchall()
+
+        updated = 0
+        for row in rows:
+            claim_id = int(row["id"])
+            old_state = str(row["state"])
+            if old_state == target_state:
+                continue
+            with connect() as conn:
+                if target_state == "contradicted":
+                    conn.execute(
+                        """UPDATE knowledge_claims
+                           SET state='contradicted',
+                               contradiction_score=?,
+                               contradiction_groups=MAX(contradiction_groups, 1),
+                               contradicted_at=COALESCE(
+                                   contradicted_at,
+                                   CURRENT_TIMESTAMP
+                               ),
+                               updated_at=CURRENT_TIMESTAMP
+                           WHERE id=?""",
+                        (
+                            max(0.0, min(1.0, float(confidence))),
+                            claim_id,
+                        ),
+                    )
+                else:
+                    conn.execute(
+                        """UPDATE knowledge_claims
+                           SET state='superseded',
+                               superseded_by_id=NULL,
+                               superseded_at=COALESCE(
+                                   superseded_at,
+                                   CURRENT_TIMESTAMP
+                               ),
+                               updated_at=CURRENT_TIMESTAMP
+                           WHERE id=?""",
+                        (claim_id,),
+                    )
+                conn.commit()
+            self._transition(
+                scope,
+                claim_id,
+                old_state,
+                target_state,
+                (
+                    "canonical_fact_conflicted"
+                    if target_state == "contradicted"
+                    else "canonical_fact_no_active_evidence"
+                ),
+                {
+                    "canonical_key": canonical_key,
+                    "canonical_state": canonical_state,
+                    "confidence": confidence,
+                },
+            )
+            updated += 1
+
+        return {
+            "updated": updated,
+            "state": target_state,
+            "canonical_key": canonical_key,
+        }
+
+    def observe_canonical_fact(
+        self,
+        *,
+        scope: str,
+        canonical_key: str,
+        normalized_value: str,
+        statement: str,
+        canonical_state: str,
+        confidence: float,
+        evidence: list[dict],
+    ) -> dict:
+        """Project Canonical Facts into Lifecycle without duplicating scoring."""
+        scope = (scope or "personal").strip() or "personal"
+        canonical_key = str(canonical_key or "").strip()
+        statement = " ".join(str(statement or "").split())[:1200]
+        if not canonical_key or not statement:
+            return {"claim_id": None, "state": "ignored"}
+
+        mapped_state = (
+            canonical_state
+            if canonical_state in {"observed", "supported", "verified"}
+            else "observed"
+        )
+        origin_request_id = f"canonical:{canonical_key}"[:1000]
+        claim_key = self._hash(
+            f"canonical:{canonical_key}:{normalized_value}"
+        )
+
+        with connect() as conn:
+            row = conn.execute(
+                """SELECT id, state FROM knowledge_claims
+                   WHERE scope=? AND claim_key=?""",
+                (scope, claim_key),
+            ).fetchone()
+            if row:
+                claim_id = int(row["id"])
+                old_state = str(row["state"])
+                conn.execute(
+                    """UPDATE knowledge_claims
+                       SET statement=?, origin_type='canonical_fact',
+                           origin_request_id=?, last_request_id=?,
+                           state=?, confidence=?,
+                           support_score=?, support_groups=?,
+                           contradiction_score=0.0,
+                           contradiction_groups=0,
+                           observations=observations+1,
+                           verification_passes=CASE
+                             WHEN ?='verified'
+                             THEN MAX(verification_passes, 1)
+                             ELSE verification_passes
+                           END,
+                           last_seen_at=CURRENT_TIMESTAMP,
+                           verified_at=CASE
+                             WHEN ?='verified' AND verified_at IS NULL
+                             THEN CURRENT_TIMESTAMP ELSE verified_at END,
+                           updated_at=CURRENT_TIMESTAMP
+                       WHERE id=?""",
+                    (
+                        statement,
+                        origin_request_id,
+                        origin_request_id,
+                        mapped_state,
+                        max(0.0, min(1.0, float(confidence))),
+                        max(0.0, min(1.0, float(confidence))),
+                        len({
+                            str(item.get("independence_group") or "")
+                            for item in evidence
+                            if item.get("independence_group")
+                        }),
+                        mapped_state,
+                        mapped_state,
+                        claim_id,
+                    ),
+                )
+            else:
+                old_state = ""
+                cur = conn.execute(
+                    """INSERT INTO knowledge_claims(
+                           scope, claim_key, statement, origin_type,
+                           origin_request_id, last_request_id,
+                           state, confidence, support_score,
+                           support_groups, verification_passes,
+                           first_seen_at, last_seen_at, verified_at
+                       ) VALUES (?, ?, ?, 'canonical_fact', ?, ?, ?, ?, ?, ?, ?,
+                                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                                 CASE WHEN ?='verified'
+                                      THEN CURRENT_TIMESTAMP ELSE NULL END)""",
+                    (
+                        scope,
+                        claim_key,
+                        statement,
+                        origin_request_id,
+                        origin_request_id,
+                        mapped_state,
+                        max(0.0, min(1.0, float(confidence))),
+                        max(0.0, min(1.0, float(confidence))),
+                        len({
+                            str(item.get("independence_group") or "")
+                            for item in evidence
+                            if item.get("independence_group")
+                        }),
+                        1 if mapped_state == "verified" else 0,
+                        mapped_state,
+                    ),
+                )
+                claim_id = int(cur.lastrowid)
+
+            provenance = {
+                "canonical_key": canonical_key,
+                "normalized_value": normalized_value,
+                "canonical_state": canonical_state,
+                "independence_groups": sorted({
+                    str(item.get("independence_group") or "")
+                    for item in evidence
+                    if item.get("independence_group")
+                }),
+                "source_refs": [
+                    str(item.get("source_ref") or "")
+                    for item in evidence[:20]
+                ],
+            }
+            content_hash = self._hash(statement)
+            conn.execute(
+                """INSERT INTO knowledge_evidence(
+                       scope, claim_id, request_id, source_type, source_ref,
+                       source_group, stance, confidence, provenance_json,
+                       content_hash, content_excerpt
+                   ) VALUES (?, ?, ?, 'canonical_fact', ?, ?, 'support', ?, ?, ?, ?)
+                   ON CONFLICT(claim_id, source_group, stance, content_hash)
+                   DO UPDATE SET
+                       confidence=excluded.confidence,
+                       provenance_json=excluded.provenance_json,
+                       content_excerpt=excluded.content_excerpt""",
+                (
+                    scope,
+                    claim_id,
+                    origin_request_id,
+                    canonical_key[:500],
+                    f"canonical:{canonical_key}"[:500],
+                    max(0.0, min(1.0, float(confidence))),
+                    json.dumps(provenance, ensure_ascii=False),
+                    content_hash,
+                    statement[:800],
+                ),
+            )
+            conn.commit()
+
+        if old_state and old_state != mapped_state:
+            self._transition(
+                scope,
+                claim_id,
+                old_state,
+                mapped_state,
+                "canonical_fact_projection",
+                {
+                    "canonical_key": canonical_key,
+                    "canonical_state": canonical_state,
+                    "confidence": confidence,
+                },
+            )
+
+        if mapped_state in {"supported", "verified"}:
+            with connect() as conn:
+                previous = conn.execute(
+                    """SELECT id, state FROM knowledge_claims
+                       WHERE scope=? AND origin_type='canonical_fact'
+                         AND origin_request_id=? AND id<>?
+                         AND state<>'superseded'
+                       ORDER BY id DESC""",
+                    (scope, origin_request_id, claim_id),
+                ).fetchall()
+            for item in previous:
+                previous_id = int(item["id"])
+                with connect() as conn:
+                    conn.execute(
+                        """UPDATE knowledge_claims
+                           SET state='superseded',
+                               superseded_by_id=?,
+                               superseded_at=CURRENT_TIMESTAMP,
+                               updated_at=CURRENT_TIMESTAMP
+                           WHERE id=?""",
+                        (claim_id, previous_id),
+                    )
+                    conn.commit()
+                self._transition(
+                    scope,
+                    previous_id,
+                    str(item["state"]),
+                    "superseded",
+                    "canonical_value_superseded",
+                    {
+                        "canonical_key": canonical_key,
+                        "new_claim_id": claim_id,
+                    },
+                )
+
+        return {
+            "claim_id": claim_id,
+            "state": mapped_state,
+            "canonical_key": canonical_key,
+        }
+
     def hypotheses(self, *, scope: str, state: str | None = None, limit: int = 50) -> list[dict]:
         limit = max(1, min(int(limit), 500))
         with connect() as conn:

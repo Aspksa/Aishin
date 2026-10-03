@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 25
+LATEST_SCHEMA_VERSION = 26
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -1884,6 +1884,138 @@ def _migration_025_knowledge_lifecycle(
     )
 
 
+
+def _migration_026_canonical_facts(
+    conn: sqlite3.Connection,
+) -> None:
+    """Canonical facts, value history, evidence fusion and strict lineage."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS canonical_facts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            canonical_key TEXT NOT NULL,
+            namespace TEXT NOT NULL DEFAULT 'general',
+            subject TEXT NOT NULL DEFAULT '',
+            predicate TEXT NOT NULL DEFAULT '',
+            fact_type TEXT NOT NULL DEFAULT 'statement',
+            state TEXT NOT NULL DEFAULT 'observed',
+            confidence REAL NOT NULL DEFAULT 0.0,
+            current_value_id INTEGER,
+            current_value TEXT NOT NULL DEFAULT '',
+            current_normalized_value TEXT NOT NULL DEFAULT '',
+            active_values INTEGER NOT NULL DEFAULT 0,
+            independent_groups INTEGER NOT NULL DEFAULT 0,
+            evidence_count INTEGER NOT NULL DEFAULT 0,
+            conflict_count INTEGER NOT NULL DEFAULT 0,
+            first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            verified_at TEXT,
+            conflicted_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, canonical_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS canonical_fact_values (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            fact_id INTEGER NOT NULL,
+            normalized_value TEXT NOT NULL,
+            display_value TEXT NOT NULL,
+            state TEXT NOT NULL DEFAULT 'observed',
+            confidence REAL NOT NULL DEFAULT 0.0,
+            independent_groups INTEGER NOT NULL DEFAULT 0,
+            source_types INTEGER NOT NULL DEFAULT 0,
+            active_evidence INTEGER NOT NULL DEFAULT 0,
+            contradiction_groups INTEGER NOT NULL DEFAULT 0,
+            first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            superseded_at TEXT,
+            superseded_by_value_id INTEGER,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(fact_id, normalized_value),
+            FOREIGN KEY(fact_id) REFERENCES canonical_facts(id) ON DELETE CASCADE,
+            FOREIGN KEY(superseded_by_value_id) REFERENCES canonical_fact_values(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS canonical_fact_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            fact_id INTEGER NOT NULL,
+            value_id INTEGER NOT NULL,
+            source_type TEXT NOT NULL,
+            source_ref TEXT NOT NULL,
+            source_group TEXT NOT NULL,
+            independence_group TEXT NOT NULL,
+            source_record_type TEXT NOT NULL DEFAULT '',
+            source_record_id INTEGER,
+            stance TEXT NOT NULL DEFAULT 'support',
+            is_independent INTEGER NOT NULL DEFAULT 1,
+            confidence REAL NOT NULL DEFAULT 0.0,
+            lineage_root TEXT NOT NULL DEFAULT '',
+            provenance_json TEXT NOT NULL DEFAULT '{}',
+            content_excerpt TEXT NOT NULL DEFAULT '',
+            active INTEGER NOT NULL DEFAULT 1,
+            first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(value_id, source_type, source_ref, stance),
+            FOREIGN KEY(fact_id) REFERENCES canonical_facts(id) ON DELETE CASCADE,
+            FOREIGN KEY(value_id) REFERENCES canonical_fact_values(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS canonical_fact_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            fact_id INTEGER NOT NULL,
+            value_id INTEGER,
+            linked_type TEXT NOT NULL,
+            linked_id INTEGER,
+            linked_key TEXT NOT NULL DEFAULT '',
+            relation TEXT NOT NULL DEFAULT 'lineage',
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(fact_id, linked_type, linked_id, linked_key, relation),
+            FOREIGN KEY(fact_id) REFERENCES canonical_facts(id) ON DELETE CASCADE,
+            FOREIGN KEY(value_id) REFERENCES canonical_fact_values(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS canonical_fact_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            fact_id INTEGER NOT NULL,
+            value_id INTEGER,
+            event_type TEXT NOT NULL,
+            from_state TEXT NOT NULL DEFAULT '',
+            to_state TEXT NOT NULL DEFAULT '',
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(fact_id) REFERENCES canonical_facts(id) ON DELETE CASCADE,
+            FOREIGN KEY(value_id) REFERENCES canonical_fact_values(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_canonical_facts_scope_state
+        ON canonical_facts(scope, state, confidence DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_canonical_values_fact_state
+        ON canonical_fact_values(fact_id, state, confidence DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_canonical_evidence_fact_active
+        ON canonical_fact_evidence(fact_id, active, stance, independence_group);
+
+        CREATE INDEX IF NOT EXISTS idx_canonical_evidence_source
+        ON canonical_fact_evidence(scope, source_type, source_record_id, active);
+
+        CREATE INDEX IF NOT EXISTS idx_canonical_links_fact
+        ON canonical_fact_links(fact_id, linked_type, active);
+
+        CREATE INDEX IF NOT EXISTS idx_canonical_events_scope_created
+        ON canonical_fact_events(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -1910,6 +2042,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (23, "document_intelligence", _migration_023_document_intelligence),
     (24, "response_grounding", _migration_024_response_grounding),
     (25, "knowledge_lifecycle", _migration_025_knowledge_lifecycle),
+    (26, "canonical_facts", _migration_026_canonical_facts),
 )
 
 

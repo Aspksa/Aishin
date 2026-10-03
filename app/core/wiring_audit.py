@@ -339,7 +339,12 @@ class BrainWiringAudit:
         main_path = Path(__file__).resolve().parents[1] / "main.py"
         source = main_path.read_text(encoding="utf-8")
         required = (
-            "Heartbeat(engine)",
+            "heartbeat = Heartbeat(",
+            "planner=engine.planner",
+            "sensors=engine.sensors",
+            "proactive=engine.proactive_intelligence",
+            "research=engine.research",
+            "scopes=engine.RUNTIME_SCOPES",
             "heartbeat.run()",
             "heartbeat.stop()",
         )
@@ -355,10 +360,18 @@ class BrainWiringAudit:
     def _performance_tracker_contract() -> dict[str, Any]:
         engine_path = Path(__file__).resolve().parent / "engine.py"
         source = engine_path.read_text(encoding="utf-8")
-        ok = "PerformanceTracker()" in source and "perf.finish()" in source
+        required = (
+            "PerformanceTracker(",
+            "request_id=request_id",
+            "scope=scope",
+            "perf.checkpoint(",
+            "perf.finish(",
+        )
+        missing = [marker for marker in required if marker not in source]
         return {
             "kind": "special",
             "module": "performance",
             "runtime_tracker": "PerformanceTracker",
-            "ok": ok,
+            "ok": not missing,
+            "missing": missing,
         }

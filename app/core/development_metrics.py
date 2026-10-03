@@ -198,6 +198,50 @@ class DevelopmentMetricsEngine:
                 "SELECT COUNT(*) FROM hypothesis_runs WHERE scope=?",
                 (scope,),
             ))
+            lifecycle_claims = int(scalar(
+                "SELECT COUNT(*) FROM knowledge_claims WHERE scope=?",
+                (scope,),
+            ))
+            lifecycle_verified = int(scalar(
+                """SELECT COUNT(*) FROM knowledge_claims
+                   WHERE scope=? AND state='verified'""",
+                (scope,),
+            ))
+            lifecycle_supported = int(scalar(
+                """SELECT COUNT(*) FROM knowledge_claims
+                   WHERE scope=? AND state='supported'""",
+                (scope,),
+            ))
+            lifecycle_contradicted = int(scalar(
+                """SELECT COUNT(*) FROM knowledge_claims
+                   WHERE scope=? AND state IN ('contradicted','rejected')""",
+                (scope,),
+            ))
+            lifecycle_confidence = scalar(
+                """SELECT AVG(confidence) FROM knowledge_claims
+                   WHERE scope=? AND state IN ('supported','verified')""",
+                (scope,),
+            )
+            confirmed_hypotheses = int(scalar(
+                """SELECT COUNT(*) FROM hypothesis_registry
+                   WHERE scope=? AND state='confirmed'""",
+                (scope,),
+            ))
+            rejected_hypotheses = int(scalar(
+                """SELECT COUNT(*) FROM hypothesis_registry
+                   WHERE scope=? AND state='rejected'""",
+                (scope,),
+            ))
+            lifecycle_errors = int(scalar(
+                """SELECT COUNT(*) FROM knowledge_learning_events
+                   WHERE scope=? AND event_type='error_detected'""",
+                (scope,),
+            ))
+            lifecycle_corrections = int(scalar(
+                """SELECT COUNT(*) FROM knowledge_learning_events
+                   WHERE scope=? AND event_type='correction_confirmed'""",
+                (scope,),
+            ))
             reflection_rows = conn.execute(
                 """SELECT quality_score, confidence_score, error_count,
                           correction_signal
@@ -534,7 +578,7 @@ class DevelopmentMetricsEngine:
                 (scope,),
             ))
 
-        knowledge_items = memories + entities
+        knowledge_items = memories + entities + lifecycle_claims
         return {
             "experience_events": events,
             "knowledge_items": knowledge_items,
@@ -551,7 +595,15 @@ class DevelopmentMetricsEngine:
             "verification_runs": len(verification_rows),
             "verification_unresolved": verification_unresolved,
             "hypothesis_runs": hypothesis_runs,
-            "confirmed_hypotheses": 0,
+            "confirmed_hypotheses": confirmed_hypotheses,
+            "rejected_hypotheses": rejected_hypotheses,
+            "lifecycle_claims": lifecycle_claims,
+            "verified_knowledge": lifecycle_verified,
+            "supported_knowledge": lifecycle_supported,
+            "contradicted_knowledge": lifecycle_contradicted,
+            "knowledge_confidence": round(lifecycle_confidence, 4),
+            "knowledge_errors_detected": lifecycle_errors,
+            "knowledge_corrections_confirmed": lifecycle_corrections,
             "reflection_samples": len(reflection_rows),
             "reflection_quality": round(reflection_quality, 4),
             "reflection_confidence": round(reflection_confidence, 4),
@@ -643,18 +695,21 @@ class DevelopmentMetricsEngine:
             + 0.20 * self._sat(c["memory_kinds"], 8)
         )
         knowledge = (
-            0.55 * self._sat(c["knowledge_items"], 300)
-            + 0.25 * self._sat(c["entity_types"], 12)
-            + 0.20 * c["memory_confidence"]
+            0.32 * self._sat(c["knowledge_items"], 300)
+            + 0.18 * self._sat(c["entity_types"], 12)
+            + 0.15 * c["memory_confidence"]
+            + 0.20 * self._sat(c["verified_knowledge"], 80)
+            + 0.15 * c["knowledge_confidence"]
         )
         connections = (
             0.60 * self._sat(c["connections"], 350)
             + 0.40 * c["connection_confidence"]
         )
         analytics = (
-            0.55 * c["decision_quality"]
-            + 0.25 * self._sat(c["verification_runs"], 40)
-            + 0.20 * self._sat(c["hypothesis_runs"], 30)
+            0.45 * c["decision_quality"]
+            + 0.20 * self._sat(c["verification_runs"], 40)
+            + 0.15 * self._sat(c["hypothesis_runs"], 30)
+            + 0.20 * self._sat(c["confirmed_hypotheses"], 20)
         )
 
         reflection_volume = self._sat(c["reflection_samples"], 25)

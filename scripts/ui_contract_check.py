@@ -164,6 +164,8 @@ def main() -> int:
         "recent",
         "brain-flow-legend",
         "lb-node-inspector",
+        "lb-wiring-score",
+        "lb-wiring-status",
         "lb-flow-request",
         "lb-flow-concurrency",
         "stateLabel",

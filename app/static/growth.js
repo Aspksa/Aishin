@@ -214,7 +214,7 @@
     if (!svg) return;
     items = Array.isArray(items) ? items.slice().reverse() : [];
     if (items.length < 2) {
-      svg.innerHTML = '<text x="450" y="90" text-anchor="middle" fill="#9a908c" font-size="9">История ещё накапливается</text>';
+      svg.innerHTML = '<text x="450" y="90" text-anchor="middle" fill="#9a908c" font-size="11">История ещё накапливается</text>';
       return;
     }
     var width = 900, height = 180, px = 32, py = 20;

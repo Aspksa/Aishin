@@ -171,9 +171,9 @@ def main() -> int:
                     "SELECT MAX(version) AS version FROM schema_migrations"
                 ).fetchone()
             schema_version = int(schema_row["version"] or 0)
-            if schema_version != 23:
+            if schema_version != 24:
                 raise RuntimeError(
-                    f"Ожидалась database schema 23, получено {schema_version}"
+                    f"Ожидалась database schema 24, получено {schema_version}"
                 )
             checks["health"] = {
                 **health_data,

@@ -163,6 +163,7 @@ def main() -> int:
         "executing",
         "recent",
         "brain-flow-legend",
+        "lb-node-inspector",
         "lb-flow-request",
         "lb-flow-concurrency",
         "stateLabel",

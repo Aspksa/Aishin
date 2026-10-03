@@ -417,7 +417,8 @@ class CanonicalFactsEngine:
         with connect() as conn:
             document = conn.execute(
                 """SELECT COUNT(*) AS n, COALESCE(MAX(f.id), 0) AS max_id,
-                          COALESCE(MAX(f.updated_at), '') AS updated
+                          COALESCE(MAX(f.updated_at), '') AS updated,
+                          COALESCE(MAX(d.updated_at), '') AS document_updated
                    FROM document_facts f
                    JOIN documents d ON d.id=f.document_id
                    WHERE f.scope=? AND f.status='grounded'
@@ -452,8 +453,14 @@ class CanonicalFactsEngine:
                    FROM entities WHERE scope=? AND entity_type='research_claim'""",
                 (scope,),
             ).fetchone()
+            graph_changes = conn.execute(
+                """SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS max_id
+                   FROM graph_changes WHERE scope=?""",
+                (scope,),
+            ).fetchone()
         return (
-            int(document["n"]), int(document["max_id"]), str(document["updated"]),
+            int(document["n"]), int(document["max_id"]),
+            str(document["updated"]), str(document["document_updated"]),
             int(research["n"]), int(research["max_id"]), str(research["updated"]),
             int(memory["n"]), int(memory["max_id"]), str(memory["updated"]),
             int(graph["n"]), int(graph["max_id"]),
@@ -461,6 +468,7 @@ class CanonicalFactsEngine:
             int(graph["evidence_chars"] or 0),
             int(graph_entities["n"]), int(graph_entities["max_id"]),
             str(graph_entities["updated"]),
+            int(graph_changes["n"]), int(graph_changes["max_id"]),
         )
 
     def _deactivate_previous(self, scope: str) -> None:

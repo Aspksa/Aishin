@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -27,6 +28,7 @@ _configure_utf8_output()
 from fastapi.testclient import TestClient
 
 from app.db import connect
+from app.core.memory import MemoryCandidate
 from app.main import app, engine
 
 
@@ -211,6 +213,164 @@ def main() -> int:
                 "status": "ok",
                 "project_scope": "project:aishin",
             }
+
+            engine.events.emit(
+                "smoke.scope.personal",
+                scope="personal",
+                payload={"sentinel": "personal"},
+                importance=0.1,
+            )
+            engine.events.emit(
+                "smoke.scope.project",
+                scope="project:aishin",
+                payload={"sentinel": "project"},
+                importance=0.1,
+            )
+            personal_memory_change = engine.memory.consolidate(
+                MemoryCandidate(
+                    content=(
+                        "Runtime smoke: personal scope isolation sentinel."
+                    ),
+                    scope="personal",
+                    kind="smoke_scope",
+                    confidence=1.0,
+                    importance=0.1,
+                ),
+                source="runtime_smoke",
+            )
+            project_memory_change = engine.memory.consolidate(
+                MemoryCandidate(
+                    content=(
+                        "Runtime smoke: project Aishin scope isolation "
+                        "sentinel."
+                    ),
+                    scope="project:aishin",
+                    kind="smoke_scope",
+                    confidence=1.0,
+                    importance=0.1,
+                ),
+                source="runtime_smoke",
+            )
+            if (
+                personal_memory_change.memory_id is None
+                or project_memory_change.memory_id is None
+            ):
+                raise RuntimeError(
+                    "Не удалось создать scoped memory sentinels"
+                )
+
+            project_state_data = scoped_state.json()
+            project_recent_events = (
+                project_state_data.get("recent_events") or []
+            )
+            if any(
+                item.get("scope") != "project:aishin"
+                for item in project_recent_events
+            ):
+                raise RuntimeError(
+                    "engine.snapshot смешивает recent_events между scope"
+                )
+
+            project_changes = client.get(
+                "/api/assistant/memory-changes",
+                params={
+                    "scope": "project:aishin",
+                    "limit": 30,
+                },
+            )
+            personal_changes = client.get(
+                "/api/assistant/memory-changes",
+                params={
+                    "scope": "personal",
+                    "limit": 30,
+                },
+            )
+            if (
+                project_changes.status_code != 200
+                or personal_changes.status_code != 200
+            ):
+                raise RuntimeError(
+                    "Scoped memory-changes endpoint недоступен"
+                )
+            if not project_changes.json() or not personal_changes.json():
+                raise RuntimeError(
+                    "Scoped memory-changes не вернул sentinels"
+                )
+            if any(
+                item.get("scope") != "project:aishin"
+                for item in project_changes.json()
+            ):
+                raise RuntimeError(
+                    "Project memory_changes смешаны с другим scope"
+                )
+            if any(
+                item.get("scope") != "personal"
+                for item in personal_changes.json()
+            ):
+                raise RuntimeError(
+                    "Personal memory_changes смешаны с другим scope"
+                )
+
+            scoped_brain = client.get(
+                "/api/assistant/brain",
+                params={"scope": "project:aishin"},
+            )
+            if (
+                scoped_brain.status_code != 200
+                or scoped_brain.json().get("state", {}).get(
+                    "current_scope"
+                ) != "project:aishin"
+            ):
+                raise RuntimeError(
+                    "Legacy brain endpoint должен использовать explicit scope"
+                )
+
+            baseline_interactions = int(
+                engine.state.load().interaction_count
+            )
+            atomic_workers = 12
+            with ThreadPoolExecutor(
+                max_workers=atomic_workers
+            ) as pool:
+                futures = [
+                    pool.submit(
+                        engine.state.interaction,
+                        "runtime_smoke",
+                        scope="personal",
+                    )
+                    for _ in range(atomic_workers)
+                ]
+                for future in futures:
+                    future.result()
+            state_after_threads = engine.state.load()
+            if state_after_threads.interaction_count != (
+                baseline_interactions + atomic_workers
+            ):
+                raise RuntimeError(
+                    "StateManager потерял interaction_count при "
+                    "параллельных обновлениях"
+                )
+            if state_after_threads.current_scope != "personal":
+                raise RuntimeError(
+                    "Atomic interaction не сохранил переданный scope"
+                )
+            if tuple(engine.continuous_learning.scopes) != tuple(
+                engine.RUNTIME_SCOPES
+            ):
+                raise RuntimeError(
+                    "Continuous Learning не изолирован по runtime scopes"
+                )
+
+            checks["scope_isolation"].update(
+                {
+                    "events_scoped": True,
+                    "memory_changes_scoped": True,
+                    "state_atomic": True,
+                    "background_scopes": list(
+                        engine.RUNTIME_SCOPES
+                    ),
+                }
+            )
 
             tools = client.get("/api/assistant/tools")
             if tools.status_code != 200:

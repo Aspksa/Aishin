@@ -111,8 +111,8 @@ def main() -> int:
                 'id="documents-upload-btn"',
                 'id="scope-select"',
                 'value="project:aishin"',
-                '/static/app.js?v=0.0.15',
-                '/static/live_brain.js?v=0.0.15',
+                '/static/app.js?v=0.0.16',
+                '/static/live_brain.js?v=0.0.16',
                 'role="dialog"',
                 'aria-modal="true"',
             )
@@ -162,18 +162,18 @@ def main() -> int:
                     f"/health returned HTTP {health.status_code}: {health.text[:300]}"
                 )
             health_data = health.json()
-            if health_data.get("version") != "0.0.15":
+            if health_data.get("version") != "0.0.16":
                 raise RuntimeError(
-                    "Health должен сообщать Aishin Core 0.0.15"
+                    "Health должен сообщать Aishin Core 0.0.16"
                 )
             with connect() as conn:
                 schema_row = conn.execute(
                     "SELECT MAX(version) AS version FROM schema_migrations"
                 ).fetchone()
             schema_version = int(schema_row["version"] or 0)
-            if schema_version != 26:
+            if schema_version != 27:
                 raise RuntimeError(
-                    f"Ожидалась database schema 26, получено {schema_version}"
+                    f"Ожидалась database schema 27, получено {schema_version}"
                 )
             checks["health"] = {
                 **health_data,
@@ -212,6 +212,279 @@ def main() -> int:
             checks["scope_isolation"] = {
                 "status": "ok",
                 "project_scope": "project:aishin",
+            }
+
+            organism = client.get(
+                "/api/assistant/organism",
+                params={"scope": "personal"},
+            )
+            if organism.status_code != 200:
+                raise RuntimeError("Digital Organism API недоступен")
+            organism_data = organism.json()
+            if (
+                organism_data.get("version")
+                != "aishin-digital-organism-foundation-v1"
+            ):
+                raise RuntimeError("Digital Organism version mismatch")
+            organism_development = (
+                organism_data.get("development_state") or {}
+            )
+            if (
+                organism_development.get("formula_version")
+                != "aishin-developmental-state-v1"
+            ):
+                raise RuntimeError(
+                    "Digital Organism development formula mismatch"
+                )
+            first_boot_timestamp = organism_development.get(
+                "first_boot_timestamp"
+            )
+            if not first_boot_timestamp:
+                raise RuntimeError(
+                    "Digital Organism не сохранил first_boot_timestamp"
+                )
+            if float(
+                organism_development.get("chronological_age_days") or -1.0
+            ) < 0:
+                raise RuntimeError("Digital age cannot be negative")
+            if organism_development.get("current_stage") not in {
+                "D0", "D1", "D2", "D3", "D4", "D5", "D6"
+            }:
+                raise RuntimeError("Unknown Digital Organism stage")
+            stage_eligibility = (
+                organism_development.get("stage_eligibility") or {}
+            )
+            if (
+                "time_requirement_met" not in stage_eligibility
+                or "criteria" not in stage_eligibility
+                or not isinstance(stage_eligibility.get("criteria"), list)
+            ):
+                raise RuntimeError(
+                    "Development stage eligibility contract is incomplete"
+                )
+
+            inner_time = client.get(
+                "/api/assistant/organism/inner-time",
+                params={"scope": "personal"},
+            )
+            if inner_time.status_code != 200:
+                raise RuntimeError("AISHIN_INNER_TIME API недоступен")
+            inner_time_data = inner_time.json()
+            required_inner_time = {
+                "time_since_first_boot",
+                "time_since_last_interaction",
+                "time_since_skill_use",
+                "time_since_important_event",
+                "age_of_memory",
+                "age_of_capability",
+                "time_to_expected_event",
+            }
+            if not required_inner_time.issubset(inner_time_data):
+                raise RuntimeError(
+                    "AISHIN_INNER_TIME fields are incomplete"
+                )
+
+            autobiography = client.get(
+                "/api/assistant/organism/autobiography",
+                params={"limit": 30},
+            )
+            if autobiography.status_code != 200:
+                raise RuntimeError("Autobiography API недоступен")
+            autobiography_rows = autobiography.json()
+            if not autobiography_rows:
+                raise RuntimeError(
+                    "Autobiography must contain persisted runtime history"
+                )
+
+            with connect() as conn:
+                snapshots_before_reads = int(
+                    conn.execute(
+                        "SELECT COUNT(*) FROM organism_continuity_snapshots"
+                    ).fetchone()[0]
+                )
+            for _ in range(3):
+                read_only_organism = client.get(
+                    "/api/assistant/organism",
+                    params={"scope": "personal"},
+                )
+                read_only_now = client.get(
+                    "/api/assistant/organism/now",
+                    params={"scope": "personal"},
+                )
+                if (
+                    read_only_organism.status_code != 200
+                    or read_only_now.status_code != 200
+                ):
+                    raise RuntimeError(
+                        "Digital Organism read-only endpoints failed"
+                    )
+                if (
+                    read_only_organism.json()
+                    .get("development_state", {})
+                    .get("first_boot_timestamp")
+                    != first_boot_timestamp
+                ):
+                    raise RuntimeError(
+                        "Read-only organism API changed first_boot_timestamp"
+                    )
+            with connect() as conn:
+                snapshots_after_reads = int(
+                    conn.execute(
+                        "SELECT COUNT(*) FROM organism_continuity_snapshots"
+                    ).fetchone()[0]
+                )
+            if snapshots_after_reads != snapshots_before_reads:
+                raise RuntimeError(
+                    "Read-only Digital Organism API must not create snapshots"
+                )
+
+            continuity = client.get(
+                "/api/assistant/organism/continuity",
+                params={
+                    "snapshot_limit": 20,
+                    "validation_limit": 20,
+                },
+            )
+            if continuity.status_code != 200:
+                raise RuntimeError("Continuous Self API недоступен")
+            continuity_data = continuity.json()
+            continuity_current = continuity_data.get("current") or {}
+            if not continuity_current.get("chain_valid"):
+                raise RuntimeError("Continuous Self hash-chain is invalid")
+            if not continuity_current.get("identity_valid"):
+                raise RuntimeError("Continuous Self identity hash mismatch")
+            if continuity_current.get("status") not in {
+                "active_session_unsealed",
+                "verified_clean_continuity",
+            }:
+                raise RuntimeError(
+                    "Unexpected continuity state during active TestClient: "
+                    + str(continuity_current.get("status"))
+                )
+            with connect() as conn:
+                snapshots_after_validation = int(
+                    conn.execute(
+                        "SELECT COUNT(*) FROM organism_continuity_snapshots"
+                    ).fetchone()[0]
+                )
+                latest_snapshot = conn.execute(
+                    """SELECT * FROM organism_continuity_snapshots
+                       ORDER BY id DESC LIMIT 1"""
+                ).fetchone()
+            if snapshots_after_validation != snapshots_before_reads:
+                raise RuntimeError(
+                    "Explicit continuity inspection must not mutate snapshots"
+                )
+            if latest_snapshot is None:
+                raise RuntimeError(
+                    "Digital Organism startup snapshot is missing"
+                )
+            latest_snapshot_data = dict(latest_snapshot)
+            if not engine.digital_organism.verify_snapshot_record(
+                latest_snapshot_data
+            ):
+                raise RuntimeError(
+                    "Persisted continuity snapshot failed hash verification"
+                )
+            tampered_snapshot = dict(latest_snapshot_data)
+            tampered_snapshot["payload_json"] = '{"tampered":true}'
+            if engine.digital_organism.verify_snapshot_record(
+                tampered_snapshot
+            ):
+                raise RuntimeError(
+                    "Continuity snapshot hash failed to detect tampering"
+                )
+
+            now_update = client.post(
+                "/api/assistant/organism/now",
+                json={
+                    "active_scope": "project:aishin",
+                    "current_screen": "runtime-smoke",
+                    "current_project": "aishin",
+                    "focus": "qa",
+                    "active_task": "runtime_smoke",
+                    "expected_next_action": "verify",
+                },
+            )
+            if now_update.status_code != 403:
+                raise RuntimeError(
+                    "AISHIN_NOW mutation API must preserve local-only guard"
+                )
+            stage_mutation = client.post(
+                "/api/assistant/organism/stage-evidence",
+                json={
+                    "criterion_key": "runtime_smoke_guard",
+                    "status": "passed",
+                    "source_type": "runtime_smoke",
+                    "source_ref": "guard",
+                    "confidence": 1.0,
+                    "evidence": {"guard": True},
+                },
+            )
+            if stage_mutation.status_code != 403:
+                raise RuntimeError(
+                    "Development stage evidence mutation must be local-only"
+                )
+
+            internal_now = engine.digital_organism.update_now(
+                active_scope="project:aishin",
+                current_screen="runtime-smoke",
+                current_project="aishin",
+                focus="qa",
+                active_task="runtime_smoke",
+                expected_next_action="verify",
+            )
+            if (
+                internal_now.get("current_scope") != "project:aishin"
+                or internal_now.get("current_screen") != "runtime-smoke"
+                or internal_now.get("current_project") != "aishin"
+                or internal_now.get("active_task") != "runtime_smoke"
+            ):
+                raise RuntimeError(
+                    "AISHIN_NOW did not persist current runtime context"
+                )
+            scoped_now = client.get(
+                "/api/assistant/organism/now",
+                params={"scope": "project:aishin"},
+            )
+            if (
+                scoped_now.status_code != 200
+                or scoped_now.json().get("current_scope") != "project:aishin"
+                or scoped_now.json().get("current_screen") != "runtime-smoke"
+            ):
+                raise RuntimeError(
+                    "AISHIN_NOW read path lost persisted runtime context"
+                )
+            engine.digital_organism.update_now(
+                active_scope="personal",
+                current_screen="",
+                current_project="",
+                focus="waiting",
+                active_task="",
+                expected_next_action="await_user_or_background_event",
+            )
+
+            checks["digital_organism"] = {
+                "status": "ok",
+                "version": organism_data.get("version"),
+                "formula_version": organism_development.get(
+                    "formula_version"
+                ),
+                "first_boot_timestamp": first_boot_timestamp,
+                "first_boot_basis": organism_development.get(
+                    "first_boot_basis"
+                ),
+                "chronological_age_days": organism_development.get(
+                    "chronological_age_days"
+                ),
+                "stage": organism_development.get("current_stage"),
+                "continuity_status": continuity_current.get("status"),
+                "snapshot_count": continuity_current.get("snapshot_count"),
+                "autobiography_entries": len(autobiography_rows),
+                "read_only_gets": True,
+                "tamper_detection": True,
+                "local_only_mutations": True,
+                "inner_time_fields": sorted(required_inner_time),
             }
 
             engine.events.emit(
@@ -4569,6 +4842,38 @@ def main() -> int:
                 raise RuntimeError(
                     "Live Brain должен включать Canonical Facts"
                 )
+
+            if not isinstance(
+                live_brain_data.get("digital_organism"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Live Brain должен включать Digital Organism"
+                )
+            organism_live = live_brain_data.get("digital_organism") or {}
+            if (
+                organism_live.get("version")
+                != "aishin-digital-organism-foundation-v1"
+            ):
+                raise RuntimeError(
+                    "Live Brain Digital Organism version mismatch"
+                )
+            organism_live_development = (
+                organism_live.get("development_state") or {}
+            )
+            if organism_live_development.get("current_stage") not in {
+                "D0", "D1", "D2", "D3", "D4", "D5", "D6"
+            }:
+                raise RuntimeError(
+                    "Live Brain Digital Organism stage is invalid"
+                )
+            if not isinstance(
+                organism_live.get("continuity"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Live Brain Digital Organism continuity missing"
+                )
             canonical_live_summary = (
                 live_brain_data.get("canonical_facts", {}).get("summary")
                 or {}
@@ -4590,6 +4895,7 @@ def main() -> int:
                 "brain_flow_version": topology.get("version"),
                 "concurrency_safe": True,
                 "canonical_facts": True,
+                "digital_organism": True,
             }
 
             performance = client.get(

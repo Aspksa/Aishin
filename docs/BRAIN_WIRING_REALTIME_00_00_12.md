@@ -8,7 +8,7 @@ Aishin Core: 0.0.12
 
 Database schema: 23
 
-Live Brain Export: 10
+Live Brain Export: 11
 
 Brain Flow Runtime: aishin-brain-flow-v2
 
@@ -506,7 +506,7 @@ CI проверяет:
 - Logic receipt of document evidence;
 - reprocess graph/research linkage;
 - out-of-order version lineage;
-- Live Brain Export 10.
+- Live Brain Export 11.
 
 ## Честность визуализации
 
@@ -575,3 +575,46 @@ Deep-link:
 #technical-brain
 
 открывает техническую диагностику напрямую и используется browser visual QA.
+
+
+## Brain Wiring Contract
+
+00.00.12 дополнительно проверяет не только выполнение запросов, но и структурную проводку runtime.
+
+BrainWiringAudit проверяет:
+
+- каждый Python-модуль app/core имеет явного runtime-владельца или документированное вложение;
+- тип каждого основного компонента Engine совпадает с ожидаемым;
+- Memory, Knowledge Graph, Planner, ToolRegistry, PermissionGate, EventBus и AIManager не подменены случайными независимыми экземплярами там, где требуется общий объект;
+- Document Intelligence подключён к Research Intelligence и Knowledge Graph;
+- Cognitive Intelligence связан с Evolution Engine;
+- Proactive Loop связан с ExecutionCoordinator;
+- LearningQualityGate действительно находится внутри Continuous Learning;
+- ProactiveLifecycle действительно находится внутри Proactive Decision Loop;
+- Heartbeat запускается из lifespan и получает реальные Planner/Sensors/Proactive/Research;
+- PerformanceTracker реально создаётся и завершается на каждом request;
+- обязательные dependency edges присутствуют в BrainFlowRuntime.
+
+CI запускает:
+
+python scripts/brain_wiring_contract.py
+
+Любой новый app/core/*.py, который не добавлен в wiring manifest, автоматически считается непокрытым и роняет CI.
+
+Live Brain показывает:
+
+- Wiring Score;
+- passed / total checks;
+- число broken connections;
+- покрытие core-модулей;
+- конкретные broken edges/object identities в разделе целостности.
+
+API:
+
+GET /api/assistant/brain-wiring
+
+Live Brain Export format:
+
+11
+
+Wiring Audit не раскрывает hidden chain-of-thought. Он показывает только структуру объектов, технические зависимости и наличие observable pipeline edges.

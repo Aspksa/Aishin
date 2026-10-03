@@ -144,7 +144,7 @@ def assert_desktop(driver: webdriver.Chrome) -> None:
         "Нервная карта выполнения",
         "brain-flow-legend",
         'id="lb-node-inspector"',
-        "AISHIN 00.00.13 · RESPONSE GROUNDING",
+        "AISHIN 00.00.14 · KNOWLEDGE LIFECYCLE",
     ):
         if marker not in source:
             raise RuntimeError(

@@ -918,6 +918,11 @@ def assistant_growth_refresh(
     )
 
 
+@app.get('/api/assistant/brain-wiring')
+def assistant_brain_wiring() -> dict:
+    return engine.wiring_audit.audit(engine)
+
+
 @app.get('/api/assistant/live-brain')
 def assistant_live_brain(
     scope: str = 'personal',

@@ -12,7 +12,7 @@ class LiveBrainRuntime:
     signals, quality metrics, graph structure and subsystem activity.
     """
 
-    VERSION = "aishin-live-brain-v5"
+    VERSION = "aishin-live-brain-v6"
     TRACE_POLICY = (
         "Без скрытой цепочки рассуждений: показываются только источники, "
         "проверки, выбранный режим, уверенность, метрики и итоговые сигналы."
@@ -313,6 +313,13 @@ class LiveBrainRuntime:
                 limit=20,
             ),
         )
+        digital_organism = take(
+            "digital_organism",
+            {},
+            lambda: self.engine.digital_organism.dashboard(
+                scope=scope,
+            ),
+        )
         learning_plans = take(
             "learning_planner",
             [],
@@ -477,6 +484,24 @@ class LiveBrainRuntime:
         canonical_facts_summary = (
             canonical_facts.get("summary") or {}
         )
+        organism_development = (
+            digital_organism.get("development_state") or {}
+        )
+        organism_continuity = (
+            digital_organism.get("continuity") or {}
+        )
+        organism_autobiography = (
+            digital_organism.get("autobiography") or {}
+        )
+        continuity_status = str(
+            organism_continuity.get("status") or "genesis"
+        )
+        continuity_attention = continuity_status in {
+            "chain_broken",
+            "identity_changed_requires_review",
+            "state_mismatch_after_clean_shutdown",
+            "unclean_gap",
+        }
         document_attention = bool(
             int(documents_summary.get("failed_documents") or 0)
             or int(documents_summary.get("contradiction_count") or 0)
@@ -498,6 +523,7 @@ class LiveBrainRuntime:
                 or communication_attention
                 or document_attention
                 or grounding_attention
+                or continuity_attention
             )
             else "healthy"
             if events or memories or graph_stats.get("entities")
@@ -668,6 +694,26 @@ class LiveBrainRuntime:
                 "canonical_independent_groups": int(
                     canonical_facts_summary.get("independent_groups") or 0
                 ),
+                "organism_stage": str(
+                    organism_development.get("current_stage") or "D0"
+                ),
+                "organism_age_days": float(
+                    organism_development.get("chronological_age_days") or 0.0
+                ),
+                "organism_experience_age": float(
+                    organism_development.get("experience_age_score") or 0.0
+                ),
+                "organism_competence_age": float(
+                    organism_development.get("competence_age_score") or 0.0
+                ),
+                "continuity_status": continuity_status,
+                "continuity_attention": continuity_attention,
+                "continuity_snapshots": int(
+                    organism_continuity.get("snapshot_count") or 0
+                ),
+                "autobiography_episodes": int(
+                    organism_autobiography.get("total") or 0
+                ),
             },
             "channels": channels,
             "topology": topology,
@@ -706,6 +752,7 @@ class LiveBrainRuntime:
             "documents": documents,
             "knowledge_lifecycle": knowledge_lifecycle,
             "canonical_facts": canonical_facts,
+            "digital_organism": digital_organism,
             "quality": {
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
@@ -770,6 +817,14 @@ class LiveBrainRuntime:
                     "canonical_facts + canonical_fact_values + "
                     "canonical_fact_evidence + canonical_fact_links + "
                     "canonical_fact_events"
+                ),
+                "digital_organism": (
+                    "organism_identity_state + organism_now + "
+                    "organism_autobiography + organism_runtime_sessions + "
+                    "organism_continuity_snapshots + "
+                    "organism_continuity_validations + "
+                    "organism_stage_evidence + "
+                    "organism_development_snapshots"
                 ),
             },
         }
@@ -983,6 +1038,9 @@ class LiveBrainRuntime:
         grounding = trace.get("response_grounding") or {}
         lifecycle = trace.get("knowledge_lifecycle_summary") or {}
         canonical = trace.get("canonical_facts_summary") or {}
+        organism = trace.get("digital_organism") or {}
+        organism_development = organism.get("development_state") or {}
+        organism_continuity = organism.get("continuity") or {}
         document_ids = sorted({
             int(item.get("document_id"))
             for item in document_context
@@ -1055,6 +1113,11 @@ class LiveBrainRuntime:
             "canonical_superseded_values": int(
                 canonical.get("superseded_values") or 0
             ),
+            "organism_stage": organism_development.get("current_stage"),
+            "organism_age_days": organism_development.get(
+                "chronological_age_days"
+            ),
+            "continuity_status": organism_continuity.get("status"),
             "execution_state": execution.get("state"),
             "execution_tool": execution.get("selected_tool"),
             "execution_executed": bool(execution.get("executed")),

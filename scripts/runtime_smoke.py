@@ -1725,6 +1725,63 @@ def main() -> int:
                     "Canonical history must audit document-version supersession"
                 )
 
+            with connect() as conn:
+                conn.execute(
+                    """UPDATE documents
+                       SET status='failed', updated_at=CURRENT_TIMESTAMP
+                       WHERE id=? AND scope=?""",
+                    (limit_new, canonical_scope),
+                )
+                conn.commit()
+            engine.canonical_facts.sync_scope(scope=canonical_scope)
+            rolled_back_fuel = engine.canonical_facts.fact(
+                int(fuel_fact["id"]),
+                scope=canonical_scope,
+            )
+            if (
+                not rolled_back_fuel
+                or rolled_back_fuel.get("current_value") != "120 liters"
+                or rolled_back_fuel.get("state") == "empty"
+            ):
+                raise RuntimeError(
+                    "Removing latest document version must reactivate previous "
+                    "canonical value with its intrinsic evidence state"
+                )
+
+            with connect() as conn:
+                conn.execute(
+                    """UPDATE documents
+                       SET status='studied', updated_at=CURRENT_TIMESTAMP
+                       WHERE id=? AND scope=?""",
+                    (limit_new, canonical_scope),
+                )
+                conn.commit()
+            engine.canonical_facts.sync_scope(scope=canonical_scope)
+            restored_fuel = engine.canonical_facts.fact(
+                int(fuel_fact["id"]),
+                scope=canonical_scope,
+            )
+            if (
+                not restored_fuel
+                or restored_fuel.get("current_value") != "130 liters"
+            ):
+                raise RuntimeError(
+                    "Restoring latest document version must restore canonical "
+                    "current value 130 liters"
+                )
+            restored_history = engine.canonical_facts.history(
+                scope=canonical_scope,
+                fact_id=int(fuel_fact["id"]),
+            )
+            if not any(
+                item.get("event_type")
+                == "value_reactivated_by_document_lineage"
+                for item in restored_history.get("events") or []
+            ):
+                raise RuntimeError(
+                    "Canonical history must audit value reactivation"
+                )
+
             interval_fact = next(
                 (
                     item

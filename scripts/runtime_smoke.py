@@ -2794,9 +2794,9 @@ def main() -> int:
             export_data = live_brain_export.json()
             if export_data.get("format") != "AISHIN_LIVE_BRAIN_EXPORT":
                 raise RuntimeError("Live Brain export format несовместим")
-            if int(export_data.get("format_version") or 0) != 10:
+            if int(export_data.get("format_version") or 0) != 11:
                 raise RuntimeError(
-                    "Live Brain export format должен быть version 10"
+                    "Live Brain export format должен быть version 11"
                 )
             if not isinstance(
                 live_brain_data.get("cognitive_intelligence"),
@@ -2840,6 +2840,25 @@ def main() -> int:
                 raise RuntimeError(
                     "Live Brain должен включать Document Intelligence"
                 )
+            wiring = live_brain_data.get("wiring") or {}
+            if (
+                wiring.get("status") != "healthy"
+                or float(wiring.get("score") or 0.0) != 100.0
+                or int(wiring.get("checks_failed") or 0) != 0
+            ):
+                raise RuntimeError(
+                    "Live Brain должен показывать здоровую проводку мозга"
+                )
+            wiring_api = client.get("/api/assistant/brain-wiring")
+            if wiring_api.status_code != 200:
+                raise RuntimeError(
+                    f"/api/assistant/brain-wiring returned HTTP "
+                    f"{wiring_api.status_code}"
+                )
+            if wiring_api.json().get("status") != "healthy":
+                raise RuntimeError(
+                    "Brain Wiring API сообщил разрыв архитектуры"
+                )
 
             checks["live_brain_runtime"] = {
                 "status": "ok",
@@ -2852,6 +2871,8 @@ def main() -> int:
                 "export_version": export_data.get("format_version"),
                 "brain_flow_version": topology.get("version"),
                 "concurrency_safe": True,
+                "wiring_score": wiring.get("score"),
+                "wiring_checks": wiring.get("checks_total"),
             }
 
             performance = client.get(

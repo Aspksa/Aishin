@@ -263,6 +263,119 @@ class CanonicalFactsEngine:
             "events": events,
         }
 
+    def dashboard(self, *, scope: str, limit: int = 40) -> dict:
+        freshness = self.ensure_fresh(scope=scope)
+        return {
+            "summary": freshness.get("summary") or self.summary(scope=scope),
+            "facts": self.facts(scope=scope, limit=limit),
+            "recent_events": self.events_view(scope=scope, limit=limit),
+            "refreshed": bool(freshness.get("refreshed")),
+        }
+
+    def events_view(self, *, scope: str, limit: int = 80) -> list[dict]:
+        with connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM canonical_fact_events
+                   WHERE scope=? ORDER BY id DESC LIMIT ?""",
+                (scope, max(1, min(int(limit), 500))),
+            ).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["details"] = self._json(item.pop("details_json"), {})
+            result.append(item)
+        return result
+
+    def reasoning_evidence(
+        self,
+        query: str,
+        *,
+        scope: str,
+        limit: int = 8,
+    ) -> list[dict]:
+        self.ensure_fresh(scope=scope)
+        query_tokens = self._tokens(query)
+        candidates = self.facts(scope=scope, limit=160)
+        ranked: list[tuple[float, dict]] = []
+        for fact in candidates:
+            if fact.get("state") not in {"supported", "verified"}:
+                continue
+            text = " ".join(
+                [
+                    str(fact.get("canonical_key") or ""),
+                    str(fact.get("subject") or ""),
+                    str(fact.get("predicate") or ""),
+                    str(fact.get("current_value") or ""),
+                ]
+            )
+            tokens = self._tokens(text)
+            overlap = len(query_tokens & tokens) if query_tokens else 0
+            if query_tokens and overlap == 0:
+                continue
+            score = (
+                0.55 * float(fact.get("confidence") or 0.0)
+                + 0.25 * min(1.0, overlap / max(1, len(query_tokens)))
+                + 0.20 * (
+                    1.0 if fact.get("state") == "verified" else 0.65
+                )
+            )
+            ranked.append((score, fact))
+        ranked.sort(key=lambda item: item[0], reverse=True)
+
+        result: list[dict] = []
+        for score, fact in ranked[: max(1, min(int(limit), 24))]:
+            value_id = fact.get("current_value_id")
+            if not value_id:
+                continue
+            primary = [
+                item
+                for item in self._value_evidence(int(value_id))
+                if item.get("active")
+                and item.get("stance") == "support"
+                and item.get("is_independent")
+            ]
+            groups_seen: set[str] = set()
+            statement = self._statement_for_fact(fact)
+            if not primary:
+                continue
+            for evidence in primary:
+                group = str(evidence.get("independence_group") or "")
+                if not group or group in groups_seen:
+                    continue
+                groups_seen.add(group)
+                result.append(
+                    {
+                        "source": "canonical_fact",
+                        "source_type": "canonical_fact",
+                        "source_ref": (
+                            f"{fact['canonical_key']}::"
+                            f"{evidence.get('source_ref') or ''}"
+                        ),
+                        "source_group": group,
+                        "independence": 0.0,
+                        "confidence": min(
+                            float(fact.get("confidence") or 0.0),
+                            float(evidence.get("confidence") or 0.0),
+                        ),
+                        "retrieval_score": round(score, 4),
+                        "content": statement[:1200],
+                        "provenance": {
+                            "canonical_fact_id": int(fact["id"]),
+                            "canonical_key": fact["canonical_key"],
+                            "canonical_state": fact["state"],
+                            "canonical_value_id": int(value_id),
+                            "primary_source_type": evidence.get("source_type"),
+                            "primary_source_ref": evidence.get("source_ref"),
+                            "primary_source_group": evidence.get("source_group"),
+                            "primary_provenance": evidence.get("provenance") or {},
+                        },
+                        "trust_boundary": "derived_canonical_projection",
+                    }
+                )
+                if len(groups_seen) >= 3:
+                    break
+        return result[: max(1, min(int(limit) * 3, 24))]
+
     def prompt_block(self, *, scope: str) -> str:
         verified = self.facts(
             scope=scope,
@@ -1574,6 +1687,15 @@ class CanonicalFactsEngine:
             except (TypeError, ValueError):
                 continue
         return result
+
+    @classmethod
+    def _tokens(cls, text: str) -> set[str]:
+        normalized = cls._normalize_value(text)
+        return {
+            token
+            for token in re.findall(r"[a-zа-я0-9_./:+#%-]+", normalized)
+            if len(token) >= 3 or any(ch.isdigit() for ch in token)
+        }
 
     @classmethod
     def _normalize_value(cls, value: str) -> str:

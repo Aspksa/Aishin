@@ -242,6 +242,32 @@ class DevelopmentMetricsEngine:
                    WHERE scope=? AND event_type='correction_confirmed'""",
                 (scope,),
             ))
+            canonical_facts = int(scalar(
+                "SELECT COUNT(*) FROM canonical_facts WHERE scope=?",
+                (scope,),
+            ))
+            canonical_verified = int(scalar(
+                """SELECT COUNT(*) FROM canonical_facts
+                   WHERE scope=? AND state='verified'""",
+                (scope,),
+            ))
+            canonical_conflicted = int(scalar(
+                """SELECT COUNT(*) FROM canonical_facts
+                   WHERE scope=? AND state='conflicted'""",
+                (scope,),
+            ))
+            canonical_superseded_values = int(scalar(
+                """SELECT COUNT(*) FROM canonical_fact_values
+                   WHERE scope=? AND state='superseded'""",
+                (scope,),
+            ))
+            canonical_independent_groups = int(scalar(
+                """SELECT COUNT(DISTINCT independence_group)
+                   FROM canonical_fact_evidence
+                   WHERE scope=? AND active=1 AND is_independent=1
+                     AND stance='support'""",
+                (scope,),
+            ))
             reflection_rows = conn.execute(
                 """SELECT quality_score, confidence_score, error_count,
                           correction_signal
@@ -604,6 +630,11 @@ class DevelopmentMetricsEngine:
             "knowledge_confidence": round(lifecycle_confidence, 4),
             "knowledge_errors_detected": lifecycle_errors,
             "knowledge_corrections_confirmed": lifecycle_corrections,
+            "canonical_facts": canonical_facts,
+            "canonical_verified": canonical_verified,
+            "canonical_conflicted": canonical_conflicted,
+            "canonical_superseded_values": canonical_superseded_values,
+            "canonical_independent_groups": canonical_independent_groups,
             "reflection_samples": len(reflection_rows),
             "reflection_quality": round(reflection_quality, 4),
             "reflection_confidence": round(reflection_confidence, 4),

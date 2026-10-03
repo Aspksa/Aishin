@@ -1370,15 +1370,27 @@ class DigitalOrganismFoundation:
         }
         criteria_state = []
         all_passed = True
+        now = _utc_now()
         for key in criteria:
             row = evidence_rows.get(key)
-            passed = bool(row and row.get("status") == "passed")
+            expires_at = (
+                self._parse_time(row.get("expires_at"))
+                if row else None
+            )
+            expired = bool(expires_at and expires_at <= now)
+            passed = bool(
+                row
+                and row.get("status") == "passed"
+                and not expired
+            )
             all_passed = all_passed and passed
             criteria_state.append(
                 {
                     "criterion": key,
                     "status": row.get("status") if row else "unknown",
                     "passed": passed,
+                    "expired": expired,
+                    "expires_at": row.get("expires_at") if row else None,
                     "source_type": row.get("source_type") if row else "",
                     "source_ref": row.get("source_ref") if row else "",
                     "confidence": (

@@ -1,6 +1,10 @@
 (function(){
 "use strict";
-let payload=null,loading=false,selectedFile=null;
+let payload=null,loading=false,selectedFile=null,modalReturnFocus=null;
+
+function scopeValue(){return window.AISHIN_SCOPE?.get?.()||"personal";}
+function scopeUrl(url){return window.AISHIN_SCOPE?.url?.(url)||url;}
+function fetchScope(url,options){return window.fetch(scopeUrl(url),options);}
 
 const q=(s)=>document.querySelector(s);
 const n=(v)=>Number.isFinite(Number(v))?Number(v):0;
@@ -55,7 +59,8 @@ function renderConflicts(items){
   const host=q("#documents-conflicts");if(!host)return;
   items=(items||[]).filter(x=>x.status==="open");
   if(!items.length){host.innerHTML='<div class="documents-empty">Открытых междокументных противоречий нет.</div>';return;}
-  host.innerHTML=items.slice(0,30).map(x=>'<article class="document-conflict"><div><strong>Conflict #'+x.id+' · '+esc(x.fact_key)+'</strong><small>D'+x.left_document_id+': '+esc(x.left_value)+' ↔ D'+x.right_document_id+': '+esc(x.right_value)+'</small><div class="documents-tags"><span class="documents-tag failed">'+esc(x.status)+'</span><span class="documents-tag">'+esc(x.family_key)+'</span></div></div><div class="documents-scorebox"><strong>'+pct01(x.severity)+'</strong><small>severity</small></div></article>').join("");
+  host.innerHTML=items.slice(0,30).map(x=>'<article class="document-conflict"><div><strong>Conflict #'+x.id+' · '+esc(x.fact_key)+'</strong><small>D'+x.left_document_id+': '+esc(x.left_value)+' ↔ D'+x.right_document_id+': '+esc(x.right_value)+'</small><div class="documents-tags"><span class="documents-tag failed">'+esc(x.status)+'</span><span class="documents-tag">'+esc(x.family_key)+'</span></div></div><div class="documents-scorebox"><strong>'+pct01(x.severity)+'</strong><small>severity</small><button type="button" data-document-resolve="'+x.id+'">Разрешить</button></div></article>').join("");
+  host.querySelectorAll("[data-document-resolve]").forEach(btn=>btn.addEventListener("click",()=>resolveConflict(Number(btn.dataset.documentResolve))));
 }
 
 function renderRuns(items){
@@ -89,7 +94,7 @@ function render(data){
 function load(){
   if(loading)return Promise.resolve(payload);
   loading=true;
-  return fetch("/api/assistant/documents?scope=personal&document_limit=100&fact_limit=100&contradiction_limit=80&run_limit=60",{cache:"no-store"})
+  return fetchScope("/api/assistant/documents?scope=personal&document_limit=100&fact_limit=100&contradiction_limit=80&run_limit=60",{cache:"no-store"})
     .then(r=>{if(!r.ok)throw new Error("Documents HTTP "+r.status);return r.json();})
     .then(render)
     .catch(err=>{const h=q("#documents-list");if(h&&!payload)h.innerHTML='<div class="documents-empty">'+esc(err.message||err)+'</div>';})
@@ -105,10 +110,10 @@ function upload(){
   const button=q("#documents-upload-btn");if(button){button.disabled=true;button.textContent="Изучаю…";}
   const form=new FormData();
   form.append("file",selectedFile,selectedFile.name);
-  form.append("scope","personal");
+  form.append("scope",scopeValue());
   form.append("enrich_with_ai",q("#documents-ai-enrich")?.checked?"true":"false");
   form.append("build_semantic_index",q("#documents-semantic-index")?.checked?"true":"false");
-  fetch("/api/assistant/documents/upload",{method:"POST",body:form})
+  fetchScope("/api/assistant/documents/upload",{method:"POST",body:form})
     .then(async r=>{const body=await r.json().catch(()=>({}));if(!r.ok)throw new Error(body.detail||("Upload HTTP "+r.status));return body;})
     .then(result=>{
       selectedFile=null;const input=q("#documents-file");if(input)input.value="";
@@ -119,7 +124,7 @@ function upload(){
 }
 
 function openDocument(id){
-  fetch("/api/assistant/documents/detail/"+encodeURIComponent(id)+"?scope=personal",{cache:"no-store"})
+  fetchScope("/api/assistant/documents/detail/"+encodeURIComponent(id)+"?scope=personal",{cache:"no-store"})
     .then(r=>{if(!r.ok)throw new Error("Document detail HTTP "+r.status);return r.json();})
     .then(renderDetail).catch(err=>window.alert("Карточка документа не открыта: "+(err.message||err)));
 }
@@ -137,13 +142,40 @@ function renderDetail(data){
   const facts=q("#documents-detail-facts");
   if(facts)facts.innerHTML=(data.facts||[]).slice(0,40).map(x=>'<article class="document-fact"><div><strong>'+esc(x.subject)+' · '+esc(x.predicate)+'</strong><small>'+esc(x.value)+'</small></div><div class="documents-scorebox"><strong>'+pct01(x.confidence)+'</strong></div></article>').join("")||'<div class="documents-empty">Фактов нет.</div>';
   const repro=q("#documents-reprocess");if(repro)repro.dataset.documentId=d.id;
+  modalReturnFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;
   modal.classList.add("open");
+  modal.setAttribute("aria-hidden","false");
+  const card=modal.querySelector(".documents-modal-card");
+  if(card instanceof HTMLElement)window.setTimeout(()=>card.focus(),0);
 }
-function closeModal(){q("#documents-modal")?.classList.remove("open");}
+function closeModal(){
+  const modal=q("#documents-modal");
+  if(!modal)return;
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden","true");
+  if(modalReturnFocus&&document.contains(modalReturnFocus))modalReturnFocus.focus();
+  modalReturnFocus=null;
+}
+function resolveConflict(id){
+  const resolution=window.prompt(
+    "Укажите, какое значение подтверждено и на каком основании. Решение сохранится с конфликтом:",
+    ""
+  );
+  if(!resolution||!resolution.trim())return;
+  fetchScope("/api/assistant/documents/contradictions/"+encodeURIComponent(id)+"/resolve",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({scope:scopeValue(),resolution:resolution.trim()})
+  })
+    .then(async r=>{const body=await r.json().catch(()=>({}));if(!r.ok)throw new Error(body.detail||("Resolve HTTP "+r.status));return body;})
+    .then(()=>load())
+    .catch(err=>window.alert("Противоречие не разрешено: "+(err.message||err)));
+}
+
 function reprocess(){
   const id=Number(q("#documents-reprocess")?.dataset.documentId||0);if(!id)return;
   const b=q("#documents-reprocess");if(b){b.disabled=true;b.textContent="Переизучаю…";}
-  fetch("/api/assistant/documents/"+id+"/reprocess",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({scope:"personal",enrich_with_ai:q("#documents-ai-enrich")?.checked||false,build_semantic_index:q("#documents-semantic-index")?.checked||false})})
+  fetchScope("/api/assistant/documents/"+id+"/reprocess",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({scope:scopeValue(),enrich_with_ai:q("#documents-ai-enrich")?.checked||false,build_semantic_index:q("#documents-semantic-index")?.checked||false})})
     .then(async r=>{const body=await r.json().catch(()=>({}));if(!r.ok)throw new Error(body.detail||("Reprocess HTTP "+r.status));return body;})
     .then(()=>load().then(()=>openDocument(id))).catch(err=>window.alert("Переизучение не выполнено: "+(err.message||err)))
     .finally(()=>{if(b){b.disabled=false;b.textContent="Переизучить";}});
@@ -152,7 +184,7 @@ function reprocess(){
 function search(){
   const input=q("#documents-search-input");const query=(input?.value||"").trim();if(!query)return;
   const host=q("#documents-results");if(host)host.innerHTML='<div class="documents-empty">Ищу по знаниям…</div>';
-  fetch("/api/assistant/documents/search?scope=personal&limit=16&query="+encodeURIComponent(query),{cache:"no-store"})
+  fetchScope("/api/assistant/documents/search?scope=personal&limit=16&query="+encodeURIComponent(query),{cache:"no-store"})
     .then(r=>{if(!r.ok)throw new Error("Search HTTP "+r.status);return r.json();})
     .then(items=>{
       if(!host)return;
@@ -167,6 +199,9 @@ function boot(){
   q("#documents-search-input")?.addEventListener("keydown",e=>{if(e.key==="Enter")search();});
   q("#documents-modal-close")?.addEventListener("click",closeModal);
   q("#documents-modal")?.addEventListener("click",e=>{if(e.target.id==="documents-modal")closeModal();});
+  document.addEventListener("keydown",e=>{
+    if(e.key==="Escape"&&q("#documents-modal")?.classList.contains("open"))closeModal();
+  });
   q("#documents-reprocess")?.addEventListener("click",reprocess);
   load();
 }

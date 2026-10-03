@@ -74,7 +74,7 @@
         '<div class="live-brain-title">',
           '<div id="live-brain-orb" class="live-brain-orb" aria-hidden="true"></div>',
           '<div>',
-            '<p class="overline">AISHIN 00.00.13 · RESPONSE GROUNDING</p>',
+            '<p class="overline">AISHIN 00.00.14 · KNOWLEDGE LIFECYCLE</p>',
             '<h3>Нейронная обсерватория Айшин</h3>',
             '<p>Реальные переходы между модулями, текущая выполняемая фаза и безопасная техническая телеметрия в реальном времени.</p>',
           '</div>',
@@ -99,6 +99,7 @@
         '<article class="live-brain-metric"><span>Общение</span><strong id="lb-communication-score">—</strong><small id="lb-communication-status">0 evidence · persona —</small></article>',
         '<article class="live-brain-metric"><span>Документы</span><strong id="lb-documents-score">—</strong><small id="lb-documents-status">0 studied · 0 OCR</small></article>',
         '<article class="live-brain-metric"><span>Grounding ответа</span><strong id="lb-grounding-score">—</strong><small id="lb-grounding-status">ещё не измерялся</small></article>',
+        '<article class="live-brain-metric"><span>Жизненный цикл знаний</span><strong id="lb-knowledge-verified">0</strong><small id="lb-knowledge-status">0 confirmed hypotheses</small></article>',
       '</div>',
       '<div class="live-brain-columns">',
         '<article class="live-brain-panel">',
@@ -578,6 +579,8 @@
     var documentsSummary = documents.summary || {};
     var quality = data.quality || {};
     var grounding = quality.response_grounding || {};
+    var lifecycle = data.knowledge_lifecycle || {};
+    var lifecycleSummary = lifecycle.summary || {};
 
     setText("#live-brain-runtime", data.runtime_version || "runtime");
     setText("#live-brain-status", integrity.status || "—");
@@ -615,6 +618,13 @@
           n(grounding.claims_supported) + " подтверждено · " +
           n(grounding.claims_unsupported) + " без опоры")
         : "ещё не измерялся"
+    );
+    setText("#lb-knowledge-verified", compact(lifecycleSummary.verified_knowledge));
+    setText(
+      "#lb-knowledge-status",
+      compact(lifecycleSummary.contradicted_knowledge) + " conflicts · " +
+      compact(lifecycleSummary.confirmed_hypotheses) + " confirmed hypotheses · " +
+      compact(lifecycleSummary.corrections_confirmed) + " corrections"
     );
     setText("#lb-current-phase", "фаза: " + (pulse.phase || "idle"));
     setText("#lb-event-total", compact(pulse.events_total) + " всего");

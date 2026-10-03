@@ -14,7 +14,7 @@ class DevelopmentMetricsEngine:
     identity, model brand and self-generated claims never contribute directly.
     """
 
-    FORMULA_VERSION = "aishin-development-v1"
+    FORMULA_VERSION = "aishin-development-v2"
     WEIGHTS = {
         "memory": 0.20,
         "knowledge": 0.20,

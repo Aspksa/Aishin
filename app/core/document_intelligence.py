@@ -2566,6 +2566,7 @@ class DocumentIntelligenceEngine:
 
         self._event(
             scope=scope,
+            document_id=None,
             event_type="document.lineage.rebuilt",
             score=1.0,
             details={

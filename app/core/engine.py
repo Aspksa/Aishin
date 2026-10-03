@@ -20,6 +20,7 @@ from .communication_intelligence import CommunicationIntelligenceEngine
 from .document_intelligence import DocumentIntelligenceEngine
 from .self_reflection import SelfReflectionMetrics
 from .response_grounding import ResponseGroundingScorer
+from .knowledge_lifecycle import KnowledgeLifecycleEngine
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
 from .causal import CausalReasoning
@@ -87,6 +88,7 @@ class AishinEngine:
         self.context_budgeter = ContextBudgeter()
         self.self_reflection = SelfReflectionMetrics()
         self.response_grounding = ResponseGroundingScorer()
+        self.knowledge_lifecycle = KnowledgeLifecycleEngine(events=self.events)
         self.learning_planner = LearningPlanner(self.self_reflection)
         self.experiment_manager = SafeExperimentManager()
         self.graph_builder = GraphBuilder(ai=self.ai, graph=self.graph, events=self.events)
@@ -475,6 +477,10 @@ class AishinEngine:
                     limit=20,
                 ),
             },
+            "knowledge_lifecycle": self.knowledge_lifecycle.dashboard(
+                scope=effective_scope,
+                limit=20,
+            ),
             "learning_planner": {
                 "open": self.learning_planner.open_plans(
                     scope=effective_scope,
@@ -1140,6 +1146,18 @@ class AishinEngine:
             ),
             causal=causal_assessment.to_dict(),
         )
+        knowledge_lifecycle = self.knowledge_lifecycle.observe_reasoning(
+            request_id=request_id,
+            scope=scope,
+            evidence=logic_trace.evidence,
+            contradictions=logic_trace.contradictions,
+            hypothesis_run=hypothesis_run.to_dict(),
+            verification=(
+                verification_data
+                if verification_report is not None
+                else None
+            ),
+        )
         learning_quality = self.continuous_learning.quality_gate.refresh(
             scope=scope,
         )
@@ -1283,6 +1301,7 @@ class AishinEngine:
             "context_orchestrator": context_trace.to_dict(),
             "causal": causal_assessment.to_dict(),
             "hypotheses": hypothesis_run.to_dict(),
+            "knowledge_lifecycle": knowledge_lifecycle,
             "logic_learning": {
                 "feedback": learning_update.to_dict(),
                 "strategies": learned_strategies,
@@ -1330,6 +1349,7 @@ class AishinEngine:
             + self.cognitive_intelligence.prompt_block(cognitive_route)
         )
         context.system_prompt += "\n\n" + self.hypotheses.prompt_block(hypothesis_run)
+        context.system_prompt += "\n\n" + self.knowledge_lifecycle.prompt_block(scope=scope)
         context.system_prompt += "\n\n" + self.logic_learning.prompt_block(learned_strategies)
         context.system_prompt += "\n\n" + self.causal.prompt_block(causal_assessment)
         context.system_prompt += (
@@ -1454,6 +1474,11 @@ class AishinEngine:
             ),
             contradictions=logic_trace.contradictions,
         )
+        lifecycle_grounding = self.knowledge_lifecycle.record_response_grounding(
+            request_id=request_id,
+            scope=scope,
+            grounding=response_grounding.to_dict(),
+        )
         perf.checkpoint("response_grounding")
         self.events.emit(
             "response.grounding",
@@ -1570,6 +1595,8 @@ class AishinEngine:
         request_trace["context_budget"] = context_budget_report.to_dict()
         request_trace["self_reflection"] = reflection.to_dict()
         request_trace["response_grounding"] = response_grounding.to_dict()
+        request_trace["knowledge_lifecycle_grounding"] = lifecycle_grounding
+        request_trace["knowledge_lifecycle_summary"] = self.knowledge_lifecycle.summary(scope=scope)
         request_trace["learning_planner"] = learning_plans
         request_trace["safe_experiments"] = experiment_updates
         request_trace["long_term_growth"] = long_term_growth
@@ -1654,6 +1681,11 @@ class AishinEngine:
                 "action_selection": action_selection.to_dict(),
                 "execution_bridge": execution_bridge.trace_dict(),
                 "response_grounding": response_grounding.to_dict(),
+                "knowledge_lifecycle": {
+                    "request": knowledge_lifecycle,
+                    "grounding_event": lifecycle_grounding,
+                    "summary": self.knowledge_lifecycle.summary(scope=scope),
+                },
                 "performance": performance,
                 "context_budget": context_budget_report.to_dict(),
                 "self_reflection": reflection.to_dict(),
@@ -1766,6 +1798,11 @@ class AishinEngine:
             "action_selection": action_selection.to_dict(),
             "execution_bridge": execution_bridge.trace_dict(),
             "response_grounding": response_grounding.to_dict(),
+            "knowledge_lifecycle": {
+                "request": knowledge_lifecycle,
+                "grounding_event": lifecycle_grounding,
+                "summary": self.knowledge_lifecycle.summary(scope=scope),
+            },
             "performance": performance,
             "context_budget": context_budget_report.to_dict(),
             "self_reflection": reflection.to_dict(),

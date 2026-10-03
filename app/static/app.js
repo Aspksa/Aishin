@@ -31,19 +31,40 @@ window.AISHIN_SCOPE = {
 
 function refreshScopeAwareUi() {
   refreshDashboard(false);
-  refreshDevelopmentDetails(developmentDays);
-  [
-    "AISHIN_COMMUNICATION_REFRESH",
-    "AISHIN_PROACTIVE_REFRESH",
-    "AISHIN_EVOLUTION_REFRESH",
-    "AISHIN_RESEARCH_REFRESH",
-    "AISHIN_DOCUMENTS_REFRESH",
-    "AISHIN_GROWTH_REFRESH",
-    "AISHIN_INTELLIGENCE_REFRESH",
-    "AISHIN_LIVE_BRAIN_REFRESH"
-  ].forEach((name) => {
+
+  const active = document.querySelector(".module-page.active")?.id || "";
+  const refreshByModule = {
+    "communication-module": ["AISHIN_COMMUNICATION_REFRESH"],
+    "attention-module": ["AISHIN_PROACTIVE_REFRESH"],
+    "evolution-module": ["AISHIN_EVOLUTION_REFRESH"],
+    "research-module": ["AISHIN_RESEARCH_REFRESH"],
+    "documents-module": ["AISHIN_DOCUMENTS_REFRESH"],
+    "development-module": [
+      "AISHIN_GROWTH_REFRESH",
+      "AISHIN_INTELLIGENCE_REFRESH"
+    ]
+  };
+
+  if (active === "development-module") {
+    refreshDevelopmentDetails(developmentDays);
+  }
+
+  (refreshByModule[active] || []).forEach((name) => {
     if (typeof window[name] === "function") window[name]();
   });
+
+  const technical = document.querySelector(".technical-brain");
+  const needsLiveBrain = Boolean(
+    (technical && technical.open) ||
+    active === "development-module" ||
+    active === "settings-module"
+  );
+  if (
+    needsLiveBrain &&
+    typeof window.AISHIN_LIVE_BRAIN_REFRESH === "function"
+  ) {
+    window.AISHIN_LIVE_BRAIN_REFRESH();
+  }
 }
 
 function renderScopeLabel() {

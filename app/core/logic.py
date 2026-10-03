@@ -566,8 +566,10 @@ class LogicEngine:
                         or item.get("resolution")
                         or "Document contradiction"
                     )[:500],
-                    "resolution": str(
-                        item.get("status") or "unresolved"
+                    "resolution": (
+                        "unresolved"
+                        if str(item.get("status") or "open") == "open"
+                        else str(item.get("status") or "unresolved")
                     ),
                     "contradiction_id": item.get("id"),
                 }

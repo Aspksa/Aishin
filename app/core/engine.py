@@ -22,6 +22,7 @@ from .self_reflection import SelfReflectionMetrics
 from .response_grounding import ResponseGroundingScorer
 from .knowledge_lifecycle import KnowledgeLifecycleEngine
 from .canonical_facts import CanonicalFactsEngine
+from .digital_organism import DigitalOrganismFoundation
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
 from .causal import CausalReasoning
@@ -93,6 +94,11 @@ class AishinEngine:
         self.canonical_facts = CanonicalFactsEngine(
             events=self.events,
             knowledge_lifecycle=self.knowledge_lifecycle,
+        )
+        self.digital_organism = DigitalOrganismFoundation(
+            events=self.events,
+            state=self.state,
+            scopes=self.RUNTIME_SCOPES,
         )
         self.learning_planner = LearningPlanner(self.self_reflection)
         self.experiment_manager = SafeExperimentManager()
@@ -490,6 +496,9 @@ class AishinEngine:
                 scope=effective_scope,
                 limit=20,
             ),
+            "digital_organism": self.digital_organism.dashboard(
+                scope=effective_scope,
+            ),
             "learning_planner": {
                 "open": self.learning_planner.open_plans(
                     scope=effective_scope,
@@ -601,6 +610,10 @@ class AishinEngine:
             intent,
             scope=scope,
         )
+        digital_now = self.digital_organism.observe_interaction(
+            scope=scope,
+            focus=intent,
+        )
 
         history = recent_messages(limit=12, scope=scope)
 
@@ -680,6 +693,10 @@ class AishinEngine:
         )
 
         context = self.cognition.build_context(cleaned, scope=scope)
+        context.system_prompt += (
+            "\n\n"
+            + self.digital_organism.prompt_block(scope=scope)
+        )
         perf.checkpoint("cognition")
         self.brain_flow.phase(
             request_id=request_id,
@@ -1625,6 +1642,15 @@ class AishinEngine:
         request_trace["knowledge_lifecycle_summary"] = self.knowledge_lifecycle.summary(scope=scope)
         request_trace["canonical_facts_summary"] = self.canonical_facts.summary(scope=scope)
         request_trace["canonical_facts_evidence_count"] = len(canonical_logic_evidence)
+        request_trace["digital_organism"] = {
+            "now": {
+                "current_scope": digital_now.get("current_scope"),
+                "focus": digital_now.get("focus"),
+                "active_task": digital_now.get("active_task"),
+            },
+            "development_state": self.digital_organism.development_state(),
+            "continuity": self.digital_organism.inspect_continuity(),
+        }
         request_trace["learning_planner"] = learning_plans
         request_trace["safe_experiments"] = experiment_updates
         request_trace["long_term_growth"] = long_term_growth
@@ -1840,6 +1866,11 @@ class AishinEngine:
                 "summary": self.canonical_facts.summary(scope=scope),
                 "reasoning_evidence_count": len(canonical_logic_evidence),
                 "refreshed": bool(canonical_sync.get("refreshed")),
+            },
+            "digital_organism": {
+                "now": self.digital_organism.now(scope=scope),
+                "development_state": self.digital_organism.development_state(),
+                "continuity": self.digital_organism.inspect_continuity(),
             },
             "performance": performance,
             "context_budget": context_budget_report.to_dict(),

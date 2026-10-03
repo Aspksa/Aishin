@@ -486,6 +486,12 @@ class ContinuousLearningEngine:
                 "status",
                 0.90,
             ),
+            (
+                "knowledge_lifecycle",
+                "knowledge_learning_events",
+                "event_type",
+                0.95,
+            ),
             ("context_budget", "context_budget_reports", "mode", 0.65),
             ("experiment", "experiment_observations", "experiment_id", 0.55),
         )
@@ -763,6 +769,44 @@ class ContinuousLearningEngine:
                         "unsupported_claims": unsupported,
                     },
                 )
+            return True
+
+        if source_type == "knowledge_lifecycle":
+            event_type = str(payload.get("event_type") or kind)
+            if event_type in {
+                "response_grounding_ok",
+                "response_grounding_risk",
+            }:
+                # response_grounding_runs already supplies this signal directly;
+                # do not count the lifecycle audit copy as a second observation.
+                return False
+            positive = {
+                "knowledge_verified",
+                "correction_confirmed",
+                "hypothesis_confirmed",
+            }
+            negative = {
+                "error_detected",
+                "hypothesis_rejected",
+            }
+            if event_type not in positive | negative:
+                return False
+            self._observe_pattern(
+                scope=scope,
+                category="knowledge_lifecycle",
+                pattern_key=event_type,
+                success=event_type in positive,
+                failure=event_type in negative,
+                evidence_weight=0.95,
+                evidence={
+                    "source_type": source_type,
+                    "source_id": source_id,
+                    "event_type": event_type,
+                    "subject_type": payload.get("subject_type"),
+                    "subject_id": payload.get("subject_id"),
+                    "confidence": payload.get("confidence"),
+                },
+            )
             return True
 
         if source_type == "context_budget":
@@ -1204,6 +1248,17 @@ class ContinuousLearningEngine:
                 "claims_partial": item.get("claims_partial"),
                 "claims_unsupported": item.get("claims_unsupported"),
             }
+        if source_type == "knowledge_lifecycle":
+            return {
+                "event_type": item.get("event_type"),
+                "subject_type": item.get("subject_type"),
+                "subject_id": item.get("subject_id"),
+                "summary": str(item.get("summary") or "")[:300],
+                "confidence": item.get("confidence"),
+                "details": ContinuousLearningEngine._safe_metadata(
+                    json.loads(item.get("details_json") or "{}")
+                ),
+            }
         if source_type == "context_budget":
             return {
                 "mode": item.get("mode"),
@@ -1282,6 +1337,16 @@ class ContinuousLearningEngine:
             value = float(score) if score is not None else 0.0
             unsupported = int(item.get("claims_unsupported") or 0)
             return 0.98 if value < 0.52 or unsupported > 0 else default
+        if source_type == "knowledge_lifecycle":
+            event_type = str(item.get("event_type") or "")
+            if event_type in {
+                "error_detected",
+                "correction_confirmed",
+                "hypothesis_confirmed",
+                "hypothesis_rejected",
+            }:
+                return 0.98
+            return 0.95
         if source_type == "context_budget":
             return 0.80 if int(item.get("trimmed_chars") or 0) > 0 else default
         if source_type == "experiment":

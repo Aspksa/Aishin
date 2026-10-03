@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 24
+LATEST_SCHEMA_VERSION = 25
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -1735,6 +1735,155 @@ def _migration_024_response_grounding(
     )
 
 
+
+def _migration_025_knowledge_lifecycle(
+    conn: sqlite3.Connection,
+) -> None:
+    """Evidence-first knowledge and hypothesis lifecycle with immutable audit."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS knowledge_claims (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            claim_key TEXT NOT NULL,
+            statement TEXT NOT NULL,
+            origin_type TEXT NOT NULL DEFAULT 'evidence',
+            origin_request_id TEXT NOT NULL DEFAULT '',
+            last_request_id TEXT NOT NULL DEFAULT '',
+            state TEXT NOT NULL DEFAULT 'observed',
+            confidence REAL NOT NULL DEFAULT 0.0,
+            support_score REAL NOT NULL DEFAULT 0.0,
+            contradiction_score REAL NOT NULL DEFAULT 0.0,
+            support_groups INTEGER NOT NULL DEFAULT 0,
+            contradiction_groups INTEGER NOT NULL DEFAULT 0,
+            observations INTEGER NOT NULL DEFAULT 1,
+            verification_passes INTEGER NOT NULL DEFAULT 0,
+            first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            verified_at TEXT,
+            contradicted_at TEXT,
+            superseded_at TEXT,
+            superseded_by_id INTEGER,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, claim_key),
+            FOREIGN KEY(superseded_by_id) REFERENCES knowledge_claims(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS knowledge_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            claim_id INTEGER NOT NULL,
+            request_id TEXT NOT NULL DEFAULT '',
+            source_type TEXT NOT NULL,
+            source_ref TEXT NOT NULL DEFAULT '',
+            source_group TEXT NOT NULL DEFAULT '',
+            stance TEXT NOT NULL DEFAULT 'support',
+            confidence REAL NOT NULL DEFAULT 0.0,
+            provenance_json TEXT NOT NULL DEFAULT '{}',
+            content_hash TEXT NOT NULL,
+            content_excerpt TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(claim_id, source_group, stance, content_hash),
+            FOREIGN KEY(claim_id) REFERENCES knowledge_claims(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS knowledge_transitions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            claim_id INTEGER NOT NULL,
+            from_state TEXT NOT NULL,
+            to_state TEXT NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(claim_id) REFERENCES knowledge_claims(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS hypothesis_registry (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            hypothesis_key TEXT NOT NULL,
+            title TEXT NOT NULL,
+            state TEXT NOT NULL DEFAULT 'candidate',
+            confidence REAL NOT NULL DEFAULT 0.0,
+            support_groups INTEGER NOT NULL DEFAULT 0,
+            opposition_groups INTEGER NOT NULL DEFAULT 0,
+            observations INTEGER NOT NULL DEFAULT 1,
+            verification_passes INTEGER NOT NULL DEFAULT 0,
+            last_run_id INTEGER,
+            first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            confirmed_at TEXT,
+            rejected_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, hypothesis_key),
+            FOREIGN KEY(last_run_id) REFERENCES hypothesis_runs(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS hypothesis_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            hypothesis_id INTEGER NOT NULL,
+            request_id TEXT NOT NULL DEFAULT '',
+            source_type TEXT NOT NULL,
+            source_ref TEXT NOT NULL DEFAULT '',
+            source_group TEXT NOT NULL DEFAULT '',
+            stance TEXT NOT NULL DEFAULT 'support',
+            confidence REAL NOT NULL DEFAULT 0.0,
+            content_hash TEXT NOT NULL,
+            content_excerpt TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(hypothesis_id, source_group, stance, content_hash),
+            FOREIGN KEY(hypothesis_id) REFERENCES hypothesis_registry(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS hypothesis_transitions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            hypothesis_id INTEGER NOT NULL,
+            from_state TEXT NOT NULL,
+            to_state TEXT NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(hypothesis_id) REFERENCES hypothesis_registry(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS knowledge_learning_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            subject_type TEXT NOT NULL,
+            subject_id INTEGER NOT NULL DEFAULT 0,
+            summary TEXT NOT NULL DEFAULT '',
+            confidence REAL NOT NULL DEFAULT 0.0,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_knowledge_claims_scope_state
+        ON knowledge_claims(scope, state, confidence DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_knowledge_evidence_claim
+        ON knowledge_evidence(claim_id, stance, source_group);
+
+        CREATE INDEX IF NOT EXISTS idx_knowledge_transitions_scope_created
+        ON knowledge_transitions(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_hypothesis_registry_scope_state
+        ON hypothesis_registry(scope, state, confidence DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_hypothesis_evidence_subject
+        ON hypothesis_evidence(hypothesis_id, stance, source_group);
+
+        CREATE INDEX IF NOT EXISTS idx_hypothesis_transitions_scope_created
+        ON hypothesis_transitions(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_knowledge_learning_scope_created
+        ON knowledge_learning_events(scope, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -1760,6 +1909,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (22, "communication_intelligence", _migration_022_communication_intelligence),
     (23, "document_intelligence", _migration_023_document_intelligence),
     (24, "response_grounding", _migration_024_response_grounding),
+    (25, "knowledge_lifecycle", _migration_025_knowledge_lifecycle),
 )
 
 

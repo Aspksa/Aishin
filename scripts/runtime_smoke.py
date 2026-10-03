@@ -111,8 +111,8 @@ def main() -> int:
                 'id="documents-upload-btn"',
                 'id="scope-select"',
                 'value="project:aishin"',
-                '/static/app.js?v=0.0.13',
-                '/static/live_brain.js?v=0.0.13',
+                '/static/app.js?v=0.0.14',
+                '/static/live_brain.js?v=0.0.14',
                 'role="dialog"',
                 'aria-modal="true"',
             )
@@ -162,18 +162,18 @@ def main() -> int:
                     f"/health returned HTTP {health.status_code}: {health.text[:300]}"
                 )
             health_data = health.json()
-            if health_data.get("version") != "0.0.13":
+            if health_data.get("version") != "0.0.14":
                 raise RuntimeError(
-                    "Health должен сообщать Aishin Core 0.0.13"
+                    "Health должен сообщать Aishin Core 0.0.14"
                 )
             with connect() as conn:
                 schema_row = conn.execute(
                     "SELECT MAX(version) AS version FROM schema_migrations"
                 ).fetchone()
             schema_version = int(schema_row["version"] or 0)
-            if schema_version != 24:
+            if schema_version != 25:
                 raise RuntimeError(
-                    f"Ожидалась database schema 24, получено {schema_version}"
+                    f"Ожидалась database schema 25, получено {schema_version}"
                 )
             checks["health"] = {
                 **health_data,
@@ -739,6 +739,428 @@ def main() -> int:
             ):
                 raise RuntimeError(
                     "Read-only tool content потерял trust boundary"
+                )
+
+            lifecycle_scope = "smoke:knowledge-lifecycle"
+            hypothesis_lifecycle_scope = "smoke:hypothesis-lifecycle"
+            with connect() as conn:
+                for cleanup_scope in (
+                    lifecycle_scope,
+                    hypothesis_lifecycle_scope,
+                ):
+                    conn.execute(
+                        "DELETE FROM knowledge_learning_events WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM hypothesis_transitions WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM hypothesis_evidence WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM hypothesis_registry WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM knowledge_transitions WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM knowledge_evidence WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        """UPDATE knowledge_claims
+                           SET superseded_by_id=NULL
+                           WHERE scope=?""",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM knowledge_claims WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                conn.commit()
+            lifecycle_request_1 = engine.knowledge_lifecycle.observe_reasoning(
+                request_id="knowledge-lifecycle-1",
+                scope=lifecycle_scope,
+                evidence=[
+                    {
+                        "source_type": "document",
+                        "source_ref": "doc-a",
+                        "source_group": "document:a",
+                        "content": "Регламент устанавливает лимит топлива 120 литров.",
+                        "confidence": 0.92,
+                        "provenance": {"document_id": 1, "page": 2},
+                    }
+                ],
+                contradictions=[],
+                hypothesis_run={
+                    "run_id": None,
+                    "hypotheses": [],
+                    "selected_test": {},
+                },
+                verification=None,
+            )
+            first_claims = engine.knowledge_lifecycle.claims(
+                scope=lifecycle_scope,
+                limit=10,
+            )
+            if (
+                len(first_claims) != 1
+                or first_claims[0].get("state") != "observed"
+            ):
+                raise RuntimeError(
+                    "Один источник не должен автоматически становиться verified knowledge"
+                )
+
+            lifecycle_request_2 = engine.knowledge_lifecycle.observe_reasoning(
+                request_id="knowledge-lifecycle-2",
+                scope=lifecycle_scope,
+                evidence=[
+                    {
+                        "source_type": "document",
+                        "source_ref": "doc-a",
+                        "source_group": "document:a",
+                        "content": "Регламент устанавливает лимит топлива 120 литров.",
+                        "confidence": 0.92,
+                    },
+                    {
+                        "source_type": "research",
+                        "source_ref": "manual-b",
+                        "source_group": "manual:b",
+                        "content": "Регламент устанавливает лимит топлива 120 литров.",
+                        "confidence": 0.88,
+                    },
+                ],
+                contradictions=[],
+                hypothesis_run={
+                    "run_id": None,
+                    "hypotheses": [],
+                    "selected_test": {},
+                },
+                verification={
+                    "ran": True,
+                    "unresolved": [],
+                    "consistency": {"conflicts": []},
+                },
+            )
+            verified_claims = engine.knowledge_lifecycle.claims(
+                scope=lifecycle_scope,
+                state="verified",
+                limit=10,
+            )
+            if len(verified_claims) != 1:
+                raise RuntimeError(
+                    "Два независимых evidence + clean Verification должны "
+                    "поднять claim в verified"
+                )
+
+            engine.knowledge_lifecycle.observe_reasoning(
+                request_id="knowledge-lifecycle-3",
+                scope=lifecycle_scope,
+                evidence=[
+                    {
+                        "source_type": "document",
+                        "source_ref": "doc-a",
+                        "source_group": "document:a",
+                        "content": "Регламент устанавливает лимит топлива 120 литров.",
+                        "confidence": 0.92,
+                    }
+                ],
+                contradictions=[
+                    {
+                        "id": 99,
+                        "source": "document",
+                        "source_group": "document:c",
+                        "summary": "Регламент не устанавливает лимит топлива 120 литров.",
+                        "severity": 0.95,
+                    }
+                ],
+                hypothesis_run={
+                    "run_id": None,
+                    "hypotheses": [],
+                    "selected_test": {},
+                },
+                verification=None,
+            )
+            contradicted = engine.knowledge_lifecycle.claims(
+                scope=lifecycle_scope,
+                state="contradicted",
+                limit=10,
+            )
+            if len(contradicted) != 1:
+                raise RuntimeError(
+                    "Сильное связанное противоречие должно переводить claim "
+                    "в contradicted"
+                )
+
+            engine.knowledge_lifecycle.observe_reasoning(
+                request_id="knowledge-lifecycle-4",
+                scope=lifecycle_scope,
+                evidence=[
+                    {
+                        "source_type": "document",
+                        "source_ref": "doc-new-a",
+                        "source_group": "document:new-a",
+                        "content": "Обновлённый регламент устанавливает лимит топлива 130 литров.",
+                        "confidence": 0.93,
+                    },
+                    {
+                        "source_type": "research",
+                        "source_ref": "manual-new-b",
+                        "source_group": "manual:new-b",
+                        "content": "Обновлённый регламент устанавливает лимит топлива 130 литров.",
+                        "confidence": 0.89,
+                    },
+                ],
+                contradictions=[],
+                hypothesis_run={
+                    "run_id": None,
+                    "hypotheses": [],
+                    "selected_test": {},
+                },
+                verification={
+                    "ran": True,
+                    "unresolved": [],
+                    "consistency": {"conflicts": []},
+                },
+            )
+            replacement_claims = [
+                item
+                for item in engine.knowledge_lifecycle.claims(
+                    scope=lifecycle_scope,
+                    state="verified",
+                    limit=20,
+                )
+                if "130" in str(item.get("statement") or "")
+            ]
+            if len(replacement_claims) != 1:
+                raise RuntimeError(
+                    "Replacement knowledge must be verified before supersession"
+                )
+            superseded = engine.knowledge_lifecycle.supersede_claim(
+                scope=lifecycle_scope,
+                old_claim_id=int(contradicted[0]["id"]),
+                new_claim_id=int(replacement_claims[0]["id"]),
+                reason="new_regulation_replaces_previous_limit",
+            )
+            if (
+                superseded.get("state") != "superseded"
+                or int(superseded.get("superseded_by_id") or 0)
+                != int(replacement_claims[0]["id"])
+            ):
+                raise RuntimeError(
+                    "Knowledge supersession must preserve replacement linkage"
+                )
+
+            hypothesis_run = {
+                "run_id": None,
+                "hypotheses": [
+                    {
+                        "key": "fuel-limit-cause",
+                        "title": "Лимит задан действующим регламентом",
+                        "confidence": 0.74,
+                        "supporting": [
+                            "Лимит задан действующим регламентом 120 литров"
+                        ],
+                        "opposing": [],
+                        "status": "leading",
+                    }
+                ],
+                "selected_test": {
+                    "competing_hypotheses": ["fuel-limit-cause"],
+                },
+            }
+            engine.knowledge_lifecycle.observe_reasoning(
+                request_id="hypothesis-lifecycle-1",
+                scope=hypothesis_lifecycle_scope,
+                evidence=[
+                    {
+                        "source_type": "document",
+                        "source_ref": "d1",
+                        "source_group": "document:d1",
+                        "content": "Лимит задан действующим регламентом 120 литров",
+                        "confidence": 0.90,
+                    }
+                ],
+                contradictions=[],
+                hypothesis_run=hypothesis_run,
+                verification=None,
+            )
+            hypothesis_rows = engine.knowledge_lifecycle.hypotheses(
+                scope=hypothesis_lifecycle_scope,
+                limit=10,
+            )
+            if (
+                len(hypothesis_rows) != 1
+                or hypothesis_rows[0].get("state") == "confirmed"
+            ):
+                raise RuntimeError(
+                    "Высокий confidence без независимой evidence не должен "
+                    "подтверждать гипотезу"
+                )
+
+            confirmed_hypothesis_run = {
+                "run_id": None,
+                "hypotheses": [
+                    {
+                        "key": "fuel-limit-cause",
+                        "title": "Лимит задан действующим регламентом",
+                        "confidence": 0.78,
+                        "supporting": [
+                            "Источник A подтверждает действующий регламент 120 литров",
+                            "Источник B подтверждает действующий регламент 120 литров",
+                            "Источник C подтверждает действующий регламент 120 литров",
+                        ],
+                        "opposing": [],
+                        "status": "leading",
+                    }
+                ],
+                "selected_test": {},
+            }
+            engine.knowledge_lifecycle.observe_reasoning(
+                request_id="hypothesis-lifecycle-2",
+                scope=hypothesis_lifecycle_scope,
+                evidence=[
+                    {
+                        "source_type": "document",
+                        "source_ref": "hd1",
+                        "source_group": "document:hd1",
+                        "content": "Источник A подтверждает действующий регламент 120 литров",
+                        "confidence": 0.92,
+                    },
+                    {
+                        "source_type": "research",
+                        "source_ref": "hr2",
+                        "source_group": "research:hr2",
+                        "content": "Источник B подтверждает действующий регламент 120 литров",
+                        "confidence": 0.88,
+                    },
+                    {
+                        "source_type": "memory",
+                        "source_ref": "hm3",
+                        "source_group": "memory:hm3",
+                        "content": "Источник C подтверждает действующий регламент 120 литров",
+                        "confidence": 0.86,
+                    },
+                ],
+                contradictions=[],
+                hypothesis_run=confirmed_hypothesis_run,
+                verification={
+                    "ran": True,
+                    "unresolved": [],
+                    "consistency": {"conflicts": []},
+                },
+            )
+            confirmed_hypotheses = engine.knowledge_lifecycle.hypotheses(
+                scope=hypothesis_lifecycle_scope,
+                state="confirmed",
+                limit=10,
+            )
+            if len(confirmed_hypotheses) != 1:
+                raise RuntimeError(
+                    "Three independent support groups + clean Verification "
+                    "must allow hypothesis confirmation"
+                )
+
+            learning_cycle = engine.continuous_learning.run_cycle(
+                scope=lifecycle_scope,
+            )
+            lifecycle_patterns = [
+                item
+                for item in engine.continuous_learning.patterns(
+                    scope=lifecycle_scope,
+                    limit=100,
+                )
+                if item.get("category") == "knowledge_lifecycle"
+            ]
+            if not any(
+                item.get("pattern_key") == "knowledge_verified"
+                for item in lifecycle_patterns
+            ):
+                raise RuntimeError(
+                    "Continuous Learning did not ingest evidence-backed "
+                    "knowledge lifecycle events"
+                )
+
+            knowledge_api = client.get(
+                "/api/assistant/knowledge-lifecycle",
+                params={"scope": lifecycle_scope, "limit": 20},
+            )
+            if knowledge_api.status_code != 200:
+                raise RuntimeError("Knowledge Lifecycle API недоступен")
+            lifecycle_api_data = knowledge_api.json()
+            if (
+                lifecycle_api_data.get("summary", {}).get("version")
+                != "aishin-knowledge-lifecycle-v1"
+            ):
+                raise RuntimeError("Knowledge Lifecycle API version mismatch")
+            if not lifecycle_api_data.get("transitions"):
+                raise RuntimeError(
+                    "Knowledge Lifecycle должен сохранять audit transitions"
+                )
+            if not any(
+                isinstance(item.get("evidence"), list)
+                and item.get("evidence")
+                and item["evidence"][0].get("source_group")
+                for item in lifecycle_api_data.get("claims") or []
+            ):
+                raise RuntimeError(
+                    "Knowledge claims API должен возвращать evidence provenance"
+                )
+            hypothesis_provenance_api = client.get(
+                "/api/assistant/knowledge-lifecycle/hypotheses",
+                params={
+                    "scope": hypothesis_lifecycle_scope,
+                    "state": "confirmed",
+                    "limit": 10,
+                },
+            )
+            if hypothesis_provenance_api.status_code != 200:
+                raise RuntimeError(
+                    "Hypothesis Lifecycle provenance API недоступен"
+                )
+            hypothesis_api_rows = hypothesis_provenance_api.json()
+            if not any(
+                item.get("state") == "confirmed"
+                and len(item.get("evidence") or []) >= 3
+                for item in hypothesis_api_rows
+            ):
+                raise RuntimeError(
+                    "Confirmed hypothesis должен раскрывать independent evidence"
+                )
+            supersede_api = client.post(
+                (
+                    "/api/assistant/knowledge-lifecycle/claims/"
+                    f"{int(contradicted[0]['id'])}/supersede"
+                ),
+                json={
+                    "scope": lifecycle_scope,
+                    "new_claim_id": int(replacement_claims[0]["id"]),
+                    "reason": "runtime_idempotent_supersession_check",
+                },
+            )
+            if supersede_api.status_code != 403:
+                raise RuntimeError(
+                    "Knowledge supersession HTTP API должен сохранять "
+                    "local-only guard в TestClient"
+                )
+
+            project_lifecycle = client.get(
+                "/api/assistant/knowledge-lifecycle",
+                params={"scope": "project:aishin", "limit": 10},
+            )
+            if project_lifecycle.status_code != 200:
+                raise RuntimeError("Project-scoped Knowledge Lifecycle недоступен")
+            if (
+                project_lifecycle.json().get("summary", {}).get("scope")
+                != "project:aishin"
+            ):
+                raise RuntimeError(
+                    "Knowledge Lifecycle должен соблюдать scope isolation"
                 )
 
             checks["response_grounding"] = {
@@ -3032,6 +3454,13 @@ def main() -> int:
             ):
                 raise RuntimeError(
                     "Live Brain должен включать Document Intelligence"
+                )
+            if not isinstance(
+                live_brain_data.get("knowledge_lifecycle"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Live Brain должен включать Knowledge Lifecycle"
                 )
 
             checks["live_brain_runtime"] = {

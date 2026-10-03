@@ -297,6 +297,14 @@ class LiveBrainRuntime:
                 limit=100,
             ),
         )
+        knowledge_lifecycle = take(
+            "knowledge_lifecycle",
+            {},
+            lambda: self.engine.knowledge_lifecycle.dashboard(
+                scope=scope,
+                limit=20,
+            ),
+        )
         learning_plans = take(
             "learning_planner",
             [],
@@ -455,6 +463,9 @@ class LiveBrainRuntime:
             )
         )
         documents_summary = documents.get("summary") or {}
+        knowledge_lifecycle_summary = (
+            knowledge_lifecycle.get("summary") or {}
+        )
         document_attention = bool(
             int(documents_summary.get("failed_documents") or 0)
             or int(documents_summary.get("contradiction_count") or 0)
@@ -613,6 +624,24 @@ class LiveBrainRuntime:
                     latest_grounding.get("claims_unsupported") or 0
                 ),
                 "grounding_attention": grounding_attention,
+                "verified_knowledge": int(
+                    knowledge_lifecycle_summary.get("verified_knowledge") or 0
+                ),
+                "contradicted_knowledge": int(
+                    knowledge_lifecycle_summary.get("contradicted_knowledge") or 0
+                ),
+                "confirmed_hypotheses": int(
+                    knowledge_lifecycle_summary.get("confirmed_hypotheses") or 0
+                ),
+                "rejected_hypotheses": int(
+                    knowledge_lifecycle_summary.get("rejected_hypotheses") or 0
+                ),
+                "knowledge_errors_detected": int(
+                    knowledge_lifecycle_summary.get("errors_detected") or 0
+                ),
+                "knowledge_corrections_confirmed": int(
+                    knowledge_lifecycle_summary.get("corrections_confirmed") or 0
+                ),
             },
             "channels": channels,
             "topology": topology,
@@ -649,6 +678,7 @@ class LiveBrainRuntime:
             "research": research,
             "communication": communication,
             "documents": documents,
+            "knowledge_lifecycle": knowledge_lifecycle,
             "quality": {
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
@@ -702,6 +732,12 @@ class LiveBrainRuntime:
                     "document_sections + document_chunks + "
                     "document_chunk_vectors + document_facts + "
                     "document_contradictions + document_ingestion_runs"
+                ),
+                "knowledge_lifecycle": (
+                    "knowledge_claims + knowledge_evidence + "
+                    "knowledge_transitions + hypothesis_registry + "
+                    "hypothesis_evidence + hypothesis_transitions + "
+                    "knowledge_learning_events"
                 ),
             },
         }
@@ -913,6 +949,7 @@ class LiveBrainRuntime:
         research = trace.get("research") or {}
         execution = trace.get("execution_bridge") or {}
         grounding = trace.get("response_grounding") or {}
+        lifecycle = trace.get("knowledge_lifecycle_summary") or {}
         document_ids = sorted({
             int(item.get("document_id"))
             for item in document_context
@@ -960,6 +997,18 @@ class LiveBrainRuntime:
             ),
             "grounding_source_groups": int(
                 grounding.get("source_groups") or 0
+            ),
+            "verified_knowledge": int(
+                lifecycle.get("verified_knowledge") or 0
+            ),
+            "contradicted_knowledge": int(
+                lifecycle.get("contradicted_knowledge") or 0
+            ),
+            "confirmed_hypotheses": int(
+                lifecycle.get("confirmed_hypotheses") or 0
+            ),
+            "knowledge_errors_detected": int(
+                lifecycle.get("errors_detected") or 0
             ),
             "execution_state": execution.get("state"),
             "execution_tool": execution.get("selected_tool"),

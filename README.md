@@ -3,7 +3,7 @@
 Aishin — проект личной AI-помощницы Айшин (Айши).
 
 ## Версия
-`0.0.13` — Response Grounding: доказательная привязка финального ответа к evidence/provenance поверх закрытого Brain Wiring & Real-Time Neural Observatory 0.0.12.
+`0.0.14` — Knowledge Lifecycle & Hypothesis Validation: доказательный жизненный цикл знаний и гипотез поверх Response Grounding 0.0.13.
 
 ## Что уже заложено
 - ядро на Python/FastAPI;
@@ -33,7 +33,7 @@ Aishin — проект личной AI-помощницы Айшин (Айши)
 - **Tool Registry** — контролируемые инструменты с permission gate, dry-run, явным approval и журналом действий;
 - **Proactive Decision Loop** — сенсоры → оценка → предложение → approval/reject → контролируемое выполнение;
 - **Real-Time Neural Observatory** — настоящая 24-узловая карта прохождения запроса с состояниями `executing / recent / idle / attention`, реальными переходами и лёгким SSE-потоком без тяжёлого polling;
-- **Response Grounding** — generation-time policy + детерминированный post-response аудит: claims сопоставляются только с evidence текущего запроса, учитываются provenance/source groups, точные числа и отрицание; слабая опора попадает в Self Reflection, Continuous Learning и Live Brain;
+- **Response Grounding** — generation-time policy + детерминированный post-response аудит: claims сопоставляются только с evidence текущего запроса, учитываются provenance/source groups, точные числа и отрицание; слабая опора попадает в Self Reflection, Continuous Learning и Live Brain;\n- **Knowledge Lifecycle & Hypothesis Validation** — evidence-first реестр знаний `observed → supported → verified / contradicted / rejected`, отдельный реестр гипотез `candidate → testing → supported → confirmed / rejected`, независимые source groups, immutable transitions, события ошибок/исправлений и строгий запрет считать собственный ответ Айшин источником знания;
 - **Metacognition** — детерминированная оценка достаточности данных, confidence, evidence score, противоречий и необходимости перепроверки перед ответом;
 - **Verification Engine** — автоматическая перепроверка памяти, semantic memory, Knowledge Graph, сенсоров и явно указанных файлов проекта с повторной оценкой confidence до финального ответа;
 - permission gate для будущих автономных действий;
@@ -103,7 +103,7 @@ Aishin проектируется не как многопользователь
 
 Проектная память хранится отдельно от личной и не должна автоматически смешиваться с ней. Перед ответом когнитивный слой собирает личность Айшин, self-model, личный контекст, релевантную память и только затем обращается к Cloud.ru.
 
-Эти слои были закрыты в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Эти слои были закрыты в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Memory Consolidation
@@ -119,7 +119,7 @@ Aishin проектируется не как многопользователь
 7. Если новое значение конфликтует со старым, но пользователь не обозначил изменение, оба факта не сливаются: создаётся запись о противоречии.
 8. Все изменения памяти записываются в `memory_changes` и доступны через `GET /api/assistant/memory-changes`.
 
-Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Semantic Memory
@@ -138,7 +138,7 @@ API:
 - `GET /api/assistant/semantic-search?query=...&scope=personal`
 - `POST /api/assistant/semantic-index?scope=personal`
 
-Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Knowledge Graph
@@ -175,7 +175,7 @@ API:
 - `GET /api/assistant/graph/stats`
 - `GET /api/assistant/graph/changes`
 
-Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Internal Planner
@@ -208,7 +208,7 @@ API:
 
 Активные цели, задачи и предупреждения планировщика включаются в когнитивный контекст Айшин перед ответом.
 
-Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Sensors & Tools
@@ -250,7 +250,7 @@ API:
 - `GET /api/assistant/tools/history`
 - `POST /api/assistant/permissions/{capability}`
 
-Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Proactive Decision Loop
@@ -290,7 +290,7 @@ API:
 - `POST /api/assistant/proactive/{decision_id}/reject`
 - `POST /api/assistant/proactive/{decision_id}/execute`
 
-Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Approval Center
@@ -314,7 +314,7 @@ API:
 
 Карточки строятся через DOM API и пользовательский текст не вставляется как сырой HTML.
 
-Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Live Brain Visualization
@@ -342,7 +342,7 @@ API:
 
 Визуальный поток анимируется только как отражение активности данных и не означает, что скрытое действие было выполнено.
 
-Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Metacognition
@@ -382,7 +382,7 @@ API:
 
 Live Brain содержит отдельный узел «Уверенность» и показывает последний metacognitive status.
 
-Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Verification Engine
@@ -412,11 +412,11 @@ API:
 
 Live Brain содержит отдельный узел `Verification`, который показывает, выполнялась ли перепроверка и сколько пунктов осталось нерешёнными.
 
-Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Надёжность ядра и миграции
-На этом этапе версия проекта оставалась `0.0.12`; текущая версия — `0.0.13`.
+На этом этапе версия проекта оставалась `0.0.12`; текущая версия — `0.0.14`.
 
 Канонический профиль личности:
 - основной источник: `app/data/AISHIN_PERSONALITY_PROFILE.json`;
@@ -483,7 +483,7 @@ API:
 
 Live Brain содержит отдельный узел Logic Engine и отображает текущий mode/complexity.
 
-Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.13`.
+Этот слой был завершён в составе `0.0.12`; текущая версия проекта — `0.0.14`.
 
 
 ## Context Orchestrator
@@ -520,7 +520,7 @@ API:
 Live Brain показывает отдельные узлы Context и Causal.
 
 Schema migration: `4`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 
 ### Подтверждение Context + Causal runtime
@@ -569,7 +569,7 @@ API:
 Подтверждённые стратегии добавляются в prompt только как прошлый опыт с reliability, а не как обязательное правило.
 
 Schema migration: `5`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 
 ### Подтверждение Hypothesis + Logic Learning runtime
@@ -633,7 +633,7 @@ API:
 Live Brain показывает отдельные узлы Counterfactual и Decision Quality.
 
 Schema migration: `6`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 
 ### Подтверждение Counterfactual + Decision Quality runtime
@@ -672,7 +672,7 @@ API:
 Live Brain показывает отдельный узел Action Selection с utility и execution state.
 
 Schema migration: `7`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 
 ### Подтверждение Action Selection runtime
@@ -717,7 +717,7 @@ API:
 Live Brain содержит узел `Execution Guard`.
 
 Schema migration: `8`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 ### Подтверждение Approval / Execution runtime
 Approval / Execution Coordinator подтверждён GitHub Actions:
@@ -781,7 +781,7 @@ API:
 Это устраняет прежнюю гонку, при которой два параллельных запроса могли перезаписать один `last_cognitive_context`.
 
 Schema migration: `9`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 ### Подтверждение Cloud resilience + trace isolation runtime
 Функциональный код подтверждён GitHub Actions:
@@ -844,7 +844,7 @@ Live Brain содержит узел `Latency`, который показыва�
 Это уменьшает лишние повторные memory/graph/sensor/Cloud проверки на простых разговорах.
 
 Schema migration: `10`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 ### Подтверждение Performance + Verification policy runtime
 Функциональный код подтверждён GitHub Actions:
@@ -893,7 +893,7 @@ UI:
 Дополнительно устранена race в создании pending proactive decision: при конкурентном INSERT уникальный индекс остаётся последней защитой, а код после SQLite IntegrityError возвращает уже созданную pending-карточку вместо создания дубля.
 
 Schema migration: `11`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 ### Подтверждение Proactive lifecycle runtime
 Функциональный код подтверждён GitHub Actions:
@@ -938,7 +938,7 @@ Verification-compatible shape подтверждён:
 
 Новых таблиц для этого этапа не потребовалось.
 Schema остаётся `11`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 ### Подтверждение Knowledge Graph runtime
 Функциональный код подтверждён GitHub Actions:
@@ -996,7 +996,7 @@ API:
 
 Новых таблиц не потребовалось.
 Schema остаётся `11`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 ### Подтверждение atomic write / rollback runtime
 Функциональный код подтверждён GitHub Actions:
@@ -1089,7 +1089,7 @@ Live Brain содержит узел `Continuous Learning` с текущим mod
 Важно: Continuous Learning работает постоянно, пока запущен процесс Aishin. Для работы после перезагрузки Windows нужен отдельный OS autostart/service слой.
 
 Schema migration: `12`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 ### Подтверждение Continuous Learning runtime
 Функциональный код подтверждён GitHub Actions:
@@ -1183,7 +1183,7 @@ Quality Gate работает внутри Continuous Learning worker и так�
 No-op quality refresh не пишет строки в SQLite каждые 15 секунд: запись происходит только при существенном изменении score/drift/rank/lifecycle.
 
 Schema migration: `13`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 ### Подтверждение Learning Quality runtime
 Функциональный код подтверждён GitHub Actions:
@@ -1372,7 +1372,7 @@ API:
 - `GET /api/assistant/context-budget`
 
 Schema migration: `14`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 ### Подтверждение runtime
 GitHub Actions run `37008371575`:
@@ -1414,7 +1414,7 @@ GitHub Actions run `37008371575`:
 - FastAPI runtime smoke: success;
 - Windows launcher check-only: success.
 
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`. Schema остаётся `14`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`. Schema остаётся `14`.
 
 
 ## Weighted Evidence Self-Learning
@@ -1461,7 +1461,7 @@ Self-check содержит отдельный regression test:
 - 6 сильных explicit-feedback signals достигают `trusted`.
 
 Schema migration: `15`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 Подтверждено GitHub Actions run `37010233186`:
 - Ubuntu / Python 3.11: success;
@@ -1479,7 +1479,7 @@ Schema migration: `15`.
 
 Главный принцип: общий процент развития считается только по фактически сохранённым данным проекта Aishin. Внешний AI-провайдер Cloud.ru не добавляет баллы напрямую и не является источником «уровня Айшин».
 
-Формула `aishin-development-v1`:
+Формула `aishin-development-v2`:
 - Память — 20%;
 - Знания — 20%;
 - Связи — 15%;
@@ -1507,7 +1507,7 @@ Schema migration: `15`.
 - интерфейс полностью русскоязычный и использует собственные символы/значки Айшин.
 
 Schema migration: `16`.
-Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.13`.
+Этот этап вошёл в `0.0.12`; текущая версия приложения — `0.0.14`.
 
 Подтверждено GitHub Actions run `37012862347`:
 - Ubuntu / Python 3.11: success;
@@ -1516,3 +1516,57 @@ Schema migration: `16`.
 - core self-check: success;
 - FastAPI runtime smoke: success;
 - Windows launcher check-only: success.
+
+
+## Knowledge Lifecycle & Hypothesis Validation — 0.0.14
+
+Версия 0.0.14 добавляет отдельный доказательный жизненный цикл знаний. Он не заменяет Memory, Knowledge Graph, Research, Verification или Response Grounding, а связывает их в единый audit-контур.
+
+Knowledge claim проходит состояния:
+
+`observed → supported → verified`
+
+При конфликте возможны:
+
+`contradicted → rejected`
+
+Для будущей замены сохранено состояние `superseded`. История не перезаписывается: каждый переход фиксируется в `knowledge_transitions`.
+
+Ключевые правила:
+
+- один источник никогда не делает claim автоматически verified;
+- поддержка считается по независимым `source_group`, а не по числу повторов одного документа;
+- clean Verification усиливает claim, но не заменяет независимую evidence;
+- противоречия сохраняются и понижают статус вместо тихого удаления старого знания;
+- собственный текст ответа Айшин не является evidence и не может сам себя подтвердить;
+- Response Grounding создаёт только сигнал качества ответа, но не knowledge claim;
+- personal и project:aishin полностью разделены по scope.
+
+Гипотезы имеют отдельный долговременный реестр:
+
+`candidate → testing → supported → confirmed`
+
+или `rejected`, если накоплена достаточная opposing evidence.
+
+Высокий confidence сам по себе не может сделать гипотезу confirmed. Для confirmed требуются независимые support groups и чистая Verification.
+
+Новые таблицы schema 25:
+
+- `knowledge_claims`
+- `knowledge_evidence`
+- `knowledge_transitions`
+- `hypothesis_registry`
+- `hypothesis_evidence`
+- `hypothesis_transitions`
+- `knowledge_learning_events`
+
+API:
+
+- `GET /api/assistant/knowledge-lifecycle`
+- `GET /api/assistant/knowledge-lifecycle/claims`
+- `GET /api/assistant/knowledge-lifecycle/hypotheses`
+- `POST /api/assistant/knowledge-lifecycle/claims/{claim_id}/supersede`
+- `GET /api/assistant/knowledge-lifecycle/transitions`
+- `GET /api/assistant/knowledge-lifecycle/learning-events`
+
+Development Metrics v2 использует реальные verified knowledge и confirmed hypotheses вместо прежнего placeholder `confirmed_hypotheses=0`.

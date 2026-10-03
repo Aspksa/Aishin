@@ -216,6 +216,16 @@ def main() -> int:
             "personal": engine.graph.stats(scope="personal"),
             "relationship": engine.graph.stats(scope="relationship"),
         }
+        lifecycle_summary = engine.knowledge_lifecycle.summary(
+            scope="personal"
+        )
+        if lifecycle_summary.get("version") != "aishin-knowledge-lifecycle-v1":
+            raise RuntimeError("Knowledge Lifecycle version mismatch")
+        checks["knowledge_lifecycle"] = {
+            "status": "ok",
+            "summary": lifecycle_summary,
+            "assistant_text_is_not_knowledge_source": True,
+        }
 
         merged_graph_data = _merge_graph_data(
             {
@@ -504,7 +514,7 @@ def main() -> int:
                 raise RuntimeError(
                     "Development Metrics weights должны давать ровно 100%"
                 )
-            if development["formula_version"] != "aishin-development-v1":
+            if development["formula_version"] != "aishin-development-v2":
                 raise RuntimeError("Development Metrics formula version mismatch")
             if development["counters"].get("confirmed_hypotheses") != 0:
                 raise RuntimeError(

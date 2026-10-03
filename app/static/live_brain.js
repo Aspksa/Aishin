@@ -98,6 +98,7 @@
         '<article class="live-brain-metric"><span>Исследования</span><strong id="lb-research-score">—</strong><small id="lb-research-status">0 gaps · 0 trusted</small></article>',
         '<article class="live-brain-metric"><span>Общение</span><strong id="lb-communication-score">—</strong><small id="lb-communication-status">0 evidence · persona —</small></article>',
         '<article class="live-brain-metric"><span>Документы</span><strong id="lb-documents-score">—</strong><small id="lb-documents-status">0 studied · 0 OCR</small></article>',
+        '<article class="live-brain-metric"><span>Проводка</span><strong id="lb-wiring-score">—</strong><small id="lb-wiring-status">architecture audit</small></article>',
       '</div>',
       '<div class="live-brain-columns">',
         '<article class="live-brain-panel">',
@@ -516,8 +517,11 @@
     if (!host) return;
     var integrity = data.integrity || {};
     var pulse = data.pulse || {};
+    var wiring = data.wiring || {};
     var rows = [
       ["Состояние", integrity.status || "—"],
+      ["Проводка мозга", (wiring.score == null ? "—" : n(wiring.score).toFixed(1) + "%") + " · " + n(wiring.checks_failed) + " broken"],
+      ["Core-модули", n(wiring.covered_modules) + "/" + n(wiring.core_modules)],
       ["Ошибки подсистем", String(n(integrity.module_errors))],
       ["Нерешённые сигналы", String(n(integrity.unresolved_signals))],
       ["События внимания · 1ч", String(n(integrity.attention_events_1h))],
@@ -535,6 +539,22 @@
         return '<article class="live-brain-event high"><span class="live-brain-event-dot"></span><div><strong>' +
           esc(item.subsystem || "subsystem") + '</strong><small>' + esc(item.error || "error") + ": " + esc(item.message || "") +
           '</small></div></article>';
+      }).join("");
+    }
+
+    var broken = Array.isArray(wiring.broken) ? wiring.broken : [];
+    if (broken.length) {
+      host.innerHTML += broken.slice(0, 8).map(function (item) {
+        var name = item.label || item.module ||
+          ((item.source || "?") + " → " + (item.target || "?"));
+        var detail = item.reason ||
+          (item.left && item.right
+            ? (item.left + " ≠ " + item.right)
+            : (item.expected
+              ? ("expected " + item.expected + " · actual " + (item.actual || "missing"))
+              : "structural wiring check failed"));
+        return '<article class="live-brain-event high"><span class="live-brain-event-dot"></span><div><strong>WIRING · ' +
+          esc(name) + '</strong><small>' + esc(detail) + '</small></div></article>';
       }).join("");
     }
   }
@@ -570,6 +590,7 @@
     var communicationSummary = communication.summary || {};
     var documents = data.documents || {};
     var documentsSummary = documents.summary || {};
+    var wiring = data.wiring || {};
 
     setText("#live-brain-runtime", data.runtime_version || "runtime");
     setText("#live-brain-status", integrity.status || "—");
@@ -594,6 +615,8 @@
     setText("#lb-communication-status", n(communicationSummary.evaluated_turns) + " evidence · persona " + n(communicationSummary.persona_stability).toFixed(0) + "% · explain " + n(communicationSummary.explanation_success).toFixed(0) + "%");
     setText("#lb-documents-score", documentsSummary.ingestion_score == null ? "—" : n(documentsSummary.ingestion_score).toFixed(1) + "%");
     setText("#lb-documents-status", n(documentsSummary.studied_documents) + " studied · " + n(documentsSummary.ocr_required_documents) + " OCR · " + n(documentsSummary.contradiction_count) + " conflicts");
+    setText("#lb-wiring-score", wiring.score == null ? "—" : n(wiring.score).toFixed(1) + "%");
+    setText("#lb-wiring-status", n(wiring.checks_passed) + "/" + n(wiring.checks_total) + " checks · " + n(wiring.checks_failed) + " broken");
     setText("#lb-current-phase", "фаза: " + (pulse.phase || "idle"));
     setText("#lb-event-total", compact(pulse.events_total) + " всего");
 

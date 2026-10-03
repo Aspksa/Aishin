@@ -408,6 +408,10 @@ class DocumentIntelligenceEngine:
                 )
                 conn.commit()
 
+            self._rebuild_family_lineage(
+                scope=scope,
+                family_key=family_key,
+            )
             self._refresh_state(scope)
             self._event(
                 scope=scope,
@@ -579,6 +583,16 @@ class DocumentIntelligenceEngine:
             sections=sections,
             base_quality=quality,
         )
+        near_duplicate_id = self._detect_near_duplicate(
+            scope=scope,
+            document_id=document_id,
+            family_key=str(doc["family_key"]),
+            chunks=chunks,
+        )
+        if near_duplicate_id:
+            warnings.append(
+                f"near_duplicate_of_document:{near_duplicate_id}"
+            )
         self._extract_deterministic_facts(
             scope=scope,
             document_id=document_id,
@@ -602,6 +616,35 @@ class DocumentIntelligenceEngine:
             scope=scope,
             document_id=document_id,
             family_key=str(doc["family_key"]),
+        )
+        previous = self._previous_family_document(
+            scope=scope,
+            family_key=str(doc["family_key"]),
+            version_rank=(
+                int(doc["version_rank"])
+                if doc.get("version_rank") is not None
+                else None
+            ),
+        )
+        graph_entity_id = self._index_graph(
+            scope=scope,
+            document_id=document_id,
+            filename=filename,
+            family_key=str(doc["family_key"]),
+            version_label=str(doc.get("version_label") or ""),
+            quality=quality,
+            previous=previous,
+            sections=sections,
+            sha256=str(doc["sha256"]),
+        )
+        research_source = self._register_research_source(
+            scope=scope,
+            document_id=document_id,
+            filename=filename,
+            sha256=str(doc["sha256"]),
+            quality=quality,
+            duplicate_of_id=near_duplicate_id,
+            graph_entity_id=graph_entity_id,
         )
         semantic = (
             self.ensure_semantic_index(
@@ -629,6 +672,7 @@ class DocumentIntelligenceEngine:
         with connect() as conn:
             conn.execute(
                 """UPDATE documents SET status=?, parser=?,
+                   duplicate_of_id=?,
                    quality_score=?, extraction_coverage=?,
                    ocr_required=?, page_count=?, section_count=?,
                    chunk_count=?, fact_count=?, warning_count=?,
@@ -638,11 +682,21 @@ class DocumentIntelligenceEngine:
                    updated_at=CURRENT_TIMESTAMP
                    WHERE id=? AND scope=?""",
                 (
-                    status, parsed.parser, quality, coverage,
-                    1 if parsed.ocr_required else 0,
+                    status, parsed.parser, near_duplicate_id,
+                    quality, coverage, 1 if parsed.ocr_required else 0,
                     len(pages), len(sections), len(chunks),
                     facts_count, len(warnings),
-                    json.dumps(parsed.metadata, ensure_ascii=False),
+                    json.dumps(
+                        {
+                            **parsed.metadata,
+                            "graph_entity_id": graph_entity_id,
+                            "research_source_key": (
+                                research_source.get("source_key")
+                                if research_source else None
+                            ),
+                        },
+                        ensure_ascii=False,
+                    ),
                     status, document_id, scope,
                 ),
             )
@@ -661,11 +715,15 @@ class DocumentIntelligenceEngine:
                 ),
             )
             conn.commit()
+        self._rebuild_family_lineage(
+            scope=scope,
+            family_key=str(doc["family_key"]),
+        )
         self._refresh_state(scope)
         return IngestionResult(
             document_id=document_id,
             status=status,
-            duplicate=False,
+            duplicate=bool(near_duplicate_id),
             sha256=str(doc["sha256"]),
             quality_score=quality,
             extraction_coverage=coverage,
@@ -1800,6 +1858,73 @@ class DocumentIntelligenceEngine:
             query=query, scope=scope, limit=limit
         )
 
+    def reasoning_evidence(
+        self,
+        query: str,
+        *,
+        scope: str,
+        limit: int = 8,
+    ) -> dict:
+        """Return grounded document evidence for the reasoning controller.
+
+        Document text is data, never instructions. Only studied documents are
+        eligible because search() already filters the retrieval corpus.
+        """
+        chunks = self.search(query, scope=scope, limit=limit)
+        document_ids = {
+            int(item["document_id"])
+            for item in chunks
+            if item.get("document_id") is not None
+        }
+        evidence = []
+        for item in chunks:
+            quality = min(
+                float(item.get("quality_score") or 0.0),
+                float(item.get("document_quality") or 0.0),
+            )
+            evidence.append(
+                {
+                    "source": "document",
+                    "document_id": int(item["document_id"]),
+                    "chunk_id": int(item["chunk_id"]),
+                    "filename": item.get("filename"),
+                    "confidence": max(0.0, min(1.0, quality)),
+                    "retrieval_score": float(item.get("score") or 0.0),
+                    "content": str(item.get("text") or "")[:1200],
+                    "provenance": item.get("provenance") or {},
+                    "trust_boundary": "untrusted_document_data",
+                }
+            )
+
+        contradictions = []
+        if document_ids:
+            for item in self.contradictions(
+                scope=scope,
+                status="open",
+                limit=80,
+            ):
+                if (
+                    int(item.get("left_document_id") or -1) in document_ids
+                    or int(item.get("right_document_id") or -1) in document_ids
+                ):
+                    contradictions.append(
+                        {
+                            **item,
+                            "source": "document",
+                            "summary": (
+                                f"Документы {item.get('left_document_id')} и "
+                                f"{item.get('right_document_id')} содержат "
+                                "разные grounded значения одного fact_key."
+                            ),
+                        }
+                    )
+        return {
+            "chunks": chunks,
+            "evidence": evidence,
+            "contradictions": contradictions,
+            "document_ids": sorted(document_ids),
+        }
+
     def _semantic_search(
         self,
         *,
@@ -2325,6 +2450,44 @@ class DocumentIntelligenceEngine:
                     return int(doc["id"])
         return None
 
+    def _rebuild_family_lineage(
+        self,
+        *,
+        scope: str,
+        family_key: str,
+    ) -> None:
+        if not family_key:
+            return
+        with connect() as conn:
+            rows = conn.execute(
+                """SELECT id, version_rank FROM documents
+                   WHERE scope=? AND family_key=?
+                     AND status<>'failed'
+                     AND duplicate_of_id IS NULL
+                     AND version_rank IS NOT NULL
+                   ORDER BY version_rank ASC, id ASC""",
+                (scope, family_key),
+            ).fetchall()
+            previous_id: int | None = None
+            previous_rank: int | None = None
+            for row in rows:
+                rank = int(row["version_rank"])
+                expected_previous = (
+                    previous_id
+                    if previous_rank is not None and rank > previous_rank
+                    else None
+                )
+                conn.execute(
+                    """UPDATE documents SET previous_version_id=?,
+                       updated_at=CURRENT_TIMESTAMP
+                       WHERE id=? AND scope=?""",
+                    (expected_previous, int(row["id"]), scope),
+                )
+                if previous_rank is None or rank > previous_rank:
+                    previous_id = int(row["id"])
+                    previous_rank = rank
+            conn.commit()
+
     def _previous_family_document(
         self,
         *,
@@ -2345,12 +2508,12 @@ class DocumentIntelligenceEngine:
                        ORDER BY version_rank DESC, id DESC LIMIT 1""",
                     (scope, family_key, version_rank),
                 ).fetchone()
-                if row is not None:
-                    return dict(row)
+                return dict(row) if row is not None else None
             row = conn.execute(
                 """SELECT * FROM documents
                    WHERE scope=? AND family_key=?
                      AND status<>'failed'
+                     AND version_rank IS NULL
                    ORDER BY id DESC LIMIT 1""",
                 (scope, family_key),
             ).fetchone()

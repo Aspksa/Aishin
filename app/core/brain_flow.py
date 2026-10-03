@@ -283,23 +283,26 @@ class BrainFlowRuntime:
             return [str(item.get("request_id") or "") for item in rows]
 
     def _prune_locked(self, scope: str) -> None:
-        rows = [
+        # Never evict a request that is still running. The limit applies only
+        # to finished/error history so concurrent work cannot lose telemetry
+        # and later accidentally restart as a fresh flow.
+        completed = [
             (key, state)
             for key, state in self._requests.items()
-            if key[0] == scope
+            if key[0] == scope and state.get("status") != "running"
         ]
-        if len(rows) <= self.MAX_REQUESTS_PER_SCOPE:
+        if len(completed) <= self.MAX_REQUESTS_PER_SCOPE:
             return
-        rows.sort(
-            key=lambda item: (
-                item[1].get("status") == "running",
-                int(item[1].get("sequence") or 0),
-            ),
+        completed.sort(
+            key=lambda item: int(item[1].get("sequence") or 0),
             reverse=True,
         )
-        keep = {key for key, _ in rows[: self.MAX_REQUESTS_PER_SCOPE]}
-        for key, _ in rows:
-            if key not in keep:
+        keep_completed = {
+            key
+            for key, _ in completed[: self.MAX_REQUESTS_PER_SCOPE]
+        }
+        for key, _ in completed:
+            if key not in keep_completed:
                 self._requests.pop(key, None)
 
     def snapshot(self, *, scope: str) -> dict[str, Any]:

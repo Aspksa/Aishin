@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
@@ -66,7 +67,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.11', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.12', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -217,7 +218,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.11',
+        'version': '0.0.12',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -236,8 +237,8 @@ def assistant_profile() -> dict:
 
 
 @app.get('/api/assistant/state')
-def assistant_state() -> dict:
-    return engine.snapshot()
+def assistant_state(scope: str = 'personal') -> dict:
+    return engine.snapshot(scope=scope)
 
 
 @app.get('/api/assistant/development')
@@ -921,6 +922,52 @@ def assistant_live_brain(
         scope=scope,
         event_limit=max(8, min(event_limit, 120)),
         graph_limit=max(6, min(graph_limit, 40)),
+    )
+
+
+@app.get('/api/assistant/live-brain/pulse')
+def assistant_live_brain_pulse(scope: str = 'personal') -> dict:
+    return engine.live_brain.pulse(scope=scope)
+
+
+@app.get('/api/assistant/live-brain/stream')
+async def assistant_live_brain_stream(
+    request: Request,
+    scope: str = 'personal',
+):
+    scope = scope.strip() or 'personal'
+
+    async def events():
+        last_sequence = None
+        heartbeat_ticks = 0
+        while True:
+            if await request.is_disconnected():
+                break
+            payload = engine.live_brain.pulse(scope=scope)
+            sequence = (
+                payload.get('topology', {}).get('sequence')
+            )
+            if sequence != last_sequence or heartbeat_ticks >= 6:
+                yield (
+                    'event: pulse\n'
+                    + 'data: '
+                    + json.dumps(payload, ensure_ascii=False)
+                    + '\n\n'
+                )
+                last_sequence = sequence
+                heartbeat_ticks = 0
+            else:
+                heartbeat_ticks += 1
+            await asyncio.sleep(0.75)
+
+    return StreamingResponse(
+        events(),
+        media_type='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache, no-transform',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        },
     )
 
 

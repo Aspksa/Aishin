@@ -79,13 +79,13 @@
   z-index: 1;
   bottom: 42px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 .cog-intel-score-label {
   margin-top: 9px;
   color: var(--muted);
   text-align: center;
-  font-size: 8px;
+  font-size: 10px;
 }
 .cog-intel-copy h3 {
   margin: 4px 0 7px;
@@ -114,7 +114,7 @@
   border-radius: 999px;
   background: rgba(255,255,255,.74);
   color: #745d52;
-  font-size: 7px;
+  font-size: 10px;
   font-weight: 800;
 }
 .cog-intel-badge::before {
@@ -150,12 +150,12 @@
 }
 .cog-intel-radar .label {
   fill: #766861;
-  font-size: 7px;
+  font-size: 10px;
   text-anchor: middle;
 }
 .cog-intel-radar .value {
   fill: #a18f86;
-  font-size: 6px;
+  font-size: 10px;
   text-anchor: middle;
 }
 .cog-intel-grid {
@@ -185,7 +185,7 @@
 }
 .cog-intel-panel-head > span {
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 .cog-dimensions {
   display: grid;
@@ -232,7 +232,7 @@
 }
 .cog-dimension strong {
   display: block;
-  font-size: 9px;
+  font-size: 10px;
 }
 .cog-dimension-score {
   font-size: 14px;
@@ -242,7 +242,7 @@
 .cog-dimension p {
   margin: 8px 0 0;
   color: var(--muted);
-  font-size: 7px;
+  font-size: 10px;
   line-height: 1.48;
 }
 .cog-dimension-weight {
@@ -252,7 +252,7 @@
   border-radius: 999px;
   background: #f7f4f2;
   color: #9d9089;
-  font-size: 6px;
+  font-size: 10px;
 }
 .cog-route {
   padding: 14px;
@@ -275,7 +275,7 @@
 .cog-route-main p {
   margin: 0;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 .cog-route-confidence {
   min-width: 58px;
@@ -289,7 +289,7 @@
 .cog-route-confidence strong { display: block; }
 .cog-route-confidence span {
   color: var(--muted);
-  font-size: 6px;
+  font-size: 10px;
 }
 .cog-route-confidence strong {
   margin-top: 2px;
@@ -317,17 +317,17 @@
   z-index: 2;
   transform: translateY(-50%);
   color: #baa9a0;
-  font-size: 9px;
+  font-size: 10px;
 }
 .cog-route-step span,
 .cog-route-step strong { display: block; }
 .cog-route-step span {
   color: var(--muted);
-  font-size: 6px;
+  font-size: 10px;
 }
 .cog-route-step strong {
   margin-top: 3px;
-  font-size: 8px;
+  font-size: 10px;
   overflow-wrap: anywhere;
 }
 .cog-route-tags {
@@ -341,7 +341,7 @@
   border-radius: 999px;
   background: #f7f2ee;
   color: #836e62;
-  font-size: 6px;
+  font-size: 10px;
   font-weight: 700;
 }
 .cog-route-tag.transfer {
@@ -371,18 +371,18 @@
   place-items: center;
   border-radius: 50%;
   background: #f6eee8;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 900;
 }
 .cog-evidence strong {
   display: block;
-  font-size: 8px;
+  font-size: 10px;
 }
 .cog-evidence small {
   display: block;
   margin-top: 3px;
   color: var(--muted);
-  font-size: 7px;
+  font-size: 10px;
   line-height: 1.42;
 }
 .cog-history {
@@ -417,13 +417,13 @@
 }
 .cog-transfer-item strong {
   display: block;
-  font-size: 8px;
+  font-size: 10px;
 }
 .cog-transfer-item small {
   display: block;
   margin-top: 3px;
   color: var(--muted);
-  font-size: 7px;
+  font-size: 10px;
 }
 .cog-transfer-breadth {
   min-width: 44px;
@@ -442,7 +442,7 @@
   border-radius: 11px;
   background: #faf8f6;
   color: var(--muted);
-  font-size: 7px;
+  font-size: 10px;
   line-height: 1.45;
 }
 .cog-empty {
@@ -451,7 +451,7 @@
   place-items: center;
   text-align: center;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 @media (max-width: 1180px) {
   .cog-intel-hero { grid-template-columns: 190px 1fr; }

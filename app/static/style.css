@@ -1459,3 +1459,91 @@ button, select, input {
     max-width: 58vw;
   }
 }
+
+/* 00.00.12 — honest readiness view for planned modules */
+.placeholder-readiness-card {
+  padding: clamp(22px, 3vw, 34px);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(197, 157, 91, .13), transparent 28%),
+    radial-gradient(circle at 8% 92%, rgba(79, 112, 135, .09), transparent 30%),
+    linear-gradient(145deg, #fff, #fffaf6 58%, #f8fbfc);
+}
+.placeholder-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.placeholder-head h2 {
+  margin: 5px 0 8px;
+  font-size: clamp(23px, 3vw, 34px);
+  letter-spacing: -.035em;
+}
+.placeholder-head p:last-child {
+  margin: 0;
+  max-width: 760px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.placeholder-status {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  border: 1px solid #ded5ce;
+  border-radius: 999px;
+  background: rgba(255,255,255,.82);
+  color: #756a64;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .045em;
+}
+.placeholder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 10px;
+  margin-top: 24px;
+}
+.placeholder-grid article {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #ebe3de;
+  border-radius: 16px;
+  background: rgba(255,255,255,.78);
+}
+.placeholder-grid span,
+.placeholder-grid strong {
+  display: block;
+}
+.placeholder-grid span {
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+.placeholder-grid strong {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.55;
+  font-weight: 700;
+}
+.placeholder-integrity-note {
+  margin: 15px 0 0;
+  padding: 12px 14px;
+  border-left: 3px solid #708d9d;
+  border-radius: 0 11px 11px 0;
+  background: rgba(239,245,247,.72);
+  color: #63747d;
+  font-size: 11px;
+  line-height: 1.55;
+}
+@media (max-width: 820px) {
+  .placeholder-head {
+    flex-direction: column;
+  }
+  .placeholder-grid {
+    grid-template-columns: 1fr;
+  }
+  .placeholder-status {
+    align-self: flex-start;
+  }
+}

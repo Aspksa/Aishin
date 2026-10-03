@@ -2454,6 +2454,19 @@ def main() -> int:
                 raise RuntimeError(
                     "BrainFlow должен закрыть все завершённые request"
                 )
+            completed_brain = engine.live_brain.snapshot(
+                scope=concurrency_scope,
+                event_limit=8,
+                graph_limit=6,
+            )
+            if any(
+                item.get("status") == "executing"
+                for item in completed_brain.get("channels") or []
+            ):
+                raise RuntimeError(
+                    "Legacy 24-channel brain не должен оставаться "
+                    "executing после завершения BrainFlow"
+                )
 
             pressure_scope = "smoke:brain-flow-pressure"
             pressure_ids = [

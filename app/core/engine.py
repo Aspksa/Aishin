@@ -570,9 +570,10 @@ class AishinEngine:
             scope=scope,
         )
 
-        state = self.state.interaction(intent)
-        state.current_scope = scope
-        self.state.save(state)
+        state = self.state.interaction(
+            intent,
+            scope=scope,
+        )
 
         history = recent_messages(limit=12, scope=scope)
 

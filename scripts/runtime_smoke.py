@@ -1143,12 +1143,10 @@ def main() -> int:
                     "reason": "runtime_idempotent_supersession_check",
                 },
             )
-            if (
-                supersede_api.status_code != 200
-                or supersede_api.json().get("state") != "superseded"
-            ):
+            if supersede_api.status_code != 403:
                 raise RuntimeError(
-                    "Guarded knowledge supersession API недоступен или неидемпотентен"
+                    "Knowledge supersession HTTP API должен сохранять "
+                    "local-only guard в TestClient"
                 )
 
             project_lifecycle = client.get(

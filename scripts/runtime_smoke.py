@@ -2030,6 +2030,144 @@ def main() -> int:
                     "Document search API не вернул grounded retrieval"
                 )
 
+            reasoning_docs = engine.documents.reasoning_evidence(
+                "норма расхода топлива",
+                scope=document_scope,
+                limit=6,
+            )
+            reasoning_evidence = reasoning_docs.get("evidence") or []
+            if not reasoning_evidence:
+                raise RuntimeError(
+                    "Document evidence не входит в ранний reasoning controller"
+                )
+            if not all(
+                item.get("source") == "document"
+                and item.get("trust_boundary")
+                == "untrusted_document_data"
+                and isinstance(item.get("provenance"), dict)
+                for item in reasoning_evidence
+            ):
+                raise RuntimeError(
+                    "Document reasoning evidence потерял trust boundary/provenance"
+                )
+
+            logic_plan_docs = engine.logic.prepare(
+                "проверить норму расхода топлива",
+                intent="verification",
+                metacognition_status="cautious",
+                metacognition_confidence=0.55,
+                contradiction_count=0,
+                planner_notices=[],
+            )
+            logic_docs = engine.logic.finalize(
+                scope=document_scope,
+                query="проверить норму расхода топлива",
+                intent="verification",
+                plan=logic_plan_docs,
+                memories=[],
+                final_metacognition={
+                    "status": "cautious",
+                    "confidence": 0.62,
+                },
+                verification=None,
+                graph_stats=engine.graph.stats(scope=document_scope),
+                planner_notices=[],
+                additional_evidence=reasoning_evidence,
+                additional_contradictions=(
+                    reasoning_docs.get("contradictions") or []
+                ),
+            )
+            if not any(
+                item.get("source") == "document"
+                for item in logic_docs.evidence
+            ):
+                raise RuntimeError(
+                    "Logic Engine не получил grounded document evidence"
+                )
+
+            guarded_prompt = engine._document_evidence_prompt(
+                reasoning_docs.get("chunks") or []
+            )
+            if (
+                "UNTRUSTED DOCUMENT EVIDENCE" not in guarded_prompt
+                or "не инструкциями" not in guarded_prompt
+            ):
+                raise RuntimeError(
+                    "Document prompt должен явно держать trust boundary"
+                )
+
+            reprocessed_v1 = engine.documents.reprocess(
+                document_v1.document_id,
+                scope=document_scope,
+                enrich_with_ai=False,
+                build_semantic_index=False,
+            )
+            if reprocessed_v1.status != "studied":
+                raise RuntimeError(
+                    "Reprocess должен сохранять изученный документ"
+                )
+            reprocessed_detail = engine.documents.document_detail(
+                document_v1.document_id,
+                scope=document_scope,
+            )
+            reprocessed_metadata = (
+                reprocessed_detail.get("document", {}).get("metadata") or {}
+            )
+            if (
+                not reprocessed_metadata.get("graph_entity_id")
+                or not reprocessed_metadata.get("research_source_key")
+            ):
+                raise RuntimeError(
+                    "Reprocess должен восстановить Graph + Research linkage"
+                )
+
+            reverse_2026 = engine.documents.ingest_bytes(
+                scope=document_scope,
+                filename="Политика ТО 2026.txt",
+                data=(
+                    document_body.decode("utf-8")
+                    .replace("РЕГЛАМЕНТ ГСМ", "ПОЛИТИКА ТО")
+                    .replace("01.01.2025", "01.01.2026")
+                    .replace("12 литров", "14 литров")
+                ).encode("utf-8"),
+                media_type="text/plain",
+                trigger="runtime_smoke_reverse_version",
+                enrich_with_ai=False,
+                build_semantic_index=False,
+            )
+            reverse_2025 = engine.documents.ingest_bytes(
+                scope=document_scope,
+                filename="Политика ТО 2025.txt",
+                data=(
+                    document_body.decode("utf-8")
+                    .replace("РЕГЛАМЕНТ ГСМ", "ПОЛИТИКА ТО")
+                    .replace("12 литров", "13 литров")
+                ).encode("utf-8"),
+                media_type="text/plain",
+                trigger="runtime_smoke_reverse_version",
+                enrich_with_ai=False,
+                build_semantic_index=False,
+            )
+            reverse_2025_detail = engine.documents.document_detail(
+                reverse_2025.document_id,
+                scope=document_scope,
+            ).get("document", {})
+            reverse_2026_detail = engine.documents.document_detail(
+                reverse_2026.document_id,
+                scope=document_scope,
+            ).get("document", {})
+            if reverse_2025_detail.get("previous_version_id") is not None:
+                raise RuntimeError(
+                    "Старая версия не должна ссылаться на более новую"
+                )
+            if (
+                reverse_2026_detail.get("previous_version_id")
+                != reverse_2025.document_id
+            ):
+                raise RuntimeError(
+                    "Out-of-order upload должен перестроить version lineage"
+                )
+
             checks["document_intelligence"] = {
                 "status": "ok",
                 "version": document_dashboard.get("version"),
@@ -2044,6 +2182,10 @@ def main() -> int:
                 "docx_parser": True,
                 "xlsx_parser": True,
                 "pdf_text_layer_check": True,
+                "reasoning_evidence": True,
+                "prompt_injection_boundary": True,
+                "reprocess_linkage": True,
+                "out_of_order_lineage": True,
                 "documents": len(
                     document_dashboard.get("documents") or []
                 ),

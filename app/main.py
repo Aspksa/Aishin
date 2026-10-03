@@ -43,6 +43,8 @@ async def lifespan(_: FastAPI):
     global heartbeat, heartbeat_task, learning_task
     init_db()
     engine.startup()
+    for runtime_scope in engine.RUNTIME_SCOPES:
+        engine.canonical_facts.sync_scope(scope=runtime_scope)
     heartbeat = Heartbeat(
         interval_seconds=60,
         planner=engine.planner,

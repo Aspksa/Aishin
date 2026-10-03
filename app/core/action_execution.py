@@ -37,8 +37,12 @@ class ActionExecutionBridge:
 
     VERSION = "aishin-action-execution-bridge-v1"
 
+    _QUOTED_FILE_RE = re.compile(
+        r"""["']([^"'<>|]+\.(?:txt|md|json|csv|log|py|js|ts|html|css|xml|yaml|yml))["']""",
+        re.IGNORECASE,
+    )
     _FILE_RE = re.compile(
-        r"""(?:"|')?([\wА-Яа-яЁё./\\ -]+\.(?:txt|md|json|csv|log|py|js|ts|html|css|xml|yaml|yml))(?:"|')?""",
+        r"""([^\s"'<>|]+\.(?:txt|md|json|csv|log|py|js|ts|html|css|xml|yaml|yml))""",
         re.IGNORECASE,
     )
     _TASK_CREATE_RE = re.compile(
@@ -276,7 +280,9 @@ class ActionExecutionBridge:
     ) -> dict | None:
         text = str(query or "").strip()
         if tool_name == "project.read_text":
-            match = self._FILE_RE.search(text)
+            match = self._QUOTED_FILE_RE.search(text)
+            if match is None:
+                match = self._FILE_RE.search(text)
             if not match:
                 return None
             return {"path": match.group(1).strip().replace("\\", "/")}

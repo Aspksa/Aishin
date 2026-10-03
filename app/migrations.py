@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 23
+LATEST_SCHEMA_VERSION = 24
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -1696,6 +1696,45 @@ def _migration_023_document_intelligence(
     )
 
 
+
+def _migration_024_response_grounding(
+    conn: sqlite3.Connection,
+) -> None:
+    """Post-response grounding coverage and provenance audit."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS response_grounding_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id TEXT NOT NULL UNIQUE,
+            scope TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'unscored',
+            applicable INTEGER NOT NULL DEFAULT 0,
+            overall REAL,
+            claim_coverage REAL,
+            provenance_coverage REAL,
+            source_diversity REAL,
+            contradiction_handling REAL,
+            claims_total INTEGER NOT NULL DEFAULT 0,
+            claims_supported INTEGER NOT NULL DEFAULT 0,
+            claims_partial INTEGER NOT NULL DEFAULT 0,
+            claims_unsupported INTEGER NOT NULL DEFAULT 0,
+            source_groups INTEGER NOT NULL DEFAULT 0,
+            source_types_json TEXT NOT NULL DEFAULT '[]',
+            warnings_json TEXT NOT NULL DEFAULT '[]',
+            claims_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_response_grounding_scope_created
+        ON response_grounding_runs(scope, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_response_grounding_scope_status
+        ON response_grounding_runs(scope, applicable, status, id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -1720,6 +1759,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (21, "autonomous_research", _migration_021_autonomous_research),
     (22, "communication_intelligence", _migration_022_communication_intelligence),
     (23, "document_intelligence", _migration_023_document_intelligence),
+    (24, "response_grounding", _migration_024_response_grounding),
 )
 
 

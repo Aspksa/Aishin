@@ -264,12 +264,11 @@ class CanonicalFactsEngine:
         }
 
     def dashboard(self, *, scope: str, limit: int = 40) -> dict:
-        freshness = self.ensure_fresh(scope=scope)
         return {
-            "summary": freshness.get("summary") or self.summary(scope=scope),
+            "summary": self.summary(scope=scope),
             "facts": self.facts(scope=scope, limit=limit),
             "recent_events": self.events_view(scope=scope, limit=limit),
-            "refreshed": bool(freshness.get("refreshed")),
+            "read_only": True,
         }
 
     def events_view(self, *, scope: str, limit: int = 80) -> list[dict]:

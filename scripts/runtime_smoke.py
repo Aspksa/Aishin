@@ -4247,6 +4247,22 @@ def main() -> int:
                     "Live Brain должен включать Knowledge Lifecycle"
                 )
 
+            if not isinstance(
+                live_brain_data.get("canonical_facts"),
+                dict,
+            ):
+                raise RuntimeError(
+                    "Live Brain должен включать Canonical Facts"
+                )
+            canonical_live_summary = (
+                live_brain_data.get("canonical_facts", {}).get("summary")
+                or {}
+            )
+            if canonical_live_summary.get("version") != "aishin-canonical-facts-v1":
+                raise RuntimeError(
+                    "Live Brain Canonical Facts version mismatch"
+                )
+
             checks["live_brain_runtime"] = {
                 "status": "ok",
                 "runtime_version": live_brain_data.get("runtime_version"),
@@ -4258,6 +4274,7 @@ def main() -> int:
                 "export_version": export_data.get("format_version"),
                 "brain_flow_version": topology.get("version"),
                 "concurrency_safe": True,
+                "canonical_facts": True,
             }
 
             performance = client.get(

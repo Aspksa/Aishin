@@ -1682,8 +1682,22 @@ Development Metrics продолжает использовать `aishin-develo
 Для перехода нужны одновременно:
 
 1. минимальное время наблюдения;
-2. все exit criteria текущей стадии в состоянии `passed`;
-3. непросроченная evidence для этих criteria.
+2. минимальный evidence-based `experience_age_score`;
+3. минимальный измеренный `competence_age_score`;
+4. все exit criteria текущей стадии в состоянии `passed`;
+5. непросроченная evidence для этих criteria;
+6. отдельный непросроченный gate `critical_regressions_absent=passed`.
+
+Версионированные инженерные пороги `aishin-developmental-state-v1`:
+
+- D0 exit: age ≥ 30 дней, experience ≥ 4, competence ≥ 20;
+- D1 exit: age ≥ 90 дней, experience ≥ 15, competence ≥ 35;
+- D2 exit: age ≥ 180 дней, experience ≥ 35, competence ≥ 50;
+- D3 exit: age ≥ 365 дней, experience ≥ 70, competence ≥ 60;
+- D4 exit: age ≥ 730 дней, experience ≥ 120, competence ≥ 70;
+- D5 exit: age ≥ 1825 дней, experience ≥ 200, competence ≥ 80.
+
+Эти числовые пороги являются текущей инженерной реализацией требования спецификации о «достаточном опыте и качестве», а не биологическим возрастом и не неизменяемой частью Identity Core.
 
 Stage evidence хранит source, confidence, evidence и optional expiry.
 

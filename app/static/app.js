@@ -46,13 +46,23 @@ function refreshScopeAwareUi() {
   });
 }
 
+function renderScopeLabel() {
+  const label = document.getElementById("scope-context-label");
+  if (!label) return;
+  label.textContent = activeScope() === "personal"
+    ? "ЛИЧНОЕ ПРОСТРАНСТВО"
+    : "ПРОЕКТНОЕ ПРОСТРАНСТВО · AISHIN";
+}
+
 scopeSelect?.addEventListener("change", () => {
   localStorage.setItem("aishin.scope", activeScope());
+  renderScopeLabel();
   document.dispatchEvent(new CustomEvent("aishin:scope-change", {
     detail: {scope: activeScope()}
   }));
   refreshScopeAwareUi();
 });
+renderScopeLabel();
 
 const pages = {
   assistant: {
@@ -872,7 +882,7 @@ async function decisionRequest(id, action, extra) {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
-      scope: "personal",
+      scope: activeScope(),
       execute: false,
       reason: "",
       ...extra

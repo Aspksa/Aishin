@@ -19,6 +19,7 @@ from .research_intelligence import AutonomousResearchEngine
 from .communication_intelligence import CommunicationIntelligenceEngine
 from .document_intelligence import DocumentIntelligenceEngine
 from .self_reflection import SelfReflectionMetrics
+from .response_grounding import ResponseGroundingScorer
 from .learning_planner import LearningPlanner
 from .experiment_manager import SafeExperimentManager
 from .causal import CausalReasoning
@@ -85,6 +86,7 @@ class AishinEngine:
         )
         self.context_budgeter = ContextBudgeter()
         self.self_reflection = SelfReflectionMetrics()
+        self.response_grounding = ResponseGroundingScorer()
         self.learning_planner = LearningPlanner(self.self_reflection)
         self.experiment_manager = SafeExperimentManager()
         self.graph_builder = GraphBuilder(ai=self.ai, graph=self.graph, events=self.events)
@@ -1279,7 +1281,7 @@ class AishinEngine:
             "counterfactual": counterfactual_assessment.to_dict(),
             "decision_quality": decision_quality.to_dict(),
             "action_selection": action_selection.to_dict(),
-            "execution_bridge": execution_bridge.to_dict(),
+            "execution_bridge": execution_bridge.trace_dict(),
             "cognitive_intelligence_route": cognitive_route.to_dict(),
             "research": {
                 **(research_run or {"status": "not_triggered"}),
@@ -1422,6 +1424,43 @@ class AishinEngine:
                 consolidation.to_dict(),
             )
 
+        response_grounding = self.response_grounding.assess(
+            request_id=request_id,
+            scope=scope,
+            mode=logic_trace.mode,
+            response=reply,
+            evidence=logic_trace.evidence,
+            tool_result=(
+                execution_bridge.result
+                if execution_bridge.executed
+                else {}
+            ),
+            contradictions=logic_trace.contradictions,
+        )
+        perf.checkpoint("response_grounding")
+        self.events.emit(
+            "response.grounding",
+            scope=scope,
+            payload={
+                "request_id": request_id,
+                "status": response_grounding.status,
+                "applicable": response_grounding.applicable,
+                "overall": response_grounding.overall,
+                "claims_total": response_grounding.claims_total,
+                "claims_supported": response_grounding.claims_supported,
+                "claims_unsupported": response_grounding.claims_unsupported,
+                "source_groups": response_grounding.source_groups,
+            },
+            importance=(
+                0.72
+                if (
+                    response_grounding.applicable
+                    and response_grounding.status == "weak"
+                )
+                else 0.25
+            ),
+        )
+
         communication_turn = self.communication.record_response(
             scope=scope,
             request_id=request_id,
@@ -1444,6 +1483,7 @@ class AishinEngine:
             metacognition=meta.to_dict(),
             verification=verification_data,
             decision_quality=decision_quality.to_dict(),
+            response_grounding=response_grounding.to_dict(),
             performance=performance,
         )
         self.brain_flow.phase(
@@ -1512,6 +1552,7 @@ class AishinEngine:
         request_trace["performance"] = performance
         request_trace["context_budget"] = context_budget_report.to_dict()
         request_trace["self_reflection"] = reflection.to_dict()
+        request_trace["response_grounding"] = response_grounding.to_dict()
         request_trace["learning_planner"] = learning_plans
         request_trace["safe_experiments"] = experiment_updates
         request_trace["long_term_growth"] = long_term_growth
@@ -1594,7 +1635,8 @@ class AishinEngine:
                 "counterfactual": counterfactual_assessment.to_dict(),
                 "decision_quality": decision_quality.to_dict(),
                 "action_selection": action_selection.to_dict(),
-                "execution_bridge": execution_bridge.to_dict(),
+                "execution_bridge": execution_bridge.trace_dict(),
+                "response_grounding": response_grounding.to_dict(),
                 "performance": performance,
                 "context_budget": context_budget_report.to_dict(),
                 "self_reflection": reflection.to_dict(),
@@ -1705,7 +1747,8 @@ class AishinEngine:
             "counterfactual": counterfactual_assessment.to_dict(),
             "decision_quality": decision_quality.to_dict(),
             "action_selection": action_selection.to_dict(),
-            "execution_bridge": execution_bridge.to_dict(),
+            "execution_bridge": execution_bridge.trace_dict(),
+            "response_grounding": response_grounding.to_dict(),
             "performance": performance,
             "context_budget": context_budget_report.to_dict(),
             "self_reflection": reflection.to_dict(),

@@ -2,7 +2,7 @@ name: Aishin Runtime Check
 
 on:
   push:
-    branches: [main]
+    branches: [main, release/00.00.15-canonical-facts]
   workflow_dispatch:
 
 permissions:

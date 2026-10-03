@@ -68,7 +68,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.13', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.14', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -219,7 +219,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.13',
+        'version': '0.0.14',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -1597,6 +1597,65 @@ def assistant_response_grounding(
             limit=bounded,
         ),
     }
+
+
+@app.get('/api/assistant/knowledge-lifecycle')
+def assistant_knowledge_lifecycle(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> dict:
+    return engine.knowledge_lifecycle.dashboard(
+        scope=scope,
+        limit=max(1, min(limit, 200)),
+    )
+
+
+@app.get('/api/assistant/knowledge-lifecycle/claims')
+def assistant_knowledge_lifecycle_claims(
+    scope: str = 'personal',
+    state: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.knowledge_lifecycle.claims(
+        scope=scope,
+        state=state,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/knowledge-lifecycle/hypotheses')
+def assistant_knowledge_lifecycle_hypotheses(
+    scope: str = 'personal',
+    state: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return engine.knowledge_lifecycle.hypotheses(
+        scope=scope,
+        state=state,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/knowledge-lifecycle/transitions')
+def assistant_knowledge_lifecycle_transitions(
+    scope: str = 'personal',
+    limit: int = 100,
+) -> list[dict]:
+    return engine.knowledge_lifecycle.transitions(
+        scope=scope,
+        limit=max(1, min(limit, 500)),
+    )
+
+
+@app.get('/api/assistant/knowledge-lifecycle/learning-events')
+def assistant_knowledge_lifecycle_learning_events(
+    scope: str = 'personal',
+    limit: int = 100,
+) -> list[dict]:
+    return engine.knowledge_lifecycle.learning_events(
+        scope=scope,
+        limit=max(1, min(limit, 500)),
+    )
 
 
 @app.get('/api/assistant/learning-plans')

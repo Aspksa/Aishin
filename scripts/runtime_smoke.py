@@ -742,6 +742,47 @@ def main() -> int:
                 )
 
             lifecycle_scope = "smoke:knowledge-lifecycle"
+            hypothesis_lifecycle_scope = "smoke:hypothesis-lifecycle"
+            with connect() as conn:
+                for cleanup_scope in (
+                    lifecycle_scope,
+                    hypothesis_lifecycle_scope,
+                ):
+                    conn.execute(
+                        "DELETE FROM knowledge_learning_events WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM hypothesis_transitions WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM hypothesis_evidence WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM hypothesis_registry WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM knowledge_transitions WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM knowledge_evidence WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        """UPDATE knowledge_claims
+                           SET superseded_by_id=NULL
+                           WHERE scope=?""",
+                        (cleanup_scope,),
+                    )
+                    conn.execute(
+                        "DELETE FROM knowledge_claims WHERE scope=?",
+                        (cleanup_scope,),
+                    )
+                conn.commit()
             lifecycle_request_1 = engine.knowledge_lifecycle.observe_reasoning(
                 request_id="knowledge-lifecycle-1",
                 scope=lifecycle_scope,
@@ -915,7 +956,6 @@ def main() -> int:
                     "Knowledge supersession must preserve replacement linkage"
                 )
 
-            hypothesis_lifecycle_scope = "smoke:hypothesis-lifecycle"
             hypothesis_run = {
                 "run_id": None,
                 "hypotheses": [

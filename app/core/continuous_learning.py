@@ -42,10 +42,19 @@ class ContinuousLearningEngine:
         state: StateManager,
         events: EventBus,
         interval_seconds: float = 15.0,
+        scopes: tuple[str, ...] = ("personal",),
     ) -> None:
         self.state = state
         self.events = events
         self.interval_seconds = max(2.0, min(60.0, float(interval_seconds)))
+        normalized_scopes = tuple(
+            dict.fromkeys(
+                str(scope).strip()
+                for scope in scopes
+                if str(scope).strip()
+            )
+        )
+        self.scopes = normalized_scopes or ("personal",)
         self._stop = asyncio.Event()
         self._last_mode: dict[str, str] = {}
         self._last_cycle_recorded_at: dict[str, float] = {}
@@ -55,25 +64,27 @@ class ContinuousLearningEngine:
         self._stop.clear()
 
     async def run(self) -> None:
-        last_scope = "personal"
+        last_scope = self.scopes[0]
         try:
             while not self._stop.is_set():
-                try:
-                    state = self.state.load()
-                    last_scope = state.current_scope or "personal"
-                    await asyncio.to_thread(
-                        self.run_cycle,
-                        scope=last_scope,
-                    )
-                except Exception as exc:
+                for scope in self.scopes:
+                    if self._stop.is_set():
+                        break
+                    last_scope = scope
                     try:
-                        self._set_worker_status(
-                            scope=last_scope,
-                            status="error",
-                            reason=str(exc)[:300],
+                        await asyncio.to_thread(
+                            self.run_cycle,
+                            scope=scope,
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        try:
+                            self._set_worker_status(
+                                scope=scope,
+                                status="error",
+                                reason=str(exc)[:300],
+                            )
+                        except Exception:
+                            pass
 
                 try:
                     await asyncio.wait_for(
@@ -83,13 +94,14 @@ class ContinuousLearningEngine:
                 except asyncio.TimeoutError:
                     pass
         finally:
-            try:
-                self._set_worker_status(
-                    scope=last_scope,
-                    status="stopped",
-                )
-            except Exception:
-                pass
+            for scope in self.scopes:
+                try:
+                    self._set_worker_status(
+                        scope=scope,
+                        status="stopped",
+                    )
+                except Exception:
+                    pass
 
     def stop(self) -> None:
         self._stop.set()

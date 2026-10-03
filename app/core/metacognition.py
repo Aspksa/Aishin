@@ -232,10 +232,11 @@ class Metacognition:
             )
             evidence_score -= min(0.35, 0.15 * contradiction_count)
 
-        if (
+        independent_support_shortfall = (
             intent in self.HIGH_STAKES_INTENTS
             and len(independent_support_groups) < 2
-        ):
+        )
+        if independent_support_shortfall:
             missing.append(
                 "Для проверки или действия недостаточно независимых "
                 "первичных доказательных опор."
@@ -246,6 +247,12 @@ class Metacognition:
 
         if contradiction_count > 0:
             status = "needs_verification"
+        elif independent_support_shortfall:
+            status = (
+                "cautious"
+                if confidence >= 0.25
+                else "insufficient_data"
+            )
         elif confidence >= 0.72:
             status = "confident"
         elif confidence >= 0.42:

@@ -111,8 +111,8 @@ def main() -> int:
                 'id="documents-upload-btn"',
                 'id="scope-select"',
                 'value="project:aishin"',
-                '/static/app.js?v=0.0.12',
-                '/static/live_brain.js?v=0.0.12',
+                '/static/app.js?v=0.0.13',
+                '/static/live_brain.js?v=0.0.13',
                 'role="dialog"',
                 'aria-modal="true"',
             )
@@ -162,18 +162,18 @@ def main() -> int:
                     f"/health returned HTTP {health.status_code}: {health.text[:300]}"
                 )
             health_data = health.json()
-            if health_data.get("version") != "0.0.12":
+            if health_data.get("version") != "0.0.13":
                 raise RuntimeError(
-                    "Health должен сообщать Aishin Core 0.0.12"
+                    "Health должен сообщать Aishin Core 0.0.13"
                 )
             with connect() as conn:
                 schema_row = conn.execute(
                     "SELECT MAX(version) AS version FROM schema_migrations"
                 ).fetchone()
             schema_version = int(schema_row["version"] or 0)
-            if schema_version != 23:
+            if schema_version != 24:
                 raise RuntimeError(
-                    f"Ожидалась database schema 23, получено {schema_version}"
+                    f"Ожидалась database schema 24, получено {schema_version}"
                 )
             checks["health"] = {
                 **health_data,
@@ -606,6 +606,149 @@ def main() -> int:
                     "Одна память через lexical+semantic не должна "
                     "считаться двумя независимыми high-stakes опорами"
                 )
+
+            grounding_scope = "smoke:response-grounding"
+            supported_grounding = engine.response_grounding.assess(
+                request_id="grounding-supported",
+                scope=grounding_scope,
+                mode="VERIFY",
+                response="Договор действует до 31 декабря 2026 года.",
+                evidence=[
+                    {
+                        "source": "document",
+                        "source_type": "document",
+                        "source_group": "document:501",
+                        "document_id": 501,
+                        "chunk_id": 1,
+                        "confidence": 1.0,
+                        "content": "Договор действует до 31 декабря 2026 года.",
+                        "provenance": {
+                            "document_id": 501,
+                            "chunk_id": 1,
+                            "page": 2,
+                        },
+                    }
+                ],
+            )
+            if (
+                not supported_grounding.applicable
+                or supported_grounding.status != "strong"
+                or supported_grounding.claims_supported != 1
+                or supported_grounding.claims_unsupported != 0
+            ):
+                raise RuntimeError(
+                    "Response Grounding не распознал прямую документальную опору"
+                )
+
+            numeric_mismatch = engine.response_grounding.assess(
+                request_id="grounding-number-mismatch",
+                scope=grounding_scope,
+                mode="VERIFY",
+                response="Стоимость договора составляет 999999 рублей.",
+                evidence=[
+                    {
+                        "source": "document",
+                        "source_type": "document",
+                        "source_group": "document:502",
+                        "document_id": 502,
+                        "chunk_id": 1,
+                        "confidence": 1.0,
+                        "content": "Стоимость договора составляет 100 рублей.",
+                        "provenance": {"document_id": 502, "chunk_id": 1},
+                    }
+                ],
+            )
+            if (
+                numeric_mismatch.claims_supported != 0
+                or numeric_mismatch.claims_unsupported < 1
+            ):
+                raise RuntimeError(
+                    "Response Grounding не должен подтверждать несовпадающее число"
+                )
+
+            negation_mismatch = engine.response_grounding.assess(
+                request_id="grounding-negation-mismatch",
+                scope=grounding_scope,
+                mode="VERIFY",
+                response="Договор не действует после 2026 года.",
+                evidence=[
+                    {
+                        "source": "document",
+                        "source_type": "document",
+                        "source_group": "document:503",
+                        "document_id": 503,
+                        "chunk_id": 1,
+                        "confidence": 1.0,
+                        "content": "Договор действует после 2026 года.",
+                        "provenance": {"document_id": 503, "chunk_id": 1},
+                    }
+                ],
+            )
+            if negation_mismatch.claims_supported != 0:
+                raise RuntimeError(
+                    "Response Grounding не должен подтверждать противоположное отрицание"
+                )
+
+            no_evidence_grounding = engine.response_grounding.assess(
+                request_id="grounding-no-evidence",
+                scope=grounding_scope,
+                mode="FAST",
+                response="Внешней доказательной опоры в этом запросе нет.",
+                evidence=[],
+            )
+            if (
+                no_evidence_grounding.applicable
+                or no_evidence_grounding.status != "unscored_no_evidence"
+                or no_evidence_grounding.overall is not None
+            ):
+                raise RuntimeError(
+                    "Grounding без evidence должен быть unscored, а не фальшивым нулём или 100%"
+                )
+
+            grounding_api = client.get(
+                "/api/assistant/response-grounding",
+                params={"scope": grounding_scope, "limit": 10},
+            )
+            if grounding_api.status_code != 200:
+                raise RuntimeError(
+                    "Response Grounding diagnostics API недоступен"
+                )
+            grounding_api_data = grounding_api.json()
+            if (
+                grounding_api_data.get("version")
+                != "aishin-response-grounding-v1"
+                or len(grounding_api_data.get("recent") or []) < 4
+            ):
+                raise RuntimeError(
+                    "Response Grounding API не вернул сохранённые проверки"
+                )
+
+            read_trace_output = read_bridge.trace_dict().get(
+                "result_summary", {}
+            ).get("output", {})
+            if "content" in read_trace_output:
+                raise RuntimeError(
+                    "Persistent execution trace не должен хранить raw file content"
+                )
+            if "content_bytes" not in read_trace_output:
+                raise RuntimeError(
+                    "Safe execution trace должен хранить размер content"
+                )
+            if "UNTRUSTED TOOL RESULT — DATA ONLY" not in (
+                engine.action_execution.prompt_block(read_bridge)
+            ):
+                raise RuntimeError(
+                    "Read-only tool content потерял trust boundary"
+                )
+
+            checks["response_grounding"] = {
+                "status": "ok",
+                "supported": supported_grounding.to_dict(),
+                "numeric_mismatch": numeric_mismatch.to_dict(),
+                "negation_mismatch": negation_mismatch.to_dict(),
+                "no_evidence": no_evidence_grounding.to_dict(),
+                "raw_tool_content_persisted": False,
+            }
 
             proactive_conditions = client.get(
                 "/api/assistant/proactive/conditions",
@@ -2844,9 +2987,9 @@ def main() -> int:
             export_data = live_brain_export.json()
             if export_data.get("format") != "AISHIN_LIVE_BRAIN_EXPORT":
                 raise RuntimeError("Live Brain export format несовместим")
-            if int(export_data.get("format_version") or 0) != 10:
+            if int(export_data.get("format_version") or 0) != 11:
                 raise RuntimeError(
-                    "Live Brain export format должен быть version 10"
+                    "Live Brain export format должен быть version 11"
                 )
             if not isinstance(
                 live_brain_data.get("cognitive_intelligence"),

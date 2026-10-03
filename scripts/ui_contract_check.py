@@ -74,6 +74,11 @@ def main() -> int:
         "documents-module",
         "documents-modal",
         "settings-module",
+        "placeholder-module",
+        "placeholder-readiness",
+        "placeholder-available",
+        "placeholder-scope",
+        "placeholder-next",
     }
     missing_ids = sorted(required_ids - set(parser.ids))
     if missing_ids:
@@ -133,6 +138,18 @@ def main() -> int:
             fail(f"{name} hardcodes personal scope in mutation body")
 
     app_js = (STATIC / "app.js").read_text(encoding="utf-8")
+    if "Здесь будет" in app_js or "Здесь будут" in app_js:
+        fail(
+            "Future module UI must expose readiness, not pretend unfinished "
+            "screens are ordinary modules"
+        )
+    for marker in (
+        "BACKEND НЕ ПОДКЛЮЧЁН",
+        "КЛИЕНТ НЕ ПОДКЛЮЧЁН",
+        "PROJECT SCOPE РАБОТАЕТ",
+    ):
+        if marker not in app_js:
+            fail(f"Future module readiness marker missing: {marker}")
     if "45000" not in app_js:
         fail("Heavy dashboard polling guard is missing")
 

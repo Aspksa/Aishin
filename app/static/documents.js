@@ -148,6 +148,39 @@ function renderDetail(data){
   const card=modal.querySelector(".documents-modal-card");
   if(card instanceof HTMLElement)window.setTimeout(()=>card.focus(),0);
 }
+function modalFocusable(){
+  const modal=q("#documents-modal");
+  if(!modal)return[];
+  return Array.from(modal.querySelectorAll(
+    'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+  )).filter(node=>node instanceof HTMLElement&&node.offsetParent!==null);
+}
+function trapModalFocus(event){
+  const modal=q("#documents-modal");
+  if(!modal?.classList.contains("open"))return;
+  if(event.key==="Escape"){
+    event.preventDefault();
+    closeModal();
+    return;
+  }
+  if(event.key!=="Tab")return;
+  const items=modalFocusable();
+  if(!items.length){
+    event.preventDefault();
+    modal.querySelector(".documents-modal-card")?.focus();
+    return;
+  }
+  const first=items[0];
+  const last=items[items.length-1];
+  const active=document.activeElement;
+  if(event.shiftKey&&active===first){
+    event.preventDefault();
+    last.focus();
+  }else if(!event.shiftKey&&active===last){
+    event.preventDefault();
+    first.focus();
+  }
+}
 function closeModal(){
   const modal=q("#documents-modal");
   if(!modal)return;
@@ -199,9 +232,7 @@ function boot(){
   q("#documents-search-input")?.addEventListener("keydown",e=>{if(e.key==="Enter")search();});
   q("#documents-modal-close")?.addEventListener("click",closeModal);
   q("#documents-modal")?.addEventListener("click",e=>{if(e.target.id==="documents-modal")closeModal();});
-  document.addEventListener("keydown",e=>{
-    if(e.key==="Escape"&&q("#documents-modal")?.classList.contains("open"))closeModal();
-  });
+  document.addEventListener("keydown",trapModalFocus);
   q("#documents-reprocess")?.addEventListener("click",reprocess);
   load();
 }

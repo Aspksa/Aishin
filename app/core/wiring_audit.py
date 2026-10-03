@@ -30,6 +30,7 @@ class BrainWiringAudit:
     VERSION = "aishin-brain-wiring-audit-v1"
 
     DIRECT = (
+        WiringComponent("wiring_audit", "wiring_audit", "BrainWiringAudit"),
         WiringComponent("action_execution", "action_execution", "ActionExecutionBridge"),
         WiringComponent("action_selection", "action_selector", "ActionSelector"),
         WiringComponent("brain_flow", "brain_flow", "BrainFlowRuntime"),

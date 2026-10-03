@@ -1111,7 +1111,19 @@ def main() -> int:
                 raise RuntimeError(
                     "Knowledge claims API должен возвращать evidence provenance"
                 )
-            hypothesis_api_rows = lifecycle_api_data.get("hypotheses") or []
+            hypothesis_provenance_api = client.get(
+                "/api/assistant/knowledge-lifecycle/hypotheses",
+                params={
+                    "scope": hypothesis_lifecycle_scope,
+                    "state": "confirmed",
+                    "limit": 10,
+                },
+            )
+            if hypothesis_provenance_api.status_code != 200:
+                raise RuntimeError(
+                    "Hypothesis Lifecycle provenance API недоступен"
+                )
+            hypothesis_api_rows = hypothesis_provenance_api.json()
             if not any(
                 item.get("state") == "confirmed"
                 and len(item.get("evidence") or []) >= 3

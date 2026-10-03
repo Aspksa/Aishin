@@ -2,7 +2,7 @@ name: Aishin Runtime Check
 
 on:
   push:
-    branches: [main]
+    branches: [main, release/00.00.12-wiring-contract]
   workflow_dispatch:
 
 permissions:
@@ -35,6 +35,9 @@ jobs:
 
       - name: Compile Python
         run: python -m compileall -q app scripts
+
+      - name: Brain wiring contract
+        run: python scripts/brain_wiring_contract.py
 
       - name: Check browser JavaScript
         run: node --check app/static/app.js && node --check app/static/live_brain.js && node --check app/static/growth.js && node --check app/static/intelligence.js && node --check app/static/proactive_intelligence.js && node --check app/static/evolution.js && node --check app/static/research.js && node --check app/static/communication.js && node --check app/static/documents.js

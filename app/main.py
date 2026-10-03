@@ -49,6 +49,7 @@ async def lifespan(_: FastAPI):
         sensors=engine.sensors,
         proactive=engine.proactive_intelligence,
         research=engine.research,
+        scopes=engine.RUNTIME_SCOPES,
     )
     heartbeat_task = asyncio.create_task(heartbeat.run())
     engine.continuous_learning.prepare_start()
@@ -256,18 +257,23 @@ def assistant_development(
 
 
 @app.get('/api/assistant/brain')
-def assistant_brain() -> dict:
+def assistant_brain(scope: str = 'personal') -> dict:
+    state = engine.state.load().to_dict()
+    state['current_scope'] = scope
     return {
         'ai': engine.ai.health(),
         'semantic_memory': engine.semantic.health(),
-        'state': engine.state.load().to_dict(),
-        'permissions': {k: engine.permissions.mode(k) for k in engine.permissions.SAFE_DEFAULTS},
+        'state': state,
+        'permissions': {
+            k: engine.permissions.mode(k)
+            for k in engine.permissions.SAFE_DEFAULTS
+        },
         'observations': [o.__dict__ for o in engine.observer.inspect()],
         'planner': {
-            'open_items': engine.planner.open_items(scope=engine.state.load().current_scope),
+            'open_items': engine.planner.open_items(scope=scope),
             'notices': [
                 notice.__dict__
-                for notice in engine.planner.inspect(scope=engine.state.load().current_scope)
+                for notice in engine.planner.inspect(scope=scope)
             ],
         },
     }
@@ -979,9 +985,8 @@ def assistant_live_brain_export(scope: str = 'personal') -> dict:
 
 
 @app.get('/api/assistant/personal')
-def assistant_personal() -> dict:
-    state = engine.state.load()
-    context = engine.personal.context(scope=state.current_scope)
+def assistant_personal(scope: str = 'personal') -> dict:
+    context = engine.personal.context(scope=scope)
     return {
         'master_profile': context.master_profile,
         'relationship_memory': context.relationship_memory,
@@ -1849,9 +1854,15 @@ def assistant_semantic_index(scope: str = 'personal') -> dict:
 
 
 @app.get('/api/assistant/memory-changes')
-def assistant_memory_changes(limit: int = 30) -> list[dict]:
+def assistant_memory_changes(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> list[dict]:
     limit = max(1, min(limit, 100))
-    return engine.memory.recent_changes(limit=limit)
+    return engine.memory.recent_changes(
+        limit=limit,
+        scope=scope,
+    )
 
 
 @app.post('/api/assistant/message')

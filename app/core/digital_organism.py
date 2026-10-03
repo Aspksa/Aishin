@@ -117,15 +117,27 @@ class DigitalOrganismFoundation:
     MANIFEST_TABLES = (
         "runtime_state",
         "organism_now",
+        "events",
         "messages",
         "memories",
+        "memory_changes",
         "master_profile",
         "relationship_memory",
         "personal_timeline",
+        "entities",
+        "relations",
+        "graph_changes",
         "knowledge_claims",
+        "knowledge_evidence",
+        "knowledge_transitions",
         "canonical_facts",
+        "canonical_fact_values",
+        "canonical_fact_evidence",
+        "canonical_fact_links",
+        "canonical_fact_events",
         "organism_identity_state",
         "organism_autobiography",
+        "organism_runtime_sessions",
         "organism_stage_evidence",
         "organism_development_snapshots",
     )
@@ -1633,41 +1645,37 @@ class DigitalOrganismFoundation:
         }
 
     def _table_digest(self, table: str) -> dict:
+        digest = hashlib.sha256()
+        count = 0
         with connect() as conn:
-            columns = [
-                str(row["name"])
-                for row in conn.execute(
-                    f"PRAGMA table_info({table})"
-                ).fetchall()
-            ]
-            if not columns:
-                return {"count": 0, "sha256": self._sha_text("")}
             info = conn.execute(
                 f"PRAGMA table_info({table})"
             ).fetchall()
+            columns = [str(row["name"]) for row in info]
+            if not columns:
+                return {"count": 0, "sha256": self._sha_text("")}
             pk_columns = [
                 str(row["name"])
                 for row in info
                 if int(row["pk"] or 0) > 0
             ]
             order_by = ", ".join(pk_columns or columns[:1])
-            rows = conn.execute(
+            cursor = conn.execute(
                 f"SELECT * FROM {table} ORDER BY {order_by}"
-            ).fetchall()
-
-        digest = hashlib.sha256()
-        for row in rows:
-            encoded = json.dumps(
-                dict(row),
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-                default=str,
-            ).encode("utf-8")
-            digest.update(encoded)
-            digest.update(b"\n")
+            )
+            for row in cursor:
+                encoded = json.dumps(
+                    dict(row),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=str,
+                ).encode("utf-8")
+                digest.update(encoded)
+                digest.update(b"\n")
+                count += 1
         return {
-            "count": len(rows),
+            "count": count,
             "sha256": digest.hexdigest(),
         }
 

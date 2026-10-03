@@ -256,11 +256,33 @@ def main() -> int:
             )
             if (
                 "time_requirement_met" not in stage_eligibility
+                or "experience_requirement_met" not in stage_eligibility
+                or "competence_requirement_met" not in stage_eligibility
+                or "critical_regression_gate" not in stage_eligibility
                 or "criteria" not in stage_eligibility
                 or not isinstance(stage_eligibility.get("criteria"), list)
             ):
                 raise RuntimeError(
                     "Development stage eligibility contract is incomplete"
+                )
+            if (
+                organism_development.get("current_stage") == "D0"
+                and float(
+                    organism_development.get("chronological_age_days") or 0.0
+                ) < 30.0
+                and stage_eligibility.get("eligible")
+            ):
+                raise RuntimeError(
+                    "Calendar time gate allowed premature D0 transition"
+                )
+            regression_gate = (
+                stage_eligibility.get("critical_regression_gate") or {}
+            )
+            if regression_gate.get("passed") and not regression_gate.get(
+                "source_type"
+            ):
+                raise RuntimeError(
+                    "Critical regression gate cannot pass without evidence source"
                 )
 
             inner_time = client.get(

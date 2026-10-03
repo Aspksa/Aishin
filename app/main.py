@@ -455,6 +455,7 @@ def assistant_research_query(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    engine.canonical_facts.sync_scope(scope=run.scope)
     return {
         'run': run.to_dict(),
         'evidence': engine.research.evidence(
@@ -482,12 +483,15 @@ def assistant_research_cycle(
     request: Request,
 ) -> dict:
     _local_only(request)
-    return engine.research.run_cycle(
-        scope=payload.scope.strip() or 'personal',
+    effective_scope = payload.scope.strip() or 'personal'
+    result = engine.research.run_cycle(
+        scope=effective_scope,
         trigger='manual',
         max_sessions=max(0, min(payload.max_sessions, 5)),
         synthesize=payload.synthesize,
     )
+    engine.canonical_facts.sync_scope(scope=effective_scope)
+    return result
 
 
 @app.get('/api/assistant/research/gaps')
@@ -668,8 +672,9 @@ async def assistant_document_upload(
     filename = (file.filename or 'document').strip()
     data = await file.read()
     try:
+        effective_scope = scope.strip() or 'personal'
         result = engine.documents.ingest_bytes(
-            scope=scope.strip() or 'personal',
+            scope=effective_scope,
             filename=filename,
             data=data,
             media_type=file.content_type or '',
@@ -677,6 +682,7 @@ async def assistant_document_upload(
             enrich_with_ai=enrich_with_ai,
             build_semantic_index=build_semantic_index,
         )
+        engine.canonical_facts.sync_scope(scope=effective_scope)
         return result.to_dict()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -695,12 +701,15 @@ def assistant_document_reprocess(
 ) -> dict:
     _local_only(request)
     try:
-        return engine.documents.reprocess(
+        effective_scope = payload.scope.strip() or 'personal'
+        result = engine.documents.reprocess(
             document_id,
-            scope=payload.scope.strip() or 'personal',
+            scope=effective_scope,
             enrich_with_ai=payload.enrich_with_ai,
             build_semantic_index=payload.build_semantic_index,
-        ).to_dict()
+        )
+        engine.canonical_facts.sync_scope(scope=effective_scope)
+        return result.to_dict()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -1623,9 +1632,6 @@ def assistant_canonical_facts_list(
     namespace: str | None = None,
     limit: int = 100,
 ) -> list[dict]:
-    engine.canonical_facts.ensure_fresh(
-        scope=scope.strip() or 'personal'
-    )
     return engine.canonical_facts.facts(
         scope=scope.strip() or 'personal',
         state=state,
@@ -1640,7 +1646,6 @@ def assistant_canonical_fact_detail(
     scope: str = 'personal',
 ) -> dict:
     effective_scope = scope.strip() or 'personal'
-    engine.canonical_facts.ensure_fresh(scope=effective_scope)
     result = engine.canonical_facts.fact(
         fact_id,
         scope=effective_scope,
@@ -1658,7 +1663,6 @@ def assistant_canonical_fact_history(
     limit: int = 200,
 ) -> dict:
     effective_scope = scope.strip() or 'personal'
-    engine.canonical_facts.ensure_fresh(scope=effective_scope)
     return engine.canonical_facts.history(
         scope=effective_scope,
         canonical_key=canonical_key,

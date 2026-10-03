@@ -12,7 +12,7 @@ class LiveBrainRuntime:
     signals, quality metrics, graph structure and subsystem activity.
     """
 
-    VERSION = "aishin-live-brain-v3"
+    VERSION = "aishin-live-brain-v4"
     TRACE_POLICY = (
         "Без скрытой цепочки рассуждений: показываются только источники, "
         "проверки, выбранный режим, уверенность, метрики и итоговые сигналы."
@@ -383,6 +383,21 @@ class LiveBrainRuntime:
                 run_limit=12,
             ),
         )
+        wiring = take(
+            "brain_wiring",
+            {
+                "status": "attention",
+                "score": 0.0,
+                "checks_failed": 1,
+                "broken": [
+                    {
+                        "kind": "audit",
+                        "reason": "Brain Wiring Audit unavailable",
+                    }
+                ],
+            },
+            lambda: self.engine.wiring_audit.audit(self.engine),
+        )
 
         topology = take(
             "brain_flow",
@@ -443,6 +458,10 @@ class LiveBrainRuntime:
             int(documents_summary.get("failed_documents") or 0)
             or int(documents_summary.get("contradiction_count") or 0)
         )
+        wiring_attention = bool(
+            wiring.get("status") != "healthy"
+            or int(wiring.get("checks_failed") or 0)
+        )
         integrity = (
             "attention"
             if (
@@ -454,6 +473,7 @@ class LiveBrainRuntime:
                 or research_conflicts
                 or communication_attention
                 or document_attention
+                or wiring_attention
             )
             else "healthy"
             if events or memories or graph_stats.get("entities")
@@ -514,6 +534,11 @@ class LiveBrainRuntime:
                 "unresolved_signals": unresolved,
                 "attention_events_1h": warning_events,
                 "errors": errors,
+                "wiring_status": wiring.get("status"),
+                "wiring_score": wiring.get("score"),
+                "wiring_failed": int(
+                    wiring.get("checks_failed") or 0
+                ),
             },
             "pulse": {
                 "phase": phase or "idle",
@@ -582,6 +607,11 @@ class LiveBrainRuntime:
                     "contradiction_count"
                 ),
                 "document_attention": document_attention,
+                "wiring_score": wiring.get("score"),
+                "wiring_failed": int(
+                    wiring.get("checks_failed") or 0
+                ),
+                "wiring_modules": wiring.get("covered_modules"),
             },
             "channels": channels,
             "topology": topology,
@@ -618,6 +648,7 @@ class LiveBrainRuntime:
             "research": research,
             "communication": communication,
             "documents": documents,
+            "wiring": wiring,
             "quality": {
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
@@ -670,6 +701,10 @@ class LiveBrainRuntime:
                     "document_chunk_vectors + document_facts + "
                     "document_contradictions + document_ingestion_runs"
                 ),
+                "wiring": (
+                    "BrainWiringAudit object identity + module coverage + "
+                    "required BrainFlow dependency edges"
+                ),
             },
         }
 
@@ -705,7 +740,7 @@ class LiveBrainRuntime:
         )
         return {
             "format": "AISHIN_LIVE_BRAIN_EXPORT",
-            "format_version": 10,
+            "format_version": 11,
             "scope": snapshot["scope"],
             "generated_at": snapshot["generated_at"],
             "policy": snapshot["trace_policy"],

@@ -34,6 +34,21 @@ class CanonicalFactsEngine:
     ) -> None:
         self.events = events
         self.knowledge_lifecycle = knowledge_lifecycle
+        self._signatures: dict[str, tuple] = {}
+
+    def ensure_fresh(self, *, scope: str) -> dict:
+        scope = (scope or "personal").strip() or "personal"
+        signature = self._source_signature(scope)
+        if self._signatures.get(scope) == signature:
+            return {
+                "version": self.VERSION,
+                "scope": scope,
+                "refreshed": False,
+                "summary": self.summary(scope=scope),
+            }
+        result = self.sync_scope(scope=scope)
+        result["refreshed"] = True
+        return result
 
     def sync_scope(self, *, scope: str) -> dict:
         scope = (scope or "personal").strip() or "personal"
@@ -65,6 +80,7 @@ class CanonicalFactsEngine:
                 lifecycle_links += 1
 
         summary = self.summary(scope=scope)
+        self._signatures[scope] = self._source_signature(scope)
         payload = {
             "version": self.VERSION,
             "scope": scope,
@@ -284,6 +300,56 @@ class CanonicalFactsEngine:
                 "Do not collapse conflicted canonical values into one fact."
             )
         return "\n".join(lines)
+
+    def _source_signature(self, scope: str) -> tuple:
+        with connect() as conn:
+            document = conn.execute(
+                """SELECT COUNT(*) AS n, COALESCE(MAX(f.id), 0) AS max_id,
+                          COALESCE(MAX(f.updated_at), '') AS updated
+                   FROM document_facts f
+                   JOIN documents d ON d.id=f.document_id
+                   WHERE f.scope=? AND f.status='grounded'
+                     AND d.status='studied'""",
+                (scope,),
+            ).fetchone()
+            research = conn.execute(
+                """SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS max_id,
+                          COALESCE(MAX(updated_at), '') AS updated
+                   FROM research_claims WHERE scope=?""",
+                (scope,),
+            ).fetchone()
+            memory = conn.execute(
+                """SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS max_id,
+                          COALESCE(MAX(updated_at), '') AS updated
+                   FROM memories
+                   WHERE scope=? AND status='active'
+                     AND memory_key IS NOT NULL
+                     AND TRIM(memory_key)<>''""",
+                (scope,),
+            ).fetchone()
+            graph = conn.execute(
+                """SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS max_id,
+                          COALESCE(SUM(confidence), 0.0) AS confidence_sum,
+                          COALESCE(SUM(LENGTH(evidence)), 0) AS evidence_chars
+                   FROM relations WHERE scope=?""",
+                (scope,),
+            ).fetchone()
+            graph_entities = conn.execute(
+                """SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS max_id,
+                          COALESCE(MAX(updated_at), '') AS updated
+                   FROM entities WHERE scope=? AND entity_type='research_claim'""",
+                (scope,),
+            ).fetchone()
+        return (
+            int(document["n"]), int(document["max_id"]), str(document["updated"]),
+            int(research["n"]), int(research["max_id"]), str(research["updated"]),
+            int(memory["n"]), int(memory["max_id"]), str(memory["updated"]),
+            int(graph["n"]), int(graph["max_id"]),
+            round(float(graph["confidence_sum"] or 0.0), 6),
+            int(graph["evidence_chars"] or 0),
+            int(graph_entities["n"]), int(graph_entities["max_id"]),
+            str(graph_entities["updated"]),
+        )
 
     def _deactivate_previous(self, scope: str) -> None:
         with connect() as conn:

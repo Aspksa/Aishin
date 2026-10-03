@@ -729,10 +729,25 @@ class DevelopmentMetricsEngine:
             c["logic_successes"] / c["logic_feedback"]
             if c["logic_feedback"] else 0.0
         )
+        lifecycle_correction_volume = self._sat(
+            c["knowledge_corrections_confirmed"],
+            12,
+        )
+        lifecycle_correction_ratio = (
+            min(
+                1.0,
+                c["knowledge_corrections_confirmed"]
+                / c["knowledge_errors_detected"],
+            )
+            if c["knowledge_errors_detected"]
+            else 0.0
+        )
         error_learning = (
-            0.45 * feedback_volume
-            + 0.35 * feedback_success * feedback_volume
-            + 0.20 * self._sat(c["trusted_patterns"], 15)
+            0.35 * feedback_volume
+            + 0.25 * feedback_success * feedback_volume
+            + 0.15 * self._sat(c["trusted_patterns"], 15)
+            + 0.15 * lifecycle_correction_volume
+            + 0.10 * lifecycle_correction_ratio
         )
 
         trusted_strategy_ratio = (

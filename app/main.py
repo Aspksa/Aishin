@@ -943,11 +943,13 @@ async def assistant_live_brain_stream(
         while True:
             if await request.is_disconnected():
                 break
-            payload = engine.live_brain.pulse(scope=scope)
-            sequence = (
-                payload.get('topology', {}).get('sequence')
-            )
+
+            # The hot path is intentionally in-memory. Event/database counters
+            # are refreshed only when the topology changed or on heartbeat.
+            topology = engine.brain_flow.snapshot(scope=scope)
+            sequence = topology.get('sequence')
             if sequence != last_sequence or heartbeat_ticks >= 6:
+                payload = engine.live_brain.pulse(scope=scope)
                 yield (
                     'event: pulse\n'
                     + 'data: '

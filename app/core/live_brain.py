@@ -12,7 +12,7 @@ class LiveBrainRuntime:
     signals, quality metrics, graph structure and subsystem activity.
     """
 
-    VERSION = "aishin-live-brain-v3"
+    VERSION = "aishin-live-brain-v4"
     TRACE_POLICY = (
         "Без скрытой цепочки рассуждений: показываются только источники, "
         "проверки, выбранный режим, уверенность, метрики и итоговые сигналы."
@@ -281,6 +281,22 @@ class LiveBrainRuntime:
             {},
             lambda: self.engine.self_reflection.summary(scope=scope, limit=50),
         )
+        response_grounding = take(
+            "response_grounding",
+            [],
+            lambda: self.engine.response_grounding.recent(
+                scope=scope,
+                limit=8,
+            ),
+        )
+        response_grounding_summary = take(
+            "response_grounding_summary",
+            {},
+            lambda: self.engine.response_grounding.summary(
+                scope=scope,
+                limit=100,
+            ),
+        )
         learning_plans = take(
             "learning_planner",
             [],
@@ -443,6 +459,11 @@ class LiveBrainRuntime:
             int(documents_summary.get("failed_documents") or 0)
             or int(documents_summary.get("contradiction_count") or 0)
         )
+        latest_grounding = self._latest(response_grounding)
+        grounding_attention = bool(
+            latest_grounding.get("applicable")
+            and latest_grounding.get("status") == "weak"
+        )
         integrity = (
             "attention"
             if (
@@ -454,6 +475,7 @@ class LiveBrainRuntime:
                 or research_conflicts
                 or communication_attention
                 or document_attention
+                or grounding_attention
             )
             else "healthy"
             if events or memories or graph_stats.get("entities")
@@ -582,6 +604,15 @@ class LiveBrainRuntime:
                     "contradiction_count"
                 ),
                 "document_attention": document_attention,
+                "response_grounding": latest_grounding.get("overall"),
+                "response_grounding_status": latest_grounding.get("status"),
+                "response_grounding_applicable": bool(
+                    latest_grounding.get("applicable")
+                ),
+                "unsupported_response_claims": int(
+                    latest_grounding.get("claims_unsupported") or 0
+                ),
+                "grounding_attention": grounding_attention,
             },
             "channels": channels,
             "topology": topology,
@@ -622,6 +653,8 @@ class LiveBrainRuntime:
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
                 "reflection_summary": reflection_summary,
+                "response_grounding": latest_grounding,
+                "response_grounding_summary": response_grounding_summary,
                 "learning": learning_quality,
             },
             "provenance": {
@@ -631,7 +664,7 @@ class LiveBrainRuntime:
                 "trace": "cognitive_request_traces",
                 "quality": (
                     "decision_quality_scores + self_reflection_runs + "
-                    "learning quality tables"
+                    "response_grounding_runs + learning quality tables"
                 ),
                 "development": "DevelopmentMetricsEngine persisted evidence",
                 "long_term_growth": (
@@ -705,7 +738,7 @@ class LiveBrainRuntime:
         )
         return {
             "format": "AISHIN_LIVE_BRAIN_EXPORT",
-            "format_version": 10,
+            "format_version": 11,
             "scope": snapshot["scope"],
             "generated_at": snapshot["generated_at"],
             "policy": snapshot["trace_policy"],
@@ -879,6 +912,7 @@ class LiveBrainRuntime:
         document_context = trace.get("document_context") or []
         research = trace.get("research") or {}
         execution = trace.get("execution_bridge") or {}
+        grounding = trace.get("response_grounding") or {}
         document_ids = sorted({
             int(item.get("document_id"))
             for item in document_context
@@ -912,6 +946,21 @@ class LiveBrainRuntime:
             "contradictions": len(contradictions),
             "unresolved": len(unresolved),
             "decision_quality": quality.get("overall"),
+            "response_grounding": grounding.get("overall"),
+            "response_grounding_status": grounding.get("status"),
+            "grounding_applicable": bool(grounding.get("applicable")),
+            "grounded_claims": int(
+                grounding.get("claims_supported") or 0
+            ),
+            "partial_grounded_claims": int(
+                grounding.get("claims_partial") or 0
+            ),
+            "unsupported_response_claims": int(
+                grounding.get("claims_unsupported") or 0
+            ),
+            "grounding_source_groups": int(
+                grounding.get("source_groups") or 0
+            ),
             "execution_state": execution.get("state"),
             "execution_tool": execution.get("selected_tool"),
             "execution_executed": bool(execution.get("executed")),

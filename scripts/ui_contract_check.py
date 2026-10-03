@@ -55,12 +55,12 @@ def main() -> int:
         file_path = STATIC / Path(parsed.path).name
         if not file_path.is_file():
             missing_assets.append(asset)
-        if parsed.query != "v=0.0.13":
+        if parsed.query != "v=0.0.14":
             stale_assets.append(asset)
     if missing_assets:
         fail(f"Missing static assets: {missing_assets}")
     if stale_assets:
-        fail(f"Static assets without 0.0.13 cache key: {stale_assets}")
+        fail(f"Static assets without 0.0.14 cache key: {stale_assets}")
 
     required_ids = {
         "scope-select",
@@ -228,7 +228,7 @@ def main() -> int:
         "UI contract OK: "
         f"{len(parser.ids)} ids, {len(parser.assets)} assets, "
         f"{len(css_files)} responsive stylesheets, "
-        "real-time brain + response grounding + scoped modules verified"
+        "real-time brain + response grounding + knowledge lifecycle + scoped modules verified"
     )
     return 0
 

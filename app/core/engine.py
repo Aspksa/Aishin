@@ -526,8 +526,19 @@ class AishinEngine:
             "history": history,
         }
 
-    def respond(self, message: str, *, scope: str = "personal") -> dict:
-        request_id = self.cognitive_traces.new_request_id()
+    def new_request_id(self) -> str:
+        return self.cognitive_traces.new_request_id()
+
+    def respond(
+        self,
+        message: str,
+        *,
+        scope: str = "personal",
+        request_id: str | None = None,
+    ) -> dict:
+        request_id = str(request_id or self.new_request_id()).strip()
+        if not request_id:
+            request_id = self.new_request_id()
         perf = PerformanceTracker(request_id=request_id, scope=scope)
         cleaned = message.strip()
         intent = self.cognition.classify(cleaned)

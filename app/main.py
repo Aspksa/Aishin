@@ -1858,7 +1858,31 @@ def assistant_message(payload: ChatMessage) -> dict:
     if not text:
         raise HTTPException(status_code=400, detail='Сообщение пустое')
     scope = payload.scope.strip() or 'personal'
-    return engine.respond(text, scope=scope)
+    try:
+        return engine.respond(text, scope=scope)
+    except Exception as exc:
+        flow = engine.brain_flow.snapshot(scope=scope)
+        request_id = flow.get('request_id')
+        if request_id and flow.get('status') == 'running':
+            engine.brain_flow.fail(
+                request_id=str(request_id),
+                scope=scope,
+                error=str(exc),
+            )
+        engine.events.emit(
+            'response.failed',
+            scope=scope,
+            payload={
+                'request_id': request_id,
+                'error_type': type(exc).__name__,
+                'error': str(exc)[:300],
+            },
+            importance=0.9,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f'Ошибка ядра: {type(exc).__name__}: {str(exc)[:240]}',
+        ) from exc
 
 
 def _local_only(request: Request) -> None:

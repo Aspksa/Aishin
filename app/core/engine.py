@@ -1649,7 +1649,7 @@ class AishinEngine:
                 "active_task": digital_now.get("active_task"),
             },
             "development_state": self.digital_organism.development_state(),
-            "continuity": self.digital_organism.inspect_continuity(),
+            "continuity": self.digital_organism.continuity_summary(),
         }
         request_trace["learning_planner"] = learning_plans
         request_trace["safe_experiments"] = experiment_updates

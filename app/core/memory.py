@@ -246,8 +246,13 @@ class MemorySystem:
     def recent(self, *, scope: str = "personal", limit: int = 12) -> list[dict]:
         return recent_memories(scope=scope, limit=limit)
 
-    def recent_changes(self, limit: int = 30) -> list[dict]:
-        return recent_memory_changes(limit=limit)
+    def recent_changes(
+        self,
+        limit: int = 30,
+        *,
+        scope: str | None = None,
+    ) -> list[dict]:
+        return recent_memory_changes(limit=limit, scope=scope)
 
     def context_block(self, memories: Iterable[dict]) -> str:
         return "\n".join(

@@ -2344,6 +2344,11 @@ def main() -> int:
                 )
             pulse_data = live_brain_pulse.json()
             topology = pulse_data.get("topology") or {}
+            if topology.get("version") != "aishin-brain-flow-v2":
+                raise RuntimeError(
+                    "Real-time topology должна использовать concurrency-safe "
+                    "BrainFlow v2"
+                )
             if len(topology.get("nodes") or []) != 24:
                 raise RuntimeError(
                     "Real-time topology должна содержать ровно 24 узла"
@@ -2368,6 +2373,71 @@ def main() -> int:
             if not required_pairs.issubset(topology_pairs):
                 raise RuntimeError(
                     "Real-time topology потеряла критические связи мозга"
+                )
+
+            concurrency_scope = "smoke:brain-flow-concurrency"
+            engine.brain_flow.begin(
+                request_id="concurrent-a",
+                scope=concurrency_scope,
+                intent="verification",
+            )
+            engine.brain_flow.phase(
+                request_id="concurrent-a",
+                scope=concurrency_scope,
+                phase="memory",
+            )
+            engine.brain_flow.begin(
+                request_id="concurrent-b",
+                scope=concurrency_scope,
+                intent="action",
+            )
+            engine.brain_flow.phase(
+                request_id="concurrent-b",
+                scope=concurrency_scope,
+                phase="graph",
+            )
+            engine.brain_flow.phase(
+                request_id="concurrent-a",
+                scope=concurrency_scope,
+                phase="context",
+            )
+            concurrent_running = engine.brain_flow.snapshot(
+                scope=concurrency_scope
+            )
+            if int(concurrent_running.get("active_requests") or 0) != 2:
+                raise RuntimeError(
+                    "BrainFlow должен хранить два параллельных request "
+                    "в одном scope независимо"
+                )
+            engine.brain_flow.finish(
+                request_id="concurrent-a",
+                scope=concurrency_scope,
+                status="completed",
+            )
+            concurrent_after_first = engine.brain_flow.snapshot(
+                scope=concurrency_scope
+            )
+            if (
+                int(concurrent_after_first.get("active_requests") or 0) != 1
+                or concurrent_after_first.get("request_id")
+                != "concurrent-b"
+                or concurrent_after_first.get("status") != "running"
+            ):
+                raise RuntimeError(
+                    "Завершение одного request не должно перетирать "
+                    "другой активный BrainFlow"
+                )
+            engine.brain_flow.finish(
+                request_id="concurrent-b",
+                scope=concurrency_scope,
+                status="completed",
+            )
+            concurrent_finished = engine.brain_flow.snapshot(
+                scope=concurrency_scope
+            )
+            if int(concurrent_finished.get("active_requests") or 0) != 0:
+                raise RuntimeError(
+                    "BrainFlow должен закрыть все завершённые request"
                 )
 
             live_brain_export = client.get(
@@ -2438,6 +2508,8 @@ def main() -> int:
                     live_brain_data.get("safe_trace", {}).get("policy")
                 ),
                 "export_version": export_data.get("format_version"),
+                "brain_flow_version": topology.get("version"),
+                "concurrency_safe": True,
             }
 
             performance = client.get(

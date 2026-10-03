@@ -1337,8 +1337,12 @@ class CanonicalFactsEngine:
             )
 
         source_types = len({str(row["source_type"]) for row in supports})
+        intrinsic_state = state
         old_state = str(value.get("state") or "observed")
         if old_state == "superseded":
+            # Keep the historical state in storage until document lineage
+            # decides whether this value is still old or has become current
+            # again because a newer source disappeared/reverted.
             state = "superseded"
 
         with connect() as conn:
@@ -1380,6 +1384,7 @@ class CanonicalFactsEngine:
         return {
             **value,
             "state": state,
+            "intrinsic_state": intrinsic_state,
             "confidence": confidence,
             "independent_groups": support_groups,
             "source_types": source_types,
@@ -1399,7 +1404,6 @@ class CanonicalFactsEngine:
             item
             for item in value_results
             if int(item.get("active_evidence") or 0) > 0
-            and item.get("state") != "superseded"
         ]
         if len(active_values) <= 1:
             return
@@ -1460,17 +1464,32 @@ class CanonicalFactsEngine:
             value_id = int(value["id"])
             if value_id == winner_id:
                 if value.get("state") == "superseded":
+                    restored_state = str(
+                        value.get("intrinsic_state") or "observed"
+                    )
                     with connect() as conn:
                         conn.execute(
                             """UPDATE canonical_fact_values
-                               SET state='observed',
+                               SET state=?,
                                    superseded_at=NULL,
                                    superseded_by_value_id=NULL,
                                    updated_at=CURRENT_TIMESTAMP
                                WHERE id=?""",
-                            (value_id,),
+                            (restored_state, value_id),
                         )
                         conn.commit()
+                    self._event(
+                        scope=str(fact["scope"]),
+                        fact_id=int(fact["id"]),
+                        value_id=value_id,
+                        event_type="value_reactivated_by_document_lineage",
+                        from_state="superseded",
+                        to_state=restored_state,
+                        details={
+                            "family_key": next(iter(family_keys)),
+                            "ordering": "version_rank_or_previous_version",
+                        },
+                    )
                 continue
             with connect() as conn:
                 old = conn.execute(

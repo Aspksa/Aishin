@@ -145,6 +145,17 @@ document.querySelectorAll(".nav-item[data-module]").forEach((button) => {
     const code = button.dataset.module;
     document.getElementById("page-title").textContent = pages[code].title;
 
+    if (
+      code !== "assistant" &&
+      window.location.hash === "#technical-brain"
+    ) {
+      history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search
+      );
+    }
+
     document.querySelectorAll(".module-page").forEach((page) => page.classList.remove("active"));
     if (code === "assistant") {
       document.getElementById("assistant-module").classList.add("active");
@@ -1604,6 +1615,19 @@ const technicalBrain = document.querySelector(".technical-brain");
 
 function syncTechnicalBrainHash() {
   if (!technicalBrain || window.location.hash !== "#technical-brain") return;
+
+  document.querySelectorAll(".module-page").forEach((page) => {
+    page.classList.remove("active");
+  });
+  document.getElementById("assistant-module")?.classList.add("active");
+  document.querySelectorAll(".nav-item[data-module]").forEach((button) => {
+    button.classList.toggle(
+      "active",
+      button.dataset.module === "assistant"
+    );
+  });
+  document.getElementById("page-title").textContent = pages.assistant.title;
+
   technicalBrain.open = true;
   requestAnimationFrame(() => {
     renderNeuralLinks();

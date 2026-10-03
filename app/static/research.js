@@ -170,7 +170,7 @@ function boot(){
   q("#research-cycle")?.addEventListener("click",cycle);
   q("#research-query-btn")?.addEventListener("click",manualQuery);
   q("#research-query")?.addEventListener("keydown",e=>{if(e.key==="Enter")manualQuery();});
-  load();
+  if(q("#research-module")?.classList.contains("active"))load();
 }
 window.AISHIN_RESEARCH_REFRESH=load;
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();

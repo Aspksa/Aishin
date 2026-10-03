@@ -288,16 +288,19 @@ class DigitalOrganismFoundation:
         )
         self._set_continuity_status("sealed_shutdown")
         self._close_session(reason=reason)
-        snapshot = self.create_snapshot(snapshot_type="shutdown")
         self._emit(
             "digital_organism.shutdown",
             payload={
                 "boot_session_id": self.boot_session_id,
-                "snapshot_id": snapshot["id"],
-                "state_hash": snapshot["state_hash"],
+                "reason": reason,
+                "state": "sealed_shutdown",
             },
             importance=0.55,
         )
+        # The shutdown snapshot is the final critical write. No manifest-covered
+        # table may be mutated after this point, otherwise the next clean
+        # startup would correctly report a manifest mismatch.
+        snapshot = self.create_snapshot(snapshot_type="shutdown")
         return snapshot
 
     # ------------------------------------------------------------------

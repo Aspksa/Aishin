@@ -4,6 +4,56 @@ document.getElementById("hero-logo").src = logo;
 const chatLogo = document.getElementById("chat-logo");
 if (chatLogo) chatLogo.src = logo;
 
+const scopeSelect = document.getElementById("scope-select");
+const savedScope = localStorage.getItem("aishin.scope") || "personal";
+if (scopeSelect) {
+  scopeSelect.value = Array.from(scopeSelect.options).some(
+    (option) => option.value === savedScope
+  ) ? savedScope : "personal";
+}
+
+function activeScope() {
+  return scopeSelect?.value || localStorage.getItem("aishin.scope") || "personal";
+}
+
+function scopeUrl(url) {
+  const value = encodeURIComponent(activeScope());
+  return String(url).replace(/([?&])scope=personal\b/g, "$1scope=" + value);
+}
+
+window.AISHIN_SCOPE = {
+  get: activeScope,
+  url: scopeUrl,
+  withScope(payload = {}) {
+    return {...payload, scope: activeScope()};
+  }
+};
+
+function refreshScopeAwareUi() {
+  refreshDashboard(false);
+  refreshDevelopmentDetails(developmentDays);
+  [
+    "AISHIN_COMMUNICATION_REFRESH",
+    "AISHIN_PROACTIVE_REFRESH",
+    "AISHIN_EVOLUTION_REFRESH",
+    "AISHIN_RESEARCH_REFRESH",
+    "AISHIN_DOCUMENTS_REFRESH",
+    "AISHIN_GROWTH_REFRESH",
+    "AISHIN_INTELLIGENCE_REFRESH",
+    "AISHIN_LIVE_BRAIN_REFRESH"
+  ].forEach((name) => {
+    if (typeof window[name] === "function") window[name]();
+  });
+}
+
+scopeSelect?.addEventListener("change", () => {
+  localStorage.setItem("aishin.scope", activeScope());
+  document.dispatchEvent(new CustomEvent("aishin:scope-change", {
+    detail: {scope: activeScope()}
+  }));
+  refreshScopeAwareUi();
+});
+
 const pages = {
   assistant: {
     title: "Aishin Kitsune",
@@ -393,7 +443,7 @@ function renderDevelopmentChart(history) {
 
 async function refreshDevelopmentDetails(days = 30) {
   try {
-    const data = await fetchJson(`/api/assistant/development?scope=personal&days=${days}`);
+    const data = await fetchJson(scopeUrl(`/api/assistant/development?scope=personal&days=${days}`));
     renderDevelopmentCompact(data.current);
     renderDevelopmentDetails(data.current, data.history);
   } catch (error) {
@@ -447,7 +497,7 @@ function addMessage(text, who, meta = {}) {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({
-                  scope: "personal",
+                  scope: activeScope(),
                   feedback: code,
                   reason: "inline chat feedback"
                 })
@@ -492,7 +542,7 @@ form.addEventListener("submit", async (event) => {
     const response = await fetch("/api/assistant/message", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({message})
+      body: JSON.stringify({message, scope: activeScope()})
     });
     const data = await response.json();
     addMessage(
@@ -1438,16 +1488,16 @@ async function refreshDashboard(evaluate = false) {
   refreshApproval.disabled = true;
   try {
     if (evaluate) {
-      await fetchJson("/api/assistant/proactive/evaluate?scope=personal", {
+      await fetchJson(scopeUrl("/api/assistant/proactive/evaluate?scope=personal"), {
         method: "POST"
       });
     }
 
     const [state, pending, approved, sensors] = await Promise.all([
-      fetchJson("/api/assistant/state"),
-      fetchJson("/api/assistant/proactive/pending?scope=personal&limit=100"),
-      fetchJson("/api/assistant/proactive/history?scope=personal&status=approved&limit=100"),
-      fetchJson("/api/assistant/sensors?scope=personal")
+      fetchJson(scopeUrl("/api/assistant/state?scope=personal")),
+      fetchJson(scopeUrl("/api/assistant/proactive/pending?scope=personal&limit=100")),
+      fetchJson(scopeUrl("/api/assistant/proactive/history?scope=personal&status=approved&limit=100")),
+      fetchJson(scopeUrl("/api/assistant/sensors?scope=personal"))
     ]);
 
     pendingCount.textContent = String(pending.length);
@@ -1456,7 +1506,11 @@ async function refreshDashboard(evaluate = false) {
 
     const memories = state.working_memory?.memories || [];
     const tasks = state.planner?.open_items?.tasks || [];
-    const entities = state.knowledge_graph?.personal?.entities || 0;
+    const entities = (
+      state.knowledge_graph?.current?.entities
+      ?? state.knowledge_graph?.personal?.entities
+      ?? 0
+    );
 
     document.getElementById("metric-memory").textContent = String(memories.length);
     document.getElementById("metric-tasks").textContent = String(tasks.length);
@@ -1505,8 +1559,12 @@ technicalBrain?.addEventListener("toggle", () => {
 window.addEventListener("resize", () => requestAnimationFrame(renderNeuralLinks));
 
 async function liveRefreshLoop() {
-  await refreshDashboard(false);
-  const delay = technicalBrain?.open ? 3000 : 20000;
+  if (!document.hidden) {
+    await refreshDashboard(false);
+  }
+  // Live Brain now uses a lightweight SSE pulse. The heavy aggregate snapshot
+  // is intentionally refreshed slowly to avoid SQLite/UI pressure.
+  const delay = document.hidden ? 60000 : 45000;
   window.setTimeout(liveRefreshLoop, delay);
 }
 

@@ -22,8 +22,9 @@ class BrainFlowRuntime:
     stages, transitions, timings and externally inspectable outcomes.
     """
 
-    VERSION = "aishin-brain-flow-v1"
+    VERSION = "aishin-brain-flow-v2"
     RECENT_SECONDS = 30.0
+    MAX_REQUESTS_PER_SCOPE = 12
 
     NODES = (
         BrainNodeSpec("input", "Вход", 0, "perception"),
@@ -97,7 +98,7 @@ class BrainFlowRuntime:
 
     def __init__(self) -> None:
         self._lock = RLock()
-        self._scopes: dict[str, dict[str, Any]] = {}
+        self._requests: dict[tuple[str, str], dict[str, Any]] = {}
         self._sequence = 0
 
     @staticmethod
@@ -112,10 +113,15 @@ class BrainFlowRuntime:
         intent: str = "",
     ) -> None:
         now_mono = monotonic()
+        scope = (scope or "personal").strip() or "personal"
+        request_id = str(request_id or "").strip()
+        if not request_id:
+            return
         with self._lock:
             self._sequence += 1
-            self._scopes[scope] = {
+            self._requests[(scope, request_id)] = {
                 "request_id": request_id,
+                "scope": scope,
                 "intent": intent,
                 "status": "running",
                 "started_at": self._now_iso(),
@@ -137,6 +143,7 @@ class BrainFlowRuntime:
                 "error": "",
                 "sequence": self._sequence,
             }
+            self._prune_locked(scope)
 
     def phase(
         self,
@@ -153,11 +160,15 @@ class BrainFlowRuntime:
         if phase not in valid:
             return
         now_mono = monotonic()
+        scope = (scope or "personal").strip() or "personal"
+        request_id = str(request_id or "").strip()
+        if not request_id:
+            return
         with self._lock:
-            state = self._scopes.get(scope)
-            if state is None or state.get("request_id") != request_id:
+            state = self._requests.get((scope, request_id))
+            if state is None:
                 self.begin(request_id=request_id, scope=scope)
-                state = self._scopes[scope]
+                state = self._requests[(scope, request_id)]
 
             previous = str(state.get("current_phase") or "")
             state["previous_phase"] = previous
@@ -221,9 +232,11 @@ class BrainFlowRuntime:
             phase="completed",
             detail={"status": status},
         )
+        scope = (scope or "personal").strip() or "personal"
+        request_id = str(request_id or "").strip()
         with self._lock:
-            state = self._scopes.get(scope)
-            if not state or state.get("request_id") != request_id:
+            state = self._requests.get((scope, request_id))
+            if not state:
                 return
             state["status"] = status
             state["completed_at"] = self._now_iso()
@@ -239,11 +252,15 @@ class BrainFlowRuntime:
         scope: str,
         error: str,
     ) -> None:
+        scope = (scope or "personal").strip() or "personal"
+        request_id = str(request_id or "").strip()
+        if not request_id:
+            return
         with self._lock:
-            state = self._scopes.get(scope)
-            if state is None or state.get("request_id") != request_id:
+            state = self._requests.get((scope, request_id))
+            if state is None:
                 self.begin(request_id=request_id, scope=scope)
-                state = self._scopes[scope]
+                state = self._requests[(scope, request_id)]
             state["status"] = "error"
             state["error"] = str(error or "")[:500]
             state["completed_at"] = self._now_iso()
@@ -251,10 +268,71 @@ class BrainFlowRuntime:
             self._sequence += 1
             state["sequence"] = self._sequence
 
+    def running_request_ids(self, *, scope: str) -> list[str]:
+        scope = (scope or "personal").strip() or "personal"
+        with self._lock:
+            rows = [
+                state
+                for (row_scope, _), state in self._requests.items()
+                if row_scope == scope and state.get("status") == "running"
+            ]
+            rows.sort(
+                key=lambda item: int(item.get("sequence") or 0),
+                reverse=True,
+            )
+            return [str(item.get("request_id") or "") for item in rows]
+
+    def _prune_locked(self, scope: str) -> None:
+        rows = [
+            (key, state)
+            for key, state in self._requests.items()
+            if key[0] == scope
+        ]
+        if len(rows) <= self.MAX_REQUESTS_PER_SCOPE:
+            return
+        rows.sort(
+            key=lambda item: (
+                item[1].get("status") == "running",
+                int(item[1].get("sequence") or 0),
+            ),
+            reverse=True,
+        )
+        keep = {key for key, _ in rows[: self.MAX_REQUESTS_PER_SCOPE]}
+        for key, _ in rows:
+            if key not in keep:
+                self._requests.pop(key, None)
+
     def snapshot(self, *, scope: str) -> dict[str, Any]:
+        scope = (scope or "personal").strip() or "personal"
         now_mono = monotonic()
         with self._lock:
-            state = dict(self._scopes.get(scope) or {})
+            candidates = [
+                state
+                for (row_scope, _), state in self._requests.items()
+                if row_scope == scope
+            ]
+            running_candidates = [
+                item for item in candidates
+                if item.get("status") == "running"
+            ]
+            pool = running_candidates or candidates
+            selected = max(
+                pool,
+                key=lambda item: int(item.get("sequence") or 0),
+                default={},
+            )
+            state = dict(selected)
+            active_requests = len(running_candidates)
+            recent_requests = sum(
+                1
+                for item in candidates
+                if item.get("status") == "running"
+                or (
+                    isinstance(item.get("completed_mono"), (int, float))
+                    and now_mono - float(item["completed_mono"])
+                    <= self.RECENT_SECONDS
+                )
+            )
             nodes_state = {
                 key: dict(value)
                 for key, value in (state.get("nodes") or {}).items()
@@ -263,6 +341,7 @@ class BrainFlowRuntime:
                 key: dict(value)
                 for key, value in (state.get("edges") or {}).items()
             }
+            global_sequence = self._sequence
 
         running = state.get("status") == "running"
         current = str(state.get("current_phase") or "")
@@ -349,7 +428,10 @@ class BrainFlowRuntime:
         return {
             "version": self.VERSION,
             "scope": scope,
-            "sequence": int(state.get("sequence") or self._sequence),
+            "sequence": int(global_sequence),
+            "request_sequence": int(state.get("sequence") or 0),
+            "active_requests": active_requests,
+            "recent_requests": recent_requests,
             "request_id": state.get("request_id"),
             "intent": state.get("intent") or "",
             "status": state.get("status") or "idle",

@@ -291,6 +291,7 @@ class AishinEngine:
             "ai_resilience": self.ai.diagnostics(),
             "semantic_memory": self.semantic.health(),
             "knowledge_graph": {
+                "current": self.graph.stats(scope=effective_scope),
                 "personal": self.graph.stats(scope="personal"),
                 "relationship": self.graph.stats(scope="relationship"),
             },

@@ -111,6 +111,7 @@ def assert_dynamic_dom(dom: str) -> None:
         "Нейронная обсерватория Айшин",
         "Нервная карта выполнения",
         "brain-flow-legend",
+        'id="lb-node-inspector"',
         "AISHIN 00.00.12 · REAL-TIME BRAIN",
     ]
     missing = [marker for marker in required if marker not in dom]

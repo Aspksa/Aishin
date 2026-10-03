@@ -91,15 +91,24 @@ const pages = {
   },
   account: {
     title: "Личный кабинет",
-    description: "Здесь будет профиль владельца, персональные настройки, доступы и параметры Айшин."
+    description: "Интерфейс владельца пока не имеет отдельного backend-модуля.",
+    readiness: "ПЛАНИРУЕТСЯ · BACKEND НЕ ПОДКЛЮЧЁН",
+    available: "Уже работают: личный scope, профиль Айшин, память отношений и системные настройки.",
+    next: "Следующий этап: отдельные API профиля владельца, права доступа и персональные параметры."
   },
   mobile: {
     title: "Мобильное приложение",
-    description: "Здесь будет управление подключением мобильного клиента и синхронизацией."
+    description: "Мобильный клиент и транспорт синхронизации пока не реализованы.",
+    readiness: "ПЛАНИРУЕТСЯ · КЛИЕНТ НЕ ПОДКЛЮЧЁН",
+    available: "Сейчас Aishin работает через локальный web-интерфейс с адаптивной мобильной компоновкой.",
+    next: "Следующий этап: защищённая авторизация устройства, sync API и отдельный мобильный клиент."
   },
   workspace: {
     title: "Рабочее пространство",
-    description: "Здесь будут проекты, документы, инструменты и рабочие контексты."
+    description: "Отдельный workspace-backend ещё не выделен как самостоятельный модуль.",
+    readiness: "ЧАСТИЧНО ДОСТУПНО · PROJECT SCOPE РАБОТАЕТ",
+    available: "Уже работают: project:aishin scope, документы, Research, Knowledge Graph и инструменты проекта.",
+    next: "Следующий этап: реестр проектов, переключение нескольких project scopes и права на рабочие области."
   },
   settings: {
     title: "Настройки",
@@ -148,8 +157,19 @@ document.querySelectorAll(".nav-item[data-module]").forEach((button) => {
       refreshCloudSettings();
       refreshUpdateMode();
     } else {
-      document.getElementById("placeholder-title").textContent = pages[code].title;
-      document.getElementById("placeholder-description").textContent = pages[code].description;
+      const placeholder = pages[code] || {
+        title: "Модуль",
+        description: "Модуль пока не подключён.",
+        readiness: "НЕ ПОДКЛЮЧЁН",
+        available: "Рабочих API этого раздела пока нет.",
+        next: "Функциональность будет добавлена отдельным проверяемым релизом."
+      };
+      document.getElementById("placeholder-title").textContent = placeholder.title;
+      document.getElementById("placeholder-description").textContent = placeholder.description;
+      document.getElementById("placeholder-readiness").textContent = placeholder.readiness || "НЕ ПОДКЛЮЧЁН";
+      document.getElementById("placeholder-available").textContent = placeholder.available || "—";
+      document.getElementById("placeholder-next").textContent = placeholder.next || "—";
+      document.getElementById("placeholder-scope").textContent = activeScope();
       document.getElementById("placeholder-module").classList.add("active");
     }
   });

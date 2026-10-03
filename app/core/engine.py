@@ -26,6 +26,7 @@ from .counterfactual import CounterfactualReasoning
 from .action_selection import ActionSelector
 from .action_execution import ActionExecutionBridge
 from .brain_flow import BrainFlowRuntime
+from .wiring_audit import BrainWiringAudit
 from .decision_quality import DecisionQualityScorer
 from .consolidation import MemoryConsolidator
 from .events import EventBus
@@ -111,6 +112,7 @@ class AishinEngine:
             events=self.events,
         )
         self.brain_flow = BrainFlowRuntime()
+        self.wiring_audit = BrainWiringAudit()
         self.execution_coordinator = ExecutionCoordinator(
             tools=self.tools,
             permissions=self.permissions,

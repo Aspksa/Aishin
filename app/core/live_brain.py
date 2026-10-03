@@ -305,6 +305,14 @@ class LiveBrainRuntime:
                 limit=20,
             ),
         )
+        canonical_facts = take(
+            "canonical_facts",
+            {},
+            lambda: self.engine.canonical_facts.dashboard(
+                scope=scope,
+                limit=20,
+            ),
+        )
         learning_plans = take(
             "learning_planner",
             [],
@@ -465,6 +473,9 @@ class LiveBrainRuntime:
         documents_summary = documents.get("summary") or {}
         knowledge_lifecycle_summary = (
             knowledge_lifecycle.get("summary") or {}
+        )
+        canonical_facts_summary = (
+            canonical_facts.get("summary") or {}
         )
         document_attention = bool(
             int(documents_summary.get("failed_documents") or 0)
@@ -642,6 +653,21 @@ class LiveBrainRuntime:
                 "knowledge_corrections_confirmed": int(
                     knowledge_lifecycle_summary.get("corrections_confirmed") or 0
                 ),
+                "canonical_facts": int(
+                    canonical_facts_summary.get("facts") or 0
+                ),
+                "canonical_verified": int(
+                    (canonical_facts_summary.get("states") or {}).get("verified") or 0
+                ),
+                "canonical_conflicted": int(
+                    (canonical_facts_summary.get("states") or {}).get("conflicted") or 0
+                ),
+                "canonical_superseded_values": int(
+                    canonical_facts_summary.get("superseded_values") or 0
+                ),
+                "canonical_independent_groups": int(
+                    canonical_facts_summary.get("independent_groups") or 0
+                ),
             },
             "channels": channels,
             "topology": topology,
@@ -679,6 +705,7 @@ class LiveBrainRuntime:
             "communication": communication,
             "documents": documents,
             "knowledge_lifecycle": knowledge_lifecycle,
+            "canonical_facts": canonical_facts,
             "quality": {
                 "decision": self._latest(decision_quality),
                 "reflection": self._latest(reflection),
@@ -738,6 +765,11 @@ class LiveBrainRuntime:
                     "knowledge_transitions + hypothesis_registry + "
                     "hypothesis_evidence + hypothesis_transitions + "
                     "knowledge_learning_events"
+                ),
+                "canonical_facts": (
+                    "canonical_facts + canonical_fact_values + "
+                    "canonical_fact_evidence + canonical_fact_links + "
+                    "canonical_fact_events"
                 ),
             },
         }
@@ -950,6 +982,7 @@ class LiveBrainRuntime:
         execution = trace.get("execution_bridge") or {}
         grounding = trace.get("response_grounding") or {}
         lifecycle = trace.get("knowledge_lifecycle_summary") or {}
+        canonical = trace.get("canonical_facts_summary") or {}
         document_ids = sorted({
             int(item.get("document_id"))
             for item in document_context
@@ -1009,6 +1042,18 @@ class LiveBrainRuntime:
             ),
             "knowledge_errors_detected": int(
                 lifecycle.get("errors_detected") or 0
+            ),
+            "canonical_facts": int(
+                canonical.get("facts") or 0
+            ),
+            "canonical_verified": int(
+                (canonical.get("states") or {}).get("verified") or 0
+            ),
+            "canonical_conflicted": int(
+                (canonical.get("states") or {}).get("conflicted") or 0
+            ),
+            "canonical_superseded_values": int(
+                canonical.get("superseded_values") or 0
             ),
             "execution_state": execution.get("state"),
             "execution_tool": execution.get("selected_tool"),

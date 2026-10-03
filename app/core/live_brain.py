@@ -41,6 +41,7 @@ class LiveBrainRuntime:
         "provider": "tool",
         "reflection": "reflection",
         "learning": "continuous-learning",
+        "evolution": "continuous-learning",
         "completed": "decision",
     }
 
@@ -867,6 +868,14 @@ class LiveBrainRuntime:
             or {}
         )
         intelligence_outcome = intelligence.get("outcome") or {}
+        document_context = trace.get("document_context") or []
+        research = trace.get("research") or {}
+        execution = trace.get("execution_bridge") or {}
+        document_ids = sorted({
+            int(item.get("document_id"))
+            for item in document_context
+            if item.get("document_id") is not None
+        })
 
         return {
             "available": True,
@@ -884,9 +893,21 @@ class LiveBrainRuntime:
             "verification_unresolved": len(verify_unresolved),
             "memory_sources": len(memories),
             "evidence_items": len(evidence),
+            "document_sources": len(document_context),
+            "document_ids": document_ids,
+            "research_logic_evidence": int(
+                research.get("logic_evidence_count") or 0
+            ),
+            "research_logic_contradictions": int(
+                research.get("logic_contradiction_count") or 0
+            ),
             "contradictions": len(contradictions),
             "unresolved": len(unresolved),
             "decision_quality": quality.get("overall"),
+            "execution_state": execution.get("state"),
+            "execution_tool": execution.get("selected_tool"),
+            "execution_executed": bool(execution.get("executed")),
+            "approval_decision_id": execution.get("decision_id"),
             "provider": provider.get("provider"),
             "model": provider.get("model"),
             "provider_available": provider.get("available"),

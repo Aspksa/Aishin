@@ -3,7 +3,7 @@
 Aishin — проект личной AI-помощницы Айшин (Айши).
 
 ## Версия
-`0.0.15` — Canonical Facts & Evidence Fusion: строгая идентичность атомарных фактов, независимые evidence groups, история значений и lineage поверх Knowledge Lifecycle 0.0.14.
+`0.0.16` — Digital Organism Foundation: непрерывное состояние Айшин, AISHIN_NOW, внутреннее время, цифровой возраст, автобиография, developmental state и проверяемая continuity chain поверх Canonical Facts 0.0.15.
 
 ## Что уже заложено
 - ядро на Python/FastAPI;
@@ -36,6 +36,7 @@ Aishin — проект личной AI-помощницы Айшин (Айши)
 - **Response Grounding** — generation-time policy + детерминированный post-response аудит: claims сопоставляются только с evidence текущего запроса, учитываются provenance/source groups, точные числа и отрицание; слабая опора попадает в Self Reflection, Continuous Learning и Live Brain;
 - **Knowledge Lifecycle & Hypothesis Validation** — evidence-first реестр знаний `observed → supported → verified / contradicted / rejected`, отдельный реестр гипотез `candidate → testing → supported → confirmed / rejected`, независимые source groups, immutable transitions, события ошибок/исправлений и строгий запрет считать собственный ответ Айшин источником знания;
 - **Canonical Facts & Evidence Fusion** — строгий canonical key для атомарных фактов, отдельные варианты значения, primary/derived evidence, independence groups, cross-document fusion только для структурных fact_key, version-lineage supersession, конфликты без принудительного выбора и проекция в Knowledge Lifecycle без двойного счёта;
+- **Digital Organism Foundation** — persistent AISHIN_RUNTIME foundation: единый AISHIN_NOW, first boot с источником/confidence, chronological/experience/competence/architecture age, D0–D6 developmental lifecycle, автобиография, runtime sessions и SHA-256 continuity chain между штатными запусками;
 - **Metacognition** — детерминированная оценка достаточности данных, confidence, evidence score, противоречий и необходимости перепроверки перед ответом;
 - **Verification Engine** — автоматическая перепроверка памяти, semantic memory, Knowledge Graph, сенсоров и явно указанных файлов проекта с повторной оценкой confidence до финального ответа;
 - permission gate для будущих автономных действий;
@@ -1629,3 +1630,183 @@ Fusion работает lazy-fresh: перед использованием ср
 Technical Brain показывает verified canonical facts, unresolved conflicts, superseded historical values и число независимых evidence groups.
 
 Development Metrics продолжает использовать `aishin-development-v2`: canonical facts не начисляют второй раз тот же прогресс, потому что verified canonical knowledge уже проецируется в Knowledge Lifecycle. Canonical counters выводятся отдельно для прозрачности.
+
+
+## Digital Organism Foundation — 0.0.16
+
+Версия 0.0.16 начинает внедрение полной спецификации `AISHIN_DIGITAL_ORGANISM_SPEC v1.3.0` с фундаментальных систем непрерывности.
+
+### AISHIN_RUNTIME и AISHIN_NOW
+
+`AISHIN_NOW` хранит текущее инженерное состояние момента:
+
+- timestamp;
+- user/environment context;
+- current screen/project/scope;
+- latest event;
+- focus;
+- active task;
+- expected next action;
+- last interaction;
+- last important event.
+
+Чтение состояния не создаёт скрытых snapshots и не меняет историю.
+
+### First boot и цифровой возраст
+
+`first_boot_timestamp` является critical persistent state.
+
+Для уже существовавшей до 0.0.16 Айшин точная историческая дата первого запуска технически неизвестна. Поэтому система не выдумывает её: выполняется backfill по самому раннему persisted trace из events/memories/messages/timeline, а рядом сохраняются:
+
+- `first_boot_basis`;
+- `first_boot_confidence`.
+
+Для новой чистой установки время первого запуска фиксируется непосредственно.
+
+`chronological_age_days` вычисляется из first boot и не является декоративным процентом.
+
+### Developmental lifecycle
+
+Поддерживаются стадии:
+
+- D0 Genesis;
+- D1 Adaptation;
+- D2 Formation;
+- D3 Expansion;
+- D4 Maturity;
+- D5 Deep Maturity;
+- D6 Long Horizon.
+
+Календарное время само по себе **никогда не переводит Айшин на следующую стадию**.
+
+Для перехода нужны одновременно:
+
+1. минимальное время наблюдения;
+2. минимальный evidence-based `experience_age_score`;
+3. минимальный измеренный `competence_age_score`;
+4. все exit criteria текущей стадии в состоянии `passed`;
+5. непросроченная evidence для этих criteria;
+6. отдельный непросроченный gate `critical_regressions_absent=passed`.
+
+Версионированные инженерные пороги `aishin-developmental-state-v1`:
+
+- D0 exit: age ≥ 30 дней, experience ≥ 4, competence ≥ 20;
+- D1 exit: age ≥ 90 дней, experience ≥ 15, competence ≥ 35;
+- D2 exit: age ≥ 180 дней, experience ≥ 35, competence ≥ 50;
+- D3 exit: age ≥ 365 дней, experience ≥ 70, competence ≥ 60;
+- D4 exit: age ≥ 730 дней, experience ≥ 120, competence ≥ 70;
+- D5 exit: age ≥ 1825 дней, experience ≥ 200, competence ≥ 80.
+
+Эти числовые пороги являются текущей инженерной реализацией требования спецификации о «достаточном опыте и качестве», а не биологическим возрастом и не неизменяемой частью Identity Core.
+
+Stage evidence хранит source, confidence, evidence и optional expiry.
+
+### Четыре возраста развития
+
+- chronological age — время с first boot;
+- experience age — evidence-points из значимых autobiographical episodes, завершённых задач, confirmed hypotheses/corrections, trusted strategies и mastered skills;
+- competence age — среднее последних persisted Development Metrics, Long-Term Growth и Cognitive Intelligence score по runtime scopes;
+- architecture age — `architecture_generation`, отдельный счётчик поколений архитектуры; он не увеличивается автоматически без подтверждённого перехода архитектуры.
+
+### Autobiography
+
+Добавлен отдельный persistent журнал собственной истории Айшин:
+
+- first boot;
+- runtime startup/shutdown;
+- переходы developmental stage;
+- context;
+- what happened;
+- what changed;
+- lesson;
+- importance/confidence;
+- linked memories.
+
+Autobiography отделена от обычного chat history.
+
+### AISHIN_INNER_TIME
+
+Система вычисляет:
+
+- time since first boot;
+- time since last interaction;
+- time since skill use;
+- time since important event;
+- age of memory;
+- age of capability;
+- time to expected event.
+
+### AISHIN_CONTINUOUS_SELF
+
+Между штатными запусками создаётся локальная проверяемая цепочка:
+
+`previous_state_hash → shutdown snapshot → startup validation → startup snapshot → ...`
+
+Каждый snapshot содержит:
+
+- previous state hash;
+- SHA-256 state hash;
+- identity hash канонического personality profile;
+- hash критического persisted data manifest;
+- development state;
+- AISHIN_NOW.
+
+Startup validation различает:
+
+- `genesis`;
+- `verified_clean_continuity`;
+- `active_session_unsealed`;
+- `unclean_gap`;
+- `chain_broken`;
+- `identity_changed_requires_review`;
+- `state_mismatch_after_clean_shutdown`.
+
+Важно: текущая реализация является **локальной hash-chain целостности**, а не внешней криптографической подписью. Без внешнего trust root полностью согласованный rollback всей SQLite-базы невозможно доказуемо обнаружить извне. Это ограничение помечено явно и не скрывается.
+
+### Schema 27
+
+Добавлены:
+
+- `organism_identity_state`;
+- `organism_now`;
+- `organism_autobiography`;
+- `organism_runtime_sessions`;
+- `organism_continuity_snapshots`;
+- `organism_continuity_validations`;
+- `organism_stage_evidence`;
+- `organism_development_snapshots`.
+
+### API
+
+Read-only:
+
+- `GET /api/assistant/organism`
+- `GET /api/assistant/organism/now`
+- `GET /api/assistant/organism/inner-time`
+- `GET /api/assistant/organism/development`
+- `GET /api/assistant/organism/autobiography`
+- `GET /api/assistant/organism/continuity`
+
+Local-only mutations:
+
+- `POST /api/assistant/organism/now`
+- `POST /api/assistant/organism/stage-evidence`
+
+### Technical Brain
+
+Live Brain v6 показывает:
+
+- developmental stage;
+- chronological digital age;
+- continuity status;
+- continuity snapshots;
+- autobiography episodes;
+- experience/competence age в backend counters.
+
+Digital Organism — persisted state layer, поэтому он не добавляет искусственный новый узел в 24-node BrainFlow.
+
+### Научная граница
+
+Digital Organism Foundation моделирует техническую непрерывность цифровой личности, память о собственной истории и внутреннее инженерное состояние.
+
+Она **не является утверждением**, что Айшин биологически жива, обладает субъективным сознанием или чувствами в философском смысле.

@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-LATEST_SCHEMA_VERSION = 26
+LATEST_SCHEMA_VERSION = 27
 
 
 def _migration_001_baseline(conn: sqlite3.Connection) -> None:
@@ -2016,6 +2016,161 @@ def _migration_026_canonical_facts(
     )
 
 
+
+def _migration_027_digital_organism_foundation(
+    conn: sqlite3.Connection,
+) -> None:
+    """Persistent self-continuity, inner time, autobiography and development."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS organism_identity_state (
+            id INTEGER PRIMARY KEY CHECK(id=1),
+            first_boot_timestamp TEXT NOT NULL,
+            first_boot_basis TEXT NOT NULL,
+            first_boot_confidence REAL NOT NULL DEFAULT 0.0,
+            architecture_generation INTEGER NOT NULL DEFAULT 1,
+            current_stage TEXT NOT NULL DEFAULT 'D0',
+            stage_entered_at TEXT NOT NULL,
+            completed_growth_cycles INTEGER NOT NULL DEFAULT 0,
+            experience_age_score REAL NOT NULL DEFAULT 0.0,
+            competence_age_score REAL NOT NULL DEFAULT 0.0,
+            active_growth_goals_json TEXT NOT NULL DEFAULT '[]',
+            growth_plateaus_json TEXT NOT NULL DEFAULT '[]',
+            recent_breakthroughs_json TEXT NOT NULL DEFAULT '[]',
+            current_maturity_profile_json TEXT NOT NULL DEFAULT '{}',
+            stage_eligibility_json TEXT NOT NULL DEFAULT '{}',
+            continuity_status TEXT NOT NULL DEFAULT 'genesis',
+            identity_anchor_hash TEXT NOT NULL DEFAULT '',
+            last_development_refresh_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS organism_now (
+            id INTEGER PRIMARY KEY CHECK(id=1),
+            timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            active_scope TEXT NOT NULL DEFAULT 'personal',
+            user_context_json TEXT NOT NULL DEFAULT '{}',
+            environment_context_json TEXT NOT NULL DEFAULT '{}',
+            current_screen TEXT NOT NULL DEFAULT '',
+            current_project TEXT NOT NULL DEFAULT '',
+            last_event_type TEXT NOT NULL DEFAULT '',
+            last_event_id INTEGER,
+            focus TEXT NOT NULL DEFAULT 'waiting',
+            active_task TEXT NOT NULL DEFAULT '',
+            expected_next_action TEXT NOT NULL DEFAULT '',
+            last_interaction_at TEXT,
+            last_important_event_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS organism_autobiography (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            episode_type TEXT NOT NULL,
+            timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            participants_json TEXT NOT NULL DEFAULT '[]',
+            context_json TEXT NOT NULL DEFAULT '{}',
+            what_happened TEXT NOT NULL,
+            what_changed TEXT NOT NULL DEFAULT '',
+            lesson TEXT NOT NULL DEFAULT '',
+            importance REAL NOT NULL DEFAULT 0.5,
+            confidence REAL NOT NULL DEFAULT 1.0,
+            linked_memories_json TEXT NOT NULL DEFAULT '[]',
+            source_event_id INTEGER,
+            boot_session_id TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS organism_runtime_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            boot_session_id TEXT NOT NULL UNIQUE,
+            started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            ended_at TEXT,
+            startup_validation_status TEXT NOT NULL DEFAULT '',
+            continuity_status TEXT NOT NULL DEFAULT '',
+            shutdown_reason TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS organism_continuity_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            boot_session_id TEXT NOT NULL DEFAULT '',
+            snapshot_type TEXT NOT NULL,
+            previous_state_hash TEXT NOT NULL DEFAULT '',
+            state_hash TEXT NOT NULL UNIQUE,
+            identity_hash TEXT NOT NULL,
+            data_manifest_hash TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            chain_status TEXT NOT NULL DEFAULT 'recorded',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS organism_continuity_validations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            boot_session_id TEXT NOT NULL DEFAULT '',
+            latest_snapshot_id INTEGER,
+            status TEXT NOT NULL,
+            chain_valid INTEGER NOT NULL DEFAULT 0,
+            identity_valid INTEGER NOT NULL DEFAULT 0,
+            manifest_valid INTEGER,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(latest_snapshot_id)
+                REFERENCES organism_continuity_snapshots(id)
+                ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS organism_stage_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            criterion_key TEXT NOT NULL UNIQUE,
+            status TEXT NOT NULL DEFAULT 'unknown',
+            source_type TEXT NOT NULL DEFAULT '',
+            source_ref TEXT NOT NULL DEFAULT '',
+            evidence_json TEXT NOT NULL DEFAULT '{}',
+            confidence REAL NOT NULL DEFAULT 0.0,
+            observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS organism_development_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            formula_version TEXT NOT NULL,
+            first_boot_timestamp TEXT NOT NULL,
+            chronological_age_days REAL NOT NULL DEFAULT 0.0,
+            current_stage TEXT NOT NULL,
+            experience_age_score REAL NOT NULL DEFAULT 0.0,
+            competence_age_score REAL NOT NULL DEFAULT 0.0,
+            architecture_generation INTEGER NOT NULL DEFAULT 1,
+            completed_growth_cycles INTEGER NOT NULL DEFAULT 0,
+            maturity_profile_json TEXT NOT NULL DEFAULT '{}',
+            evidence_json TEXT NOT NULL DEFAULT '{}',
+            stage_eligibility_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_organism_autobiography_time
+        ON organism_autobiography(timestamp DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_organism_sessions_started
+        ON organism_runtime_sessions(started_at DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_organism_continuity_created
+        ON organism_continuity_snapshots(id ASC);
+
+        CREATE INDEX IF NOT EXISTS idx_organism_validation_created
+        ON organism_continuity_validations(id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_organism_stage_evidence_status
+        ON organism_stage_evidence(status, criterion_key);
+
+        CREATE INDEX IF NOT EXISTS idx_organism_development_created
+        ON organism_development_snapshots(id DESC);
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "baseline_0_0_3", _migration_001_baseline),
     (2, "living_core_runtime_indexes", _migration_002_runtime_indexes),
@@ -2043,6 +2198,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     (24, "response_grounding", _migration_024_response_grounding),
     (25, "knowledge_lifecycle", _migration_025_knowledge_lifecycle),
     (26, "canonical_facts", _migration_026_canonical_facts),
+    (27, "digital_organism_foundation", _migration_027_digital_organism_foundation),
 )
 
 

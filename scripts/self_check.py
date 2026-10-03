@@ -26,6 +26,7 @@ from app.personality import personality
 
 def main() -> int:
     checks: dict[str, object] = {}
+    engine: AishinEngine | None = None
     try:
         init_db()
         schema = database_schema_status()
@@ -59,6 +60,7 @@ def main() -> int:
             )
 
         engine = AishinEngine()
+        organism_startup = engine.digital_organism.startup()
         engine.startup()
 
         ai_diag = engine.ai.diagnostics()
@@ -257,6 +259,85 @@ def main() -> int:
             "strict_identity_not_semantic_merge": True,
             "derived_lineage_is_not_independent_evidence": True,
             "tables": sorted(required_canonical_tables),
+        }
+
+        organism = engine.digital_organism.dashboard(
+            scope="personal"
+        )
+        if organism.get("version") != "aishin-digital-organism-foundation-v1":
+            raise RuntimeError("Digital Organism version mismatch")
+        development_state = organism.get("development_state") or {}
+        if development_state.get("formula_version") != "aishin-developmental-state-v1":
+            raise RuntimeError("Digital Organism development formula mismatch")
+        if float(development_state.get("chronological_age_days") or -1.0) < 0:
+            raise RuntimeError("Digital age cannot be negative")
+        if development_state.get("current_stage") not in {
+            "D0", "D1", "D2", "D3", "D4", "D5", "D6"
+        }:
+            raise RuntimeError("Unknown developmental stage")
+        if not development_state.get("first_boot_timestamp"):
+            raise RuntimeError("First boot timestamp is missing")
+        continuity = engine.digital_organism.inspect_continuity()
+        if not continuity.get("chain_valid"):
+            raise RuntimeError("Digital organism continuity chain is invalid")
+        if not continuity.get("identity_valid"):
+            raise RuntimeError("Digital organism identity anchor mismatch")
+        inner_time = engine.digital_organism.inner_time(scope="personal")
+        required_inner_time = {
+            "time_since_first_boot",
+            "time_since_last_interaction",
+            "time_since_skill_use",
+            "time_since_important_event",
+            "age_of_memory",
+            "age_of_capability",
+            "time_to_expected_event",
+        }
+        if not required_inner_time.issubset(inner_time):
+            raise RuntimeError("AISHIN_INNER_TIME fields are incomplete")
+        autobiography = organism.get("autobiography") or {}
+        if int(autobiography.get("total") or 0) < 1:
+            raise RuntimeError("Autobiography is not operational")
+        with connect() as conn:
+            latest_snapshot = conn.execute(
+                """SELECT * FROM organism_continuity_snapshots
+                   ORDER BY id DESC LIMIT 1"""
+            ).fetchone()
+        if latest_snapshot is None:
+            raise RuntimeError("Continuity startup snapshot is missing")
+        latest_snapshot_dict = dict(latest_snapshot)
+        if not engine.digital_organism.verify_snapshot_record(
+            latest_snapshot_dict
+        ):
+            raise RuntimeError("Continuity snapshot hash verification failed")
+        tampered = dict(latest_snapshot_dict)
+        tampered["payload_json"] = '{"tampered":true}'
+        if engine.digital_organism.verify_snapshot_record(tampered):
+            raise RuntimeError("Continuity hash failed to detect payload tampering")
+
+        checks["digital_organism"] = {
+            "status": "ok",
+            "startup": {
+                "stage": (
+                    organism_startup.get("development_state") or {}
+                ).get("current_stage"),
+                "continuity": (
+                    organism_startup.get("continuity") or {}
+                ).get("status"),
+            },
+            "first_boot_timestamp": development_state.get(
+                "first_boot_timestamp"
+            ),
+            "first_boot_basis": development_state.get("first_boot_basis"),
+            "chronological_age_days": development_state.get(
+                "chronological_age_days"
+            ),
+            "stage": development_state.get("current_stage"),
+            "continuity": continuity.get("status"),
+            "snapshot_hash_verified": True,
+            "tamper_detection": True,
+            "autobiography_episodes": autobiography.get("total"),
+            "inner_time_fields": sorted(required_inner_time),
+            "scientific_boundary": organism.get("scientific_boundary"),
         }
 
         merged_graph_data = _merge_graph_data(
@@ -686,9 +767,16 @@ def main() -> int:
         checks["ai"] = snapshot["ai"]
         checks["permissions"] = snapshot["permissions"]
 
+        if engine is not None:
+            engine.digital_organism.shutdown(reason="self_check")
         print(json.dumps({"status": "ok", "checks": checks}, ensure_ascii=False, indent=2))
         return 0
     except Exception as exc:
+        if engine is not None and engine.digital_organism.boot_session_id:
+            try:
+                engine.digital_organism.shutdown(reason="self_check_error")
+            except Exception:
+                pass
         print(json.dumps({"status": "error", "error": str(exc), "checks": checks}, ensure_ascii=False, indent=2))
         return 1
 

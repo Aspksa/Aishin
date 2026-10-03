@@ -42,6 +42,7 @@ learning_task: asyncio.Task | None = None
 async def lifespan(_: FastAPI):
     global heartbeat, heartbeat_task, learning_task
     init_db()
+    engine.digital_organism.startup()
     engine.startup()
     for runtime_scope in engine.RUNTIME_SCOPES:
         engine.canonical_facts.sync_scope(scope=runtime_scope)
@@ -68,9 +69,10 @@ async def lifespan(_: FastAPI):
             await heartbeat_task
         if learning_task:
             await learning_task
+        engine.digital_organism.shutdown(reason='normal')
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.15', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.16', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -157,6 +159,27 @@ class KnowledgeSupersedeRequest(BaseModel):
     reason: str = ''
 
 
+class AishinNowUpdate(BaseModel):
+    active_scope: str | None = None
+    user_context: dict = Field(default_factory=dict)
+    environment_context: dict = Field(default_factory=dict)
+    current_screen: str | None = None
+    current_project: str | None = None
+    focus: str | None = None
+    active_task: str | None = None
+    expected_next_action: str | None = None
+
+
+class OrganismStageEvidenceUpdate(BaseModel):
+    criterion_key: str
+    status: str
+    source_type: str
+    source_ref: str = ''
+    confidence: float = 1.0
+    evidence: dict = Field(default_factory=dict)
+    expires_at: str | None = None
+
+
 class ProactiveFeedback(BaseModel):
     scope: str = 'personal'
     feedback: str
@@ -227,7 +250,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.15',
+        'version': '0.0.16',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -248,6 +271,107 @@ def assistant_profile() -> dict:
 @app.get('/api/assistant/state')
 def assistant_state(scope: str = 'personal') -> dict:
     return engine.snapshot(scope=scope)
+
+
+@app.get('/api/assistant/organism')
+def assistant_organism(scope: str = 'personal') -> dict:
+    return engine.digital_organism.dashboard(
+        scope=scope.strip() or 'personal',
+    )
+
+
+@app.get('/api/assistant/organism/now')
+def assistant_organism_now(scope: str = 'personal') -> dict:
+    return engine.digital_organism.now(
+        scope=scope.strip() or 'personal',
+    )
+
+
+@app.post('/api/assistant/organism/now')
+def assistant_organism_now_update(
+    payload: AishinNowUpdate,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    return engine.digital_organism.update_now(
+        active_scope=payload.active_scope,
+        user_context=payload.user_context,
+        environment_context=payload.environment_context,
+        current_screen=payload.current_screen,
+        current_project=payload.current_project,
+        focus=payload.focus,
+        active_task=payload.active_task,
+        expected_next_action=payload.expected_next_action,
+    )
+
+
+@app.get('/api/assistant/organism/inner-time')
+def assistant_organism_inner_time(
+    scope: str = 'personal',
+) -> dict:
+    return engine.digital_organism.inner_time(
+        scope=scope.strip() or 'personal',
+    )
+
+
+@app.get('/api/assistant/organism/development')
+def assistant_organism_development(
+    history_limit: int = 90,
+) -> dict:
+    return {
+        'current': engine.digital_organism.development_state(),
+        'history': engine.digital_organism.development_history(
+            limit=max(1, min(history_limit, 1000)),
+        ),
+        'stage_evidence': engine.digital_organism.stage_evidence(),
+    }
+
+
+@app.post('/api/assistant/organism/stage-evidence')
+def assistant_organism_stage_evidence(
+    payload: OrganismStageEvidenceUpdate,
+    request: Request,
+) -> dict:
+    _local_only(request)
+    evidence = engine.digital_organism.record_stage_evidence(
+        criterion_key=payload.criterion_key,
+        status=payload.status,
+        source_type=payload.source_type,
+        source_ref=payload.source_ref,
+        confidence=payload.confidence,
+        evidence=payload.evidence,
+        expires_at=payload.expires_at,
+    )
+    development = engine.digital_organism.refresh_development(
+        persist_snapshot=True,
+        allow_transition=True,
+    )
+    return {
+        'evidence': evidence,
+        'development_state': development,
+    }
+
+
+@app.get('/api/assistant/organism/autobiography')
+def assistant_organism_autobiography(
+    limit: int = 100,
+    episode_type: str | None = None,
+) -> list[dict]:
+    return engine.digital_organism.autobiography(
+        limit=max(1, min(limit, 1000)),
+        episode_type=episode_type,
+    )
+
+
+@app.get('/api/assistant/organism/continuity')
+def assistant_organism_continuity(
+    snapshot_limit: int = 50,
+    validation_limit: int = 50,
+) -> dict:
+    return engine.digital_organism.continuity_history(
+        snapshot_limit=max(1, min(snapshot_limit, 500)),
+        validation_limit=max(1, min(validation_limit, 500)),
+    )
 
 
 @app.get('/api/assistant/development')

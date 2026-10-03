@@ -185,6 +185,19 @@
     if (node) node.textContent = value;
   }
 
+  function stateLabel(value) {
+    return ({
+      executing: "выполняется",
+      recent: "недавно",
+      idle: "ожидание",
+      attention: "внимание",
+      running: "выполняется",
+      completed: "завершено",
+      fallback: "завершено · fallback",
+      error: "ошибка"
+    })[String(value || "")] || String(value || "ожидание");
+  }
+
   function renderTopology(data) {
     var svg = el("#live-brain-topology");
     if (!svg) return;
@@ -261,8 +274,8 @@
         '<rect width="' + w + '" height="' + h + '" rx="12"></rect>' +
         '<circle cx="11" cy="11" r="4"></circle>' +
         '<text class="brain-flow-node-label" x="' + (w / 2) + '" y="22">' + esc(short) + '</text>' +
-        '<text class="brain-flow-node-state" x="' + (w / 2) + '" y="35">' + esc(status) + '</text>' +
-        '<title>' + esc(label + " · " + status + age + " · visits=" + n(node.visits)) + '</title>' +
+        '<text class="brain-flow-node-state" x="' + (w / 2) + '" y="35">' + esc(stateLabel(status)) + '</text>' +
+        '<title>' + esc(label + " · " + stateLabel(status) + age + " · visits=" + n(node.visits)) + '</title>' +
         '</g>';
     }).join("");
 
@@ -309,7 +322,7 @@
     if (stream) {
       var status = topology.status || "idle";
       var elapsed = topology.elapsed_ms == null ? "" : " · " + n(topology.elapsed_ms) + " ms";
-      stream.textContent = "LIVE · " + status + elapsed;
+      stream.textContent = "LIVE · " + stateLabel(status) + elapsed;
       stream.classList.toggle("executing", status === "running");
       stream.classList.toggle("attention", status === "error");
     }
@@ -364,8 +377,16 @@
       ["Уверенность", pct(trace.logic_confidence)],
       ["Источники памяти", String(n(trace.memory_sources))],
       ["Доказательства", String(n(trace.evidence_items))],
+      ["Документальные chunks", String(n(trace.document_sources))],
+      ["Документы", Array.isArray(trace.document_ids) && trace.document_ids.length ? trace.document_ids.join(", ") : "—"],
+      ["Research evidence", String(n(trace.research_logic_evidence))],
+      ["Research conflicts", String(n(trace.research_logic_contradictions))],
       ["Перепроверка", trace.verification_ran ? ("да · " + n(trace.verification_unresolved) + " нереш.") : "не требовалась"],
       ["Качество", pct(trace.decision_quality)],
+      ["Исполнение", trace.execution_state ? stateLabel(trace.execution_state) : "—"],
+      ["Инструмент", trace.execution_tool || "—"],
+      ["Фактически выполнено", trace.execution_executed ? "да" : "нет"],
+      ["Approval", trace.approval_decision_id == null ? "—" : ("#" + trace.approval_decision_id)],
       ["Провайдер", trace.provider || "fallback"],
       ["Задержка", trace.total_ms != null ? (n(trace.total_ms) + " мс") : "—"],
       ["Узкое место", trace.bottleneck || "—"],
@@ -391,7 +412,7 @@
     var stats = graph.stats || {};
     setText("#lb-graph-caption", compact(stats.entities) + " сущностей · " + compact(stats.relations) + " связей");
     if (!entities.length) {
-      svg.innerHTML = '<text x="260" y="115" text-anchor="middle" fill="#9a908c" font-size="9">Граф знаний ещё пуст</text>';
+      svg.innerHTML = '<text x="260" y="115" text-anchor="middle" fill="#9a908c" font-size="11">Граф знаний ещё пуст</text>';
       return;
     }
 

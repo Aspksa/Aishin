@@ -44,8 +44,8 @@ class SelfReflectionMetrics:
         metacognition: dict,
         verification: dict,
         decision_quality: dict,
-        response_grounding: dict | None = None,
         performance: dict,
+        response_grounding: dict | None = None,
     ) -> ReflectionResult:
         weak: list[str] = []
         errors = 0

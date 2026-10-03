@@ -151,6 +151,7 @@ Safe Trace показывает только эти технические сч�
 - `GET /api/assistant/knowledge-lifecycle`
 - `GET /api/assistant/knowledge-lifecycle/claims`
 - `GET /api/assistant/knowledge-lifecycle/hypotheses`
+- `POST /api/assistant/knowledge-lifecycle/claims/{claim_id}/supersede`
 - `GET /api/assistant/knowledge-lifecycle/transitions`
 - `GET /api/assistant/knowledge-lifecycle/learning-events`
 

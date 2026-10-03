@@ -10,6 +10,7 @@ from urllib.request import urlopen
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
@@ -151,6 +152,181 @@ def assert_desktop(driver: webdriver.Chrome) -> None:
             )
 
 
+def assert_scope_and_modules(driver: webdriver.Chrome) -> None:
+    wait = WebDriverWait(driver, 20)
+    scope = driver.find_element(By.ID, "scope-select")
+    driver.execute_script(
+        """
+        const select = arguments[0];
+        select.value = 'project:aishin';
+        select.dispatchEvent(new Event('change', {bubbles: true}));
+        """,
+        scope,
+    )
+    wait.until(
+        lambda d: (
+            d.find_element(By.ID, "scope-context-label").text.strip()
+            == "ПРОЕКТНОЕ ПРОСТРАНСТВО · AISHIN"
+        )
+    )
+    stored = driver.execute_script(
+        "return localStorage.getItem('aishin.scope');"
+    )
+    if stored != "project:aishin":
+        raise RuntimeError(
+            f"Scope switch was not persisted: {stored!r}"
+        )
+
+    result = driver.execute_async_script(
+        """
+        const done = arguments[0];
+        const lines = [];
+        for (let i = 1; i <= 24; i++) {
+          lines.push(
+            "Пункт " + i +
+            ": документ browser QA проверяет provenance, " +
+            "scope, факты и доступность интерфейса."
+          );
+        }
+        const text =
+          "BROWSER QA DOCUMENT\\n" +
+          "Параметр: 42 единицы\\n" +
+          "Дата: 03.10.2026\\n" +
+          lines.join("\\n");
+        const file = new File(
+          [text],
+          "Browser QA 2026.txt",
+          {type: "text/plain"}
+        );
+        const form = new FormData();
+        form.append("file", file, file.name);
+        form.append("scope", "project:aishin");
+        form.append("enrich_with_ai", "false");
+        form.append("build_semantic_index", "false");
+        fetch("/api/assistant/documents/upload", {
+          method: "POST",
+          body: form
+        })
+          .then(async response => {
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              throw new Error(body.detail || ("HTTP " + response.status));
+            }
+            done({ok: true, body: body});
+          })
+          .catch(error => done({ok: false, error: String(error)}));
+        """
+    )
+    if not result or not result.get("ok"):
+        raise RuntimeError(
+            "Browser could not seed scoped document: "
+            f"{result}"
+        )
+
+    documents_nav = driver.find_element(
+        By.CSS_SELECTOR, '[data-module="documents"]'
+    )
+    driver.execute_script("arguments[0].click();", documents_nav)
+    wait.until(
+        lambda d: (
+            "active"
+            in (
+                d.find_element(
+                    By.ID, "documents-module"
+                ).get_attribute("class")
+                or ""
+            )
+        )
+    )
+    wait.until(
+        lambda d: len(
+            d.find_elements(
+                By.CSS_SELECTOR,
+                "#documents-list [data-document-open]",
+            )
+        ) >= 1
+    )
+
+    open_button = driver.find_elements(
+        By.CSS_SELECTOR,
+        "#documents-list [data-document-open]",
+    )[0]
+    driver.execute_script(
+        "arguments[0].scrollIntoView({block:'center'});",
+        open_button,
+    )
+    open_button.click()
+
+    modal = driver.find_element(By.ID, "documents-modal")
+    wait.until(
+        lambda d: (
+            modal.get_attribute("aria-hidden") == "false"
+            and "open" in (modal.get_attribute("class") or "")
+        )
+    )
+    active_id = driver.execute_script(
+        "return document.activeElement && document.activeElement.id;"
+    )
+    active_class = driver.execute_script(
+        "return document.activeElement && document.activeElement.className;"
+    )
+    if (
+        active_id not in {"documents-reprocess", "documents-modal-close"}
+        and "documents-modal-card" not in str(active_class or "")
+    ):
+        raise RuntimeError(
+            "Document dialog did not receive keyboard focus."
+        )
+
+    close_button = driver.find_element(By.ID, "documents-modal-close")
+    driver.execute_script("arguments[0].focus();", close_button)
+    close_button.send_keys(Keys.TAB)
+    cycled_id = driver.execute_script(
+        "return document.activeElement && document.activeElement.id;"
+    )
+    if cycled_id != "documents-reprocess":
+        raise RuntimeError(
+            "Document dialog focus trap did not cycle Tab to first control: "
+            f"{cycled_id!r}"
+        )
+
+    driver.switch_to.active_element.send_keys(Keys.ESCAPE)
+    wait.until(
+        lambda d: modal.get_attribute("aria-hidden") == "true"
+    )
+    returned = driver.execute_script(
+        """
+        return document.activeElement &&
+          document.activeElement.hasAttribute('data-document-open');
+        """
+    )
+    if not returned:
+        raise RuntimeError(
+            "Closing document dialog did not restore trigger focus."
+        )
+
+    research_nav = driver.find_element(
+        By.CSS_SELECTOR, '[data-module="research"]'
+    )
+    driver.execute_script("arguments[0].click();", research_nav)
+    wait.until(
+        lambda d: (
+            "active"
+            in (
+                d.find_element(
+                    By.ID, "research-module"
+                ).get_attribute("class")
+                or ""
+            )
+        )
+    )
+    wait.until(
+        lambda d: d.find_element(
+            By.ID, "research-score"
+        ).is_displayed()
+    )
+
+
 def assert_mobile(driver: webdriver.Chrome) -> None:
     # Use Chrome's real mobile viewport emulation instead of merely narrowing
     # a desktop window. A desktop vertical scrollbar consumes ~15 CSS px and
@@ -260,6 +436,10 @@ def main() -> int:
             driver.get(f"{BASE_URL}/#technical-brain")
             wait_for_observatory(driver)
             assert_desktop(driver)
+            assert_scope_and_modules(driver)
+
+            driver.get(f"{BASE_URL}/#technical-brain")
+            wait_for_observatory(driver)
 
             desktop = ARTIFACTS / "desktop-1440x1000.png"
             if not driver.save_screenshot(str(desktop)):
@@ -308,8 +488,9 @@ def main() -> int:
                 )
 
             print(
-                "BROWSER UI SMOKE OK: real Chrome rendered expanded "
-                "Live Brain; interaction and mobile containment verified"
+                "BROWSER UI SMOKE OK: real Chrome verified Live Brain, "
+                "scope isolation, Documents dialog keyboard behavior, "
+                "Research routing and mobile containment"
             )
             return 0
         finally:

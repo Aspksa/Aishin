@@ -135,7 +135,7 @@
       };
     });
     if (!items.length) {
-      svg.innerHTML = '<text x="160" y="120" text-anchor="middle" fill="#9a908c" font-size="9">Данные интеллекта ещё не накоплены</text>';
+      svg.innerHTML = '<text x="160" y="120" text-anchor="middle" fill="#9a908c" font-size="11">Данные интеллекта ещё не накоплены</text>';
       return;
     }
 
@@ -301,7 +301,7 @@
     if (!svg) return;
     items = Array.isArray(items) ? items.slice().reverse() : [];
     if (items.length < 2) {
-      svg.innerHTML = '<text x="450" y="95" text-anchor="middle" fill="#9a908c" font-size="9">История интеллекта ещё накапливается</text>';
+      svg.innerHTML = '<text x="450" y="95" text-anchor="middle" fill="#9a908c" font-size="11">История интеллекта ещё накапливается</text>';
       return;
     }
     var width = 900, height = 190, px = 34, py = 22;

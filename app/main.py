@@ -68,7 +68,7 @@ async def lifespan(_: FastAPI):
             await learning_task
 
 
-app = FastAPI(title='Aishin Kitsune', version='0.0.12', lifespan=lifespan)
+app = FastAPI(title='Aishin Kitsune', version='0.0.13', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=APP_DIR / 'static'), name='static')
 
 
@@ -219,7 +219,7 @@ def health() -> dict:
     return {
         'status': 'ok',
         'name': personality.name,
-        'version': '0.0.12',
+        'version': '0.0.13',
         'runtime': state.to_dict(),
         'ai': engine.ai.health(),
         'ai_resilience': engine.ai.diagnostics(),
@@ -1576,6 +1576,25 @@ def assistant_self_reflection(
         'recent': engine.self_reflection.recent(
             scope=scope,
             limit=max(1, min(limit, 200)),
+        ),
+    }
+
+
+@app.get('/api/assistant/response-grounding')
+def assistant_response_grounding(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> dict:
+    bounded = max(1, min(limit, 200))
+    return {
+        'version': engine.response_grounding.VERSION,
+        'summary': engine.response_grounding.summary(
+            scope=scope,
+            limit=bounded,
+        ),
+        'recent': engine.response_grounding.recent(
+            scope=scope,
+            limit=bounded,
         ),
     }
 

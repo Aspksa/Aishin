@@ -244,6 +244,7 @@ class BrainFlowRuntime:
             state["error"] = str(error or "")[:500]
             self._sequence += 1
             state["sequence"] = self._sequence
+            self._prune_locked(scope)
 
     def fail(
         self,
@@ -267,6 +268,7 @@ class BrainFlowRuntime:
             state["completed_mono"] = monotonic()
             self._sequence += 1
             state["sequence"] = self._sequence
+            self._prune_locked(scope)
 
     def running_request_ids(self, *, scope: str) -> list[str]:
         scope = (scope or "personal").strip() or "personal"

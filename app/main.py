@@ -1580,6 +1580,25 @@ def assistant_self_reflection(
     }
 
 
+@app.get('/api/assistant/response-grounding')
+def assistant_response_grounding(
+    scope: str = 'personal',
+    limit: int = 30,
+) -> dict:
+    bounded = max(1, min(limit, 200))
+    return {
+        'version': engine.response_grounding.VERSION,
+        'summary': engine.response_grounding.summary(
+            scope=scope,
+            limit=bounded,
+        ),
+        'recent': engine.response_grounding.recent(
+            scope=scope,
+            limit=bounded,
+        ),
+    }
+
+
 @app.get('/api/assistant/learning-plans')
 def assistant_learning_plans(
     scope: str = 'personal',

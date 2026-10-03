@@ -1,4 +1,15 @@
 (function () {
+  function scopeValue() {
+    return window.AISHIN_SCOPE?.get?.() || "personal";
+  }
+  function scopeUrl(url) {
+    return window.AISHIN_SCOPE?.url?.(url) || url;
+  }
+  const nativeFetch = window.fetch.bind(window);
+  function fetchScope(url, options) {
+    return nativeFetch(scopeUrl(url), options);
+  }
+
   "use strict";
 
   var data = null;
@@ -93,7 +104,7 @@
     if (refresh) refresh.addEventListener("click", function () {
       refresh.disabled = true;
       setStatus("Пересчитываю evidence, свежесть и доверие…");
-      fetch("/api/assistant/growth/refresh?scope=personal", {
+      fetchScope("/api/assistant/growth/refresh?scope=personal", {
         method: "POST"
       })
         .then(function (r) {
@@ -237,7 +248,7 @@
   function load() {
     if (loading) return Promise.resolve(data);
     loading = true;
-    return fetch("/api/assistant/growth?scope=personal&skill_limit=100&knowledge_limit=100&specialization_limit=50&history_limit=90", {
+    return fetchScope("/api/assistant/growth?scope=personal&skill_limit=100&knowledge_limit=100&specialization_limit=50&history_limit=90", {
       cache: "no-store"
     })
       .then(function (r) {
@@ -273,4 +284,5 @@
   } else {
     boot();
   }
+  window.AISHIN_GROWTH_REFRESH = load;
 })();

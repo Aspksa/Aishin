@@ -1,4 +1,15 @@
 (function () {
+  function scopeValue() {
+    return window.AISHIN_SCOPE?.get?.() || "personal";
+  }
+  function scopeUrl(url) {
+    return window.AISHIN_SCOPE?.url?.(url) || url;
+  }
+  const nativeFetch = window.fetch.bind(window);
+  function fetchScope(url, options) {
+    return nativeFetch(scopeUrl(url), options);
+  }
+
   "use strict";
 
   var data = null;
@@ -247,7 +258,7 @@
   function load() {
     if (loading) return Promise.resolve(data);
     loading=true;
-    return fetch("/api/assistant/evolution?scope=personal&capability_limit=40&variant_limit=80&curriculum_limit=80&transfer_limit=80&cycle_limit=80",{cache:"no-store"})
+    return fetchScope("/api/assistant/evolution?scope=personal&capability_limit=40&variant_limit=80&curriculum_limit=80&transfer_limit=80&cycle_limit=80",{cache:"no-store"})
       .then(function(r){if(!r.ok)throw new Error("Evolution HTTP "+r.status);return r.json();})
       .then(function(payload){render(payload);return payload;})
       .catch(function(err){
@@ -261,7 +272,7 @@
   function runCycle() {
     var btn=q("#evolution-cycle-btn");
     if(btn){btn.disabled=true;btn.textContent="Эволюционирую…";}
-    return fetch("/api/assistant/evolution/cycle?scope=personal",{method:"POST"})
+    return fetchScope("/api/assistant/evolution/cycle?scope=personal",{method:"POST"})
       .then(function(r){if(!r.ok)throw new Error("Evolution cycle HTTP "+r.status);return r.json();})
       .then(load)
       .catch(function(err){window.alert("Не удалось выполнить Evolution Cycle: "+(err.message||err));})

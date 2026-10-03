@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from threading import RLock
 from typing import Any
 
 from ..db import get_runtime_state, set_runtime_state
@@ -37,50 +38,75 @@ class AishinState:
 
 class StateManager:
     KEY = "aishin_runtime_state"
+    _LOCK = RLock()
 
     def load(self) -> AishinState:
-        raw = get_runtime_state(self.KEY)
-        if not raw:
-            now = utc_now()
+        with self._LOCK:
+            raw = get_runtime_state(self.KEY)
+            if not raw:
+                now = utc_now()
+                state = AishinState(
+                    last_seen_at=now,
+                    last_activity_at=now,
+                    heartbeat_at=now,
+                )
+                self.save(state)
+                return state
+
+            allowed = AishinState.__dataclass_fields__.keys()
             state = AishinState(
-                last_seen_at=now,
-                last_activity_at=now,
-                heartbeat_at=now,
+                **{k: raw[k] for k in raw if k in allowed}
             )
+            return state.normalize()
+
+    def save(self, state: AishinState) -> None:
+        with self._LOCK:
+            set_runtime_state(
+                self.KEY,
+                state.normalize().to_dict(),
+            )
+
+    def touch(
+        self,
+        *,
+        activity: str,
+        focus: str | None = None,
+    ) -> AishinState:
+        with self._LOCK:
+            state = self.load()
+            state.status = "awake"
+            state.activity = activity
+            if focus is not None:
+                state.focus = focus
+            state.last_activity_at = utc_now()
             self.save(state)
             return state
 
-        allowed = AishinState.__dataclass_fields__.keys()
-        state = AishinState(**{k: raw[k] for k in raw if k in allowed})
-        return state.normalize()
-
-    def save(self, state: AishinState) -> None:
-        set_runtime_state(self.KEY, state.normalize().to_dict())
-
-    def touch(self, *, activity: str, focus: str | None = None) -> AishinState:
-        state = self.load()
-        state.status = "awake"
-        state.activity = activity
-        if focus is not None:
-            state.focus = focus
-        state.last_activity_at = utc_now()
-        self.save(state)
-        return state
-
     def heartbeat(self) -> AishinState:
-        state = self.load()
-        state.heartbeat_at = utc_now()
-        self.save(state)
-        return state
+        with self._LOCK:
+            state = self.load()
+            state.heartbeat_at = utc_now()
+            self.save(state)
+            return state
 
-    def interaction(self, focus: str) -> AishinState:
-        state = self.load()
-        state.status = "awake"
-        state.activity = "conversation"
-        state.focus = focus
-        state.interaction_count += 1
-        now = utc_now()
-        state.last_seen_at = now
-        state.last_activity_at = now
-        self.save(state)
-        return state
+    def interaction(
+        self,
+        focus: str,
+        *,
+        scope: str | None = None,
+    ) -> AishinState:
+        with self._LOCK:
+            state = self.load()
+            state.status = "awake"
+            state.activity = "conversation"
+            state.focus = focus
+            if scope is not None:
+                clean_scope = str(scope).strip()
+                if clean_scope:
+                    state.current_scope = clean_scope
+            state.interaction_count += 1
+            now = utc_now()
+            state.last_seen_at = now
+            state.last_activity_at = now
+            self.save(state)
+            return state

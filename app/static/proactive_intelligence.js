@@ -473,11 +473,15 @@
     var form = q("#chat-form");
     if (form) {
       form.addEventListener("submit", function () {
-        setTimeout(load, 2800);
+        if (q("#attention-module")?.classList.contains("active")) {
+          setTimeout(load, 2800);
+        }
       });
     }
 
-    load();
+    if (q("#attention-module")?.classList.contains("active")) {
+      load();
+    }
   }
 
   window.AISHIN_PROACTIVE_REFRESH = load;
